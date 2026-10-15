@@ -10,6 +10,8 @@
 
 This is an engineering acceptance checklist, not yet the frontend visual design plan. Frontend information architecture and visual direction remain a separate discussion.
 
+> **Status update (15 October 2026):** Approved product decisions have since changed this baseline. ClearSettle's MVP now includes a double-entry accounting ledger in addition to reconciliation, and the frontend is Next.js + React + JavaScript. See `docs/product/clearsettle_decision_register.md` (D-PRD-05, D-TEC-03, and §4 for checklist items affected). Where this checklist and the decision register differ, the register governs.
+
 ### Priority meanings
 
 - **P0 — Foundational:** design and implement before or alongside the feature that depends on it. Required for core correctness or safe development.
@@ -166,6 +168,8 @@ This is a quality/reliability checklist only. It deliberately does **not** decid
 ## 10. Cross-reference: all 110 engineering concepts
 
 The status below is a decision for the **current ClearSettle scope**, not a claim that every concept is implemented. Change a status only after recording a reason and, where applicable, the trigger for revisiting it.
+
+> **Status update (15 October 2026):** Approved product decisions have triggered several conditional items in this table, including #15, #20, #21, #69, #72, #82, #83, #100 and #109. The table rows are unchanged; the effect of each decision is recorded in `docs/product/clearsettle_decision_register.md` §4.
 
 ### Traffic management, containers, CI/CD
 
@@ -368,6 +372,8 @@ A feature is not done until the applicable items below are checked:
 
 These are genuine product/architecture questions, not assumptions to silently make:
 
+> **Status update (15 October 2026):** Questions 1–3 are answered by approved decisions and questions 4–6 are partly answered. Their current status and the remaining open questions are tracked in `docs/product/clearsettle_decision_register.md` §3–§4.
+
 1. **Data ingestion sources:** uploaded CSVs only initially, or specific payment-provider APIs/webhooks as well?
 2. **Ledger boundary:** will ClearSettle create accounting journal entries, or only reconcile imported payment/settlement/bank records?
 3. **Tenant model:** is this multi-merchant SaaS from the start, or a single-organization demonstrator? The security design should still prevent accidental cross-tenant access if multi-tenancy is planned.
@@ -375,4 +381,4 @@ These are genuine product/architecture questions, not assumptions to silently ma
 5. **Authentication:** password/session, JWT, or enterprise SSO? Choose one intentionally rather than combining several patterns by default.
 6. **Deployment target:** which host/database service and what practical uptime/recovery expectations apply to the first release?
 
-These questions should be answered as scope discussions progress. They do not block using the checklist to guide careful implementation now.
+These questions should be answered as scope discussions progress. The checklist may guide specification and planning work now; application implementation begins only after the owner's explicit authorization (see `docs/README.md`).
