@@ -1,7 +1,7 @@
 # ClearSettle — Product Specification
 
 **Document status:** Draft for owner review. Specification phase only. This document does not authorize implementation (D-PRC-01).
-**Prepared:** 15 October 2026
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review
 **Decision source:** [Decision register](clearsettle_decision_register.md). Decision IDs (`D-…`) and open questions (`OQ-…`) refer to it. Audit findings (`AF-…`) refer to the [specification audit](clearsettle_specification_audit.md).
 **Engineering baseline:** [Master engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 
@@ -20,6 +20,8 @@ This is the primary product-level reference for engineering, UX, testing and rev
 | **Unresolved** | Depends on an open question. The recommended default is shown but is not binding. |
 
 Requirement IDs are stable. An ID is never reused after deletion; it is marked "withdrawn" instead.
+
+In source citations, "Lnn" means line nn of the cited file. L1, L2 and L3 written without a file name are the reconciliation links defined in §5.1.
 
 ### Requirement ID prefixes
 
@@ -102,7 +104,9 @@ These personas are an **INFERENCE** derived from the five approved roles (D-SEC-
 | Double-entry accrual ledger, Chart of Accounts, templates, journals with independent approval, periods, opening balances, cutover | Full GST calculation, returns and filing (D-DEF-04) | Integration with external accounting software (none approved; treat as out of scope unless approved) |
 | Core accounting and operational reports; CSV and XLSX exports | Cash-flow statements, budgeting, forecasting, analytics (D-DEF-07) | — |
 | Five roles, managed OIDC, MFA for privileged users, tenant isolation, audit trail | Marketing landing page until the core application works end-to-end (D-DEF-01) | — |
-| Background jobs, in-app and email notifications, backups, monitoring, three environments | AI/LLM features (D-PRD-07) | — |
+| Background jobs, in-app and email notifications, backups, monitoring, three environments | — | — |
+
+AI/LLM features are excluded by the engineering rule D-PRD-07. They are not one of the seed's deferred items.
 
 ---
 
@@ -118,7 +122,10 @@ These terms are binding for APIs, data models, UI copy and tests (checklist §2,
 | **Business** | The organization that owns a workspace. In gateway terminology this is the "merchant". | Mandatory |
 | **User** | A person authenticated by the managed identity provider. | Mandatory (D-SEC-06) |
 | **Member** | A user's membership in a workspace, with one or more roles. | Mandatory |
-| **Role** | One of the five predefined roles (§2.3). | Mandatory (D-SEC-01) |
+| **Role** | One of the five predefined roles (§2.3). Short names used in this document: **Admin** = Workspace Owner/Admin; **Analyst** = Reconciliation Analyst; **Preparer** = Accountant/Journal Preparer; **Controller** = Finance Controller/Approver; **Auditor** = Auditor/Viewer. | Mandatory (D-SEC-01) |
+| **Exception owner (assignee)** | The member assigned to an exception (the seed's "owner"). UI copy calls this person the *assignee*, to avoid confusion with the Workspace Owner/Admin role and with the product owner. | Mandatory (D-REC-15) |
+| **Source account** | A workspace-configured gateway account or bank account that an uploaded report belongs to. Identity keys and identifier evidence are scoped to it (FR-IMP-034). | Recommended (AF-105) |
+| **Upload holding area** | Temporary private storage where an uploaded file waits until its file checks pass. Not to be confused with *quarantined rows*, which are retained evidence. | Recommended |
 | **Source category** | One of: Merchant orders, Gateway transactions, Settlement reports, Bank statements. | Mandatory (D-IMP-01) |
 | **Source report** | An uploaded CSV or XLSX file of one source category. Every upload is a distinct, immutable file version. | Mandatory (D-IMP-13) |
 | **Import** | The processing of one source report into source records, including validation, quarantine and commit. | Mandatory |
@@ -263,7 +270,7 @@ Each journey names the requirements that govern it. The release-gate workflow (D
 ### J1 — Onboard a workspace (UC-01)
 1. The user signs in with the managed identity provider (NFR-SEC-001).
 2. They create a workspace and become its Admin (FR-WSP-001).
-3. They set the financial year, cutover date, functional currency and time zone (FR-WSP-007, FR-ACC-022).
+3. They set the workspace profile and time zone. A Controller confirms the financial year, cutover date and functional currency with MFA before the first posting (FR-WSP-007, FR-ACC-022, FR-ACC-028; Recommended, OQ-29).
 4. They review the default Chart of Accounts (FR-ACC-002; content per OQ-27).
 5. They invite teammates and assign roles (FR-WSP-003). Privileged users must enrol in MFA before using privileged actions (NFR-SEC-003).
 
@@ -349,10 +356,12 @@ Which gateways and banks are supported first is unresolved (OQ-07). No provider-
 | FR-IMP-001 | Users upload a CSV or XLSX file for exactly one source category. Any other file type is rejected with a reason that names the supported types. | Mandatory | D-IMP-01, D-IMP-02, D-IMP-08 |
 | FR-IMP-002 | Before parsing, the system checks the file type from its content (not only the extension) and its size against the limit. It rejects password-protected or encrypted files, corrupted files, macro-enabled workbooks and legacy `.xls` files, each with a specific reason. | Mandatory (rejecting unsafe or unsupported files); INFERENCE (`.xls` and macro rejection) | D-IMP-02, D-IMP-08 |
 | FR-IMP-003 | Default limits are 50 MB per file and 250,000 data rows per file. Limits are configurable per deployment, and stricter limits can be set per workspace. A file over a limit is rejected before any record is created. | Mandatory (values are unverified targets) | D-IMP-09 |
-| FR-IMP-030 | XLSX files also have limits on uncompressed size, cell count, column count, cell length and parse time, so a compressed file cannot exhaust memory. | Recommended | D-IMP-09, AF-68 |
-| FR-IMP-004 | Uploads first land in a temporary quarantine area. They move to private, encrypted evidence storage only after passing file checks, the sensitive-data screen and malware scanning where supported. Files that fail are deleted from the quarantine area after a short period (value OQ-41). | Recommended | D-DAT-03, D-DAT-04, OQ-39, OQ-40 |
+| FR-IMP-030 | XLSX files also have limits on uncompressed size, cell count, column count, cell length and parse time, so a compressed file cannot exhaust memory. The workbook's XML is parsed with document type declarations and entity expansion disabled, so external entities are never resolved. External links, embedded objects and macros are ignored, never executed. | Recommended | D-IMP-09, AF-68, AF-131 |
+| FR-IMP-004 | Uploads first land in a temporary upload holding area. They move to private, encrypted evidence storage only after passing file checks, the sensitive-data screen and malware scanning where supported. Files that fail are deleted from the holding area after a short period (value OQ-41). | Recommended | D-DAT-03, D-DAT-04, OQ-39, OQ-40 |
+| FR-IMP-034 | Every upload belongs to a workspace-configured source account: a gateway account for orders, transactions and settlements, or a bank account for statements. The account is chosen or confirmed at upload. Identity keys and identifier evidence are scoped to it, so a reference from one gateway or bank account is never treated as exact evidence for another. Bank accounts are told apart by this configuration, or by a non-reversible token, and never by storing full account numbers. | Mandatory (derived from D-REC-04 and D-IMP-06: an identifier is exact evidence only within the namespace that issued it); Recommended (mechanism) | D-REC-04, D-IMP-06, AF-105 |
+| FR-IMP-031 | When a bank statement reports opening and closing balances, the import checks continuity: the opening balance equals the previous statement's closing balance for the same account, and the transactions reconcile the opening balance to the closing balance. Date gaps are flagged. A failure raises an exception; nothing is adjusted. | Recommended (supports OQ-51) | OQ-51, AF-102 |
 | FR-IMP-005 | Each upload records a content fingerprint (a cryptographic hash) plus metadata. A byte-identical file already imported into the same workspace is blocked, with a link to the earlier import, and creates no records. | Mandatory (fingerprint); Unresolved (blocking behaviour, OQ-10) | D-IMP-06 |
-| FR-IMP-022 | Before storage, the system screens uploads for likely full card numbers (long digit sequences that pass the standard card-number checksum). Recommended default: reject the file with guidance. Bank account numbers are masked to the last four digits in imported records. | Mandatory (masking where appropriate, D-DAT-05); Unresolved (specific behaviour, OQ-39) | D-DAT-05, OQ-39 |
+| FR-IMP-022 | Before storage, the system screens uploads for likely full card numbers. A value counts as likely only when it has 13–19 digits, passes the standard card-number checksum, matches a known card-issuer prefix range, and appears in a column whose context suggests card data. The checksum alone is not enough: roughly one random digit string in ten passes it. Recommended default: hold the file and ask the user to confirm or remove the column; reject without review only in high-confidence cases. Bank account numbers are shown masked to the last four digits in imported records; accounts are still told apart through FR-IMP-034. | Mandatory (masking where appropriate, D-DAT-05); Unresolved (specific behaviour, OQ-39) | D-DAT-05, OQ-39, AF-129 |
 | FR-IMP-023 | Each import records the uploader, upload time, original file name, size, fingerprint, category, template version, row counts by outcome, job ID and workspace. | Mandatory | D-IMP-13 |
 
 ### 4.3 Minimum conceptual fields
@@ -373,7 +382,7 @@ These are the minimum canonical fields that the approved matching rules need (D-
 |---|---|---|---|
 | FR-IMP-006 | The mapping screen previews the headers and a bounded number of sample rows. Users map source columns to canonical fields and can save the mapping as a reusable template. A template is applied automatically only when the file's header signature matches it exactly. Otherwise the user must re-map. | Mandatory (mapping, preview, templates); Recommended (header-signature rule) | D-IMP-03 |
 | FR-IMP-007 | Mappings are suggested only when confidence is high. Financially important fields need explicit user confirmation even when suggested: amount, sign or direction, currency, date and its format, identifiers and status. | Mandatory | D-IMP-03 |
-| FR-IMP-008 | Each template sets its parsing explicitly: date format (for example DD/MM/YYYY), decimal separator and digit grouping (including Indian grouping such as 1,00,000), sign convention (signed amount or separate debit and credit columns), currency source (a column, or a fixed value confirmed per file), text encoding, worksheet (XLSX) and header row. | Mandatory (derived from D-IMP-04) | D-IMP-04 |
+| FR-IMP-008 | Each template sets its parsing explicitly:<br>• date format (for example DD/MM/YYYY);<br>• decimal separator and digit grouping (including Indian grouping such as 1,00,000);<br>• sign convention (signed amount or separate debit and credit columns);<br>• amount unit for each amount column (major units, or minor units such as paise), confirmed by the user;<br>• currency source (a column, or a fixed value confirmed per file);<br>• text encoding;<br>• worksheet (XLSX) and header row. | Mandatory (derived from D-IMP-03 and D-IMP-04) | D-IMP-03, D-IMP-04, AF-114 |
 | FR-IMP-024 | Mapping templates are versioned. Every import records the exact template version it used. Editing a template creates a new version and never changes the interpretation of past imports. | Mandatory (derived from D-IMP-13 and D-REC-18) | D-IMP-13, D-REC-18 |
 | FR-IMP-027 | A template may define a provider status mapping (raw status → successful, failed, cancelled, pending or other) and, if approved, a status order (OQ-09). An unmapped status makes the record ineligible for settlement reconciliation and raises an "Unmapped status" exception. | Mandatory (status mapping, derived from D-REC-02); Unresolved (status order) | D-REC-02, OQ-08, OQ-09 |
 
@@ -384,7 +393,9 @@ These are the minimum canonical fields that the approved matching rules need (D-
 | FR-IMP-009 | Each row is validated for required fields, dates that parse under the configured format, exact decimal amounts within the currency's precision, a valid ISO 4217 currency code, a consistent sign or direction, and the identifiers its category requires. Each failure records the row number, field, original value and reason. | Mandatory | D-IMP-04 |
 | FR-IMP-010 | Parsed rows are validated in staging. Nothing becomes a source record until commit. The user sees a validation summary (valid, quarantined, repeat occurrences, conflicting observations, incomplete settlement groups) and confirms the commit. | Mandatory (staging); Recommended (explicit confirmation step) | D-IMP-04 |
 | FR-IMP-011 | The commit is idempotent. Retrying an interrupted commit leaves exactly one source record per identity key and never duplicates financial records. | Mandatory | D-IMP-07 |
-| FR-IMP-028 | A value with more decimal places than its currency allows is a validation error. It is never silently rounded. | Mandatory (derived from D-FIN-07 and D-REC-17) | D-FIN-07 |
+| FR-IMP-028 | A value with more decimal places than its currency allows is never silently rounded. Recommended default: quarantine the row. Alternative: preserve the value exactly as reported and raise an exception. | Mandatory (no silent rounding, derived from D-FIN-07 and D-REC-17); Unresolved (quarantine or flag, OQ-53) | D-FIN-07, OQ-53 |
+| FR-IMP-032 | Identifier columns are read as exact text, with no numeric conversion: leading zeros, length and all digits are kept. An identifier that arrives as a spreadsheet number that has lost precision, or in scientific notation, quarantines its row. | Mandatory (derived from D-REC-04: exact identifiers must stay exact) | D-REC-04, AF-115 |
+| FR-IMP-033 | XLSX cell handling:<br>• numeric cells are converted to the shortest decimal that round-trips the stored number, never to the full binary expansion;<br>• date cells are interpreted under the workbook's declared date system (1900 or 1904);<br>• a financial or identifier field whose cell holds a formula quarantines its row by default, because the cached value may be stale. | Mandatory (date system, derived from D-IMP-04); Recommended (numeric conversion and formula rule) | D-IMP-04, AF-114 |
 
 ### 4.6 Partial import and quarantine
 
@@ -400,7 +411,7 @@ These are the minimum canonical fields that the approved matching rules need (D-
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-IMP-015 | Each category has an identity key built from reliable source identifiers, defined by the template (for example gateway payment ID; refund ID; payout reference plus line type plus line identifier). A row whose identity key already exists with identical canonical values creates no new record. It is recorded as a repeat occurrence. | Mandatory (no duplicates); Recommended (repeat-occurrence recording) | D-IMP-06, D-IMP-07 |
+| FR-IMP-015 | Each source category and provider has an identity key built from reliable source identifiers and scoped to the source account (FR-IMP-034). Examples: gateway payment ID; refund ID; payout reference plus line type plus line identifier. The key is defined per category and provider profile, not freely per template. Changing a key definition needs approval by a Controller other than the person who proposed the change, and then a duplicate check across all template versions. A row whose identity key already exists with identical canonical values creates no new record; it is recorded as a repeat occurrence. | Mandatory (no duplicates); Recommended (key governance, repeat-occurrence recording); Unresolved (approval, OQ-22) | D-IMP-06, D-IMP-07, AF-104 |
 | FR-IMP-016 | A row whose identity key already exists with *different* values never overwrites the existing record. The recommended default stores it as a new observation. A status change that follows a template-defined status order updates the record's current status and keeps its history. Any other difference raises a "Conflicting source data" exception, and the record cannot be auto-matched until that is resolved. | Mandatory (no overwrite, D-IMP-12); Unresolved (handling, OQ-09) | D-IMP-12, OQ-09, AF-21 |
 | FR-IMP-017 | Two rows in the same file with the same identity key but different values are both quarantined with the reason "Conflicting duplicate within file". | Recommended | D-IMP-06 |
 | FR-IMP-018 | Rows that share only amount or date are never treated as duplicates automatically. They may be shown as "Possible duplicate" for review. | Mandatory (no automatic treatment); Recommended (surfacing) | D-IMP-06 |
@@ -409,7 +420,7 @@ These are the minimum canonical fields that the approved matching rules need (D-
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-IMP-019 | An authorized user can designate a new upload as a revision of a specific earlier import in the same category. Before commit, the system shows the differences by identity key: added, removed and changed records. On commit:<br>• the earlier import becomes `Superseded`;<br>• records missing from the revision become `Withdrawn by revision` (they are not deleted);<br>• changed records get new versions;<br>• all earlier files and history are kept. | Mandatory (designation, preservation, change display); Recommended (diff mechanics) | D-IMP-11 |
+| FR-IMP-019 | An authorized user can designate a new upload as a revision of a specific earlier import in the same category. Recommended: a revision that withdraws records or changes financial values is high-risk and takes effect only after approval by a different user (OQ-14). Before commit, the system shows the differences by identity key: added, removed and changed records. On commit:<br>• the earlier import becomes `Superseded`;<br>• records missing from the revision become `Withdrawn by revision` (they are not deleted);<br>• changed records get new versions;<br>• all earlier files and history are kept. | Mandatory (designation, preservation, change display); Recommended (diff mechanics) | D-IMP-11 |
 | FR-IMP-020 | Matches, exceptions, journal drafts and posted journals that refer to changed or withdrawn records are flagged "Needs re-review". Posted journals are never changed; any correction follows FR-ACC-024. | Mandatory | D-IMP-11, D-REC-18, D-ACC-07 |
 | FR-IMP-029 | Uploading an identical or overlapping report without designating it as a revision never modifies existing records. FR-IMP-005 and FR-IMP-015 to FR-IMP-016 apply. | Mandatory (derived from D-IMP-11 and D-IMP-12) | D-IMP-11 |
 
@@ -440,20 +451,20 @@ Settlement lines belong to a payout through the settlement report's own payout r
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
 | FR-REC-001 | Reconciliation is organized as links L1, L2 and L3, grouped into Stage 1 (L1, L2) and Stage 2 (L3). Each stage can be run and reported separately. Results stay linked so one order can be traced to its bank credit. | Recommended (link model, OQ-06); Mandatory (two linked stages) | D-REC-01, OQ-06 |
-| FR-REC-002 | Only payment attempts mapped to *successful* are eligible for L2. Failed and cancelled attempts stay linked to their orders under L1 for traceability, with no financial effect. Attempts with an unmapped status are ineligible and raise an exception (FR-IMP-027). | Mandatory (successful vs failed/cancelled); Recommended (unmapped handling) | D-REC-02 |
+| FR-REC-002 | Only payment attempts mapped to *successful* are eligible for L2. Failed and cancelled attempts stay linked to their orders under L1 for traceability and do not count as payments. Pending attempts are ineligible for L2 until a later observation changes their status. Attempts with an unmapped status are ineligible and raise an exception (FR-IMP-027). If a settlement line or other source evidence shows money moving for a failed, cancelled or pending attempt, a "Settlement for non-successful attempt" exception is raised; the evidence is never ignored. | Mandatory (successful vs failed/cancelled, D-REC-02); Mandatory (derived: surfacing contrary evidence, from D-REC-17 and D-FIN-04); Recommended (pending and unmapped handling) | D-REC-02, D-REC-17, AF-112 |
 
 ### 5.2 Automatic matching conditions
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-REC-003 | An automatic match is created only when **all** of these hold:<br>(a) exact identifier evidence exists under the link's hierarchy;<br>(b) the currencies are identical;<br>(c) the relationship-specific amounts agree exactly, or any difference is fully explained by explicit, evidenced components (FR-REC-007);<br>(d) there is no contradictory evidence: no other record claims the same identifier, no conflicting observation, no incomplete settlement group, no ineligible status, no withdrawn record;<br>(e) none of the records is already in a confirmed match on the same link. | Mandatory | D-REC-04, D-REC-05, D-REC-06, D-REC-07 |
+| FR-REC-003 | An automatic match is created only when **all** of these hold:<br>(a) exact identifier evidence exists under the link's hierarchy, within the same source-account scope (FR-IMP-034);<br>(b) the currencies are identical;<br>(c) for gross comparisons the amounts agree exactly; for net comparisons any difference is fully explained by components the source reports (FR-REC-007);<br>(d) there is no contradictory evidence: no other record claims the same identifier, no conflicting observation, no incomplete settlement group, no ineligible status, no withdrawn record;<br>(e) none of the records is already in a confirmed match on the same link. | Mandatory | D-REC-04, D-REC-05, D-REC-06, D-REC-07 |
 | FR-REC-004 | When identifiers agree but amount or currency disagrees, the system creates a discrepancy exception and no match. Both original values, the difference and each value's source are shown. | Mandatory | D-REC-05, D-REC-17 |
 | FR-REC-005 | When an identifier is missing or ambiguous, the system may propose candidates using amount, currency and a configurable date window. Candidates are never confirmed automatically. Each shows its evidence and which identifier evidence is absent. | Mandatory | D-REC-06, D-REC-08 |
 | FR-REC-006 | When identifier evidence points to more than one possible counterpart, no automatic match is made and an "Ambiguous reference" exception is created. | Mandatory (derived from D-REC-06 and D-REC-04) | D-REC-04, D-REC-06 |
-| FR-REC-007 | There is no blanket amount tolerance. Any non-zero difference that is not fully explained by explicit components from the source data (fees, taxes, refunds, reported adjustments) or by a documented rounding rule becomes a discrepancy. A rounding rule names its computation and records the rounding amount as its own component. | Mandatory | D-REC-07 |
+| FR-REC-007 | There is no blanket amount tolerance. Gross comparisons must agree exactly. In a net comparison, any non-zero difference not fully explained by explicit components in the source data (fees, taxes, refunds, reported adjustments) or by a documented rounding rule becomes a discrepancy. A rounding rule names its computation, applies only where the source documents that computation, and records the rounding amount as its own component. Recommended: adding or changing a rounding rule needs Controller approval (OQ-22). | Mandatory | D-REC-07, D-REC-12, AF-139 |
 | FR-REC-008 | Candidate date windows are configurable per link. They affect only candidate search. Changing them never changes confirmed matches, exceptions or eligibility for automatic matching. | Mandatory | D-REC-08 |
 
-**Relationship-specific amount semantics** are **Recommended** defaults. They need confirmation against real report formats (OQ-08):
+**Relationship-specific amount semantics.** The rule that gross amounts must agree exactly is **Mandatory** (D-REC-12, Seed L92). Which fields each link compares is a **Recommended** default that needs confirmation against real report formats (OQ-08):
 - **L1:** order amount equals the gross amount of the single successful payment. Several payments only qualify with split-payment evidence (FR-REC-011).
 - **L2:** the successful payment's gross amount equals the settlement line's gross amount. The line's net amount is checked by FR-REC-021.
 - **L3:** the payout amount equals the bank credit amount, as a credit, in the same currency.
@@ -472,7 +483,7 @@ Settlement lines belong to a payout through the settlement report's own payout r
 |---|---|---|---|
 | FR-REC-020 | L2 evidence is the gateway payment ID on the settlement line. Refund, chargeback, reversal and adjustment lines link to the original payment through the payment ID together with the event's own ID where reported. | Mandatory | D-REC-10, D-FIN-04 |
 | FR-REC-021 | Where a settlement line reports gross, component (fee, tax on fee, other) and net amounts, the reported components must reconcile exactly with gross and net. If they do not, the line raises a "Settlement line inconsistency" exception and its values are kept as reported. | Mandatory (derived from D-REC-07 and D-FIN-03) | AF-20 |
-| FR-REC-022 | The sum of a payout's line net amounts, plus any payout-level components the report itself shows, must equal the reported payout amount. If not, the payout raises a "Payout breakdown inconsistency" exception. Recommended: L3 matching may still use the reported payout amount, but journal drafting from that breakdown is blocked (FR-ACC-008). | Mandatory (detection); Recommended (L3 behaviour) | D-REC-07, D-FIN-03, AF-20 |
+| FR-REC-022 | The sum of a payout's line net amounts, plus any payout-level components the report itself shows, must equal the reported payout amount. If not, the payout raises a "Payout breakdown inconsistency" exception. The payout's group becomes incomplete (FR-IMP-014). Until the exception is resolved, the payout can be matched to a bank credit (L3) only manually, with high-risk approval, and journal drafting from its breakdown is blocked (FR-ACC-008). | Mandatory (detection; no automatic L3 match, from FR-IMP-014); Recommended (manual path) | D-REC-07, D-FIN-03, AF-20, AF-140 |
 | FR-REC-023 | Fees and taxes are taken only from the settlement report. They are never calculated from assumed rates. | Mandatory | D-FIN-03 |
 | FR-REC-024 | A successful payment with no settlement line is an open "Awaiting settlement" item, showing its age. It becomes a "Missing settlement" exception after the gateway template's expected settlement period. That period has no default value until the owner sets one. Neither state ever counts as reconciled. | Unresolved (period, OQ-13); Mandatory (never treated as reconciled) | D-REC-17, OQ-13, AF-24 |
 | FR-REC-025 | A settlement line with no corresponding payment record raises a "Settlement without payment" exception. | Mandatory (derived from D-FIN-04) | D-FIN-04 |
@@ -495,7 +506,7 @@ Settlement lines belong to a payout through the settlement report's own payout r
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-REC-040 | Only these grouped relationships can be confirmed:<br>**G1:** settlement lines → their payout, through the payout reference;<br>**G2:** several successful payments → one order, with explicit split-payment evidence (OQ-11);<br>**G3:** several payouts → one bank credit, with explicit combined-reference evidence;<br>**G4:** one payout → several bank credits, with explicit reference evidence.<br>Any other grouping can only be proposed. | Recommended (allowlist); Mandatory (supported relationship required) | D-REC-12 |
+| FR-REC-040 | Only these grouped relationships can be confirmed:<br>**GR1:** settlement lines → their payout, through the payout reference;<br>**GR2:** several successful payments → one order, with explicit split-payment evidence (OQ-11);<br>**GR3:** several payouts → one bank credit, with explicit combined-reference evidence;<br>**GR4:** one payout → several bank credits, with explicit reference evidence.<br>Any other grouping can only be proposed. | Recommended (allowlist); Mandatory (supported relationship required) | D-REC-12 |
 | FR-REC-041 | Confirming a group requires compatible currencies and amounts that reconcile under explicit rules. A gross group must agree exactly. A net group may differ only by documented components. The group keeps links to every member and its own audit history. | Mandatory | D-REC-12 |
 | FR-REC-042 | Groups with several records on both sides (many-to-many) are not supported. | Deferred | D-DEF-05 |
 | FR-REC-043 | A group that is ambiguous (several plausible member sets, or a member also claimed elsewhere) is proposed for review, never confirmed automatically. | Mandatory | D-REC-12 |
@@ -507,21 +518,22 @@ Settlement lines belong to a payout through the settlement report's own payout r
 | FR-REC-050 | A manual match requires a written reason and supporting evidence (an attached document or a reference to records). The amount and currency comparison is shown. A non-zero difference must be explained by explicit components or go through the accepted-difference process (OQ-15). The system rejects a manual match if any record is already in a confirmed match on the same link, or if the relationship is not allowed for that link. | Mandatory | D-REC-13 |
 | FR-REC-051 | A high-risk manual match is created in `Pending approval` and takes effect only after approval by a different authorized user. | Mandatory (risk-based approval, D-REC-16); Unresolved (criteria OQ-14; separation OQ-17) | D-REC-13, D-REC-16 |
 | FR-REC-052 | Unmatching requires a reason. The original match is kept with status `Undone`, its full history and who undid it. The records become unmatched again. Any journal draft or posted journal that depended on the match is flagged "Correction required" (FR-ACC-024). | Mandatory | D-REC-14 |
-| FR-REC-053 | Cross-currency records cannot be matched automatically. A manual link is possible only under the OQ-19 policy. Until it is approved, these records stay open exceptions labelled "Cross-currency – unsupported". | Mandatory (never auto-matched); Unresolved (manual policy) | D-FIN-06, OQ-19, AF-23 |
+| FR-REC-053 | Cross-currency records are never matched automatically. Recommended default: they also cannot be linked manually, and stay open exceptions labelled "Cross-currency – unsupported". Linking them using a conversion the source reports would be FX conversion reconciliation, which is deferred (D-DEF-06); it would need explicit approval as a scope addition (D-PRD-06). | Mandatory (never auto-matched); Unresolved (OQ-19) | D-FIN-06, D-DEF-06, OQ-19, AF-23, AF-141 |
 | FR-REC-054 | Two users trying to match, unmatch or resolve the same record at once cannot both succeed in incompatible ways. The second receives a conflict response showing the current state. | Mandatory (derived from checklist §3, L49) | D-REC-13 |
 
 ### 6.3 Exceptions and discrepancy management
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-EXC-001 | An exception records its type, linked records, owner, reason, comments, evidence attachments, timestamps, full status history and resolution (type, rationale, resolver, approver if any). | Mandatory | D-REC-15 |
+| FR-EXC-001 | An exception records its type, linked records, owner (the assignee), reason, comments, evidence attachments, timestamps, full status history and resolution (type, rationale, resolver, approver if any). | Mandatory | D-REC-15 |
 | FR-EXC-002 | Statuses are `Open`, `Investigating`, `Awaiting information` and `Resolved`. Recommended additions: `Pending approval`, and a reopen transition `Resolved` → `Open` with a required reason. | Mandatory (four statuses); Unresolved (additions, OQ-16) | D-REC-15, OQ-16 |
-| FR-EXC-003 | Exception types (recommended catalogue):<br>• Amount mismatch<br>• Currency mismatch<br>• Missing settlement<br>• Settlement without payment<br>• Payment without order<br>• Multiple successful payments<br>• Ambiguous reference<br>• Conflicting source data<br>• Unmapped status<br>• Settlement line inconsistency<br>• Payout breakdown inconsistency<br>• Refunds exceed payment<br>• Unlinked financial event<br>• Partial settlement<br>• Cross-currency – unsupported<br>• Bank credit without payout<br>• Payout without bank credit<br>• Cutover review<br>• Needs re-review after revision | Recommended | D-REC-15 |
-| FR-EXC-004 | Every resolution requires a reason and evidence and records its type. Types:<br>• *Explained by evidence* (cites the components or documents);<br>• *Matched manually*;<br>• *Duplicate confirmed*;<br>• *Outside reconciliation scope* (OQ-02);<br>• *Accepted difference* (OQ-15). | Mandatory (reason and evidence); Unresolved (the last two types) | D-REC-15, D-REC-17 |
+| FR-EXC-003 | Exception types (recommended catalogue):<br>• Amount mismatch<br>• Currency mismatch<br>• Missing settlement<br>• Settlement without payment<br>• Payment without order<br>• Multiple successful payments<br>• Ambiguous reference<br>• Conflicting source data<br>• Unmapped status<br>• Settlement for non-successful attempt<br>• Bank statement continuity break<br>• Settlement line inconsistency<br>• Payout breakdown inconsistency<br>• Refunds exceed payment<br>• Unlinked financial event<br>• Partial settlement<br>• Cross-currency – unsupported<br>• Bank credit without payout<br>• Payout without bank credit<br>• Cutover review<br>• Needs re-review after revision | Recommended | D-REC-15 |
+| FR-EXC-004 | Every resolution requires a reason and evidence and records its type. Types:<br>• *Explained by evidence* (cites the components or documents);<br>• *Matched manually*;<br>• *Duplicate confirmed*: the duplicate record is flagged `Excluded as duplicate`, which removes it from matching and journal eligibility while its original values stay unchanged;<br>• *Outside reconciliation scope* (OQ-02);<br>• *Accepted difference* (OQ-15).<br>Recommended: *Duplicate confirmed*, *Outside reconciliation scope*, and any resolution of an exception with a non-zero difference count as high-risk (OQ-14). | Mandatory (reason and evidence); Recommended (exclusion flag, high-risk classes); Unresolved (the last two types) | D-REC-15, D-REC-17, AF-101 |
+| FR-EXC-010 | When a resolution explains a difference that has a financial effect not yet in the ledger (for example bank charges, or a credit short of the payout), the system creates an accounting-review item linked to the exception: a journal draft or a "Correction required" item. The reconciliation and the ledger therefore never diverge silently. | Recommended (supports D-REC-19 and D-ACC-02; treatment per OQ-23) | D-REC-19, OQ-23, AF-101 |
 | FR-EXC-005 | An exception with an unexplained difference cannot be set to `Resolved` except through an approved accepted-difference process, if one is approved under OQ-15. | Mandatory | D-REC-17, OQ-15 |
 | FR-EXC-006 | Each exception is classified routine or high-risk. Until criteria are approved, the high-risk defaults in OQ-14 apply. High-risk resolutions need approval by a different authorized user. | Mandatory (approval); Unresolved (criteria) | D-REC-16, OQ-14 |
 | FR-EXC-007 | Resolving an exception never modifies source records or their original values. | Mandatory | D-REC-17, D-IMP-12 |
-| FR-EXC-008 | Exceptions have an owner and show their age. The queue can be filtered by type, status, owner, risk, link, currency and age. | Mandatory (owner); Recommended (filters, age) | D-REC-15 |
+| FR-EXC-008 | Exceptions have an owner (assignee) and show their age. The queue can be filtered by type, status, owner, risk, link, currency and age. | Mandatory (owner); Recommended (filters, age) | D-REC-15 |
 | FR-EXC-009 | When gateway and bank amounts disagree, the system shows each original amount, its source report and row, and the difference. It never presents a single "corrected" amount. | Mandatory | D-REC-17 |
 
 ### 6.4 Runs, reruns and comparison
@@ -529,8 +541,9 @@ Settlement lines belong to a payout through the settlement report's own payout r
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
 | FR-REC-060 | Each run records a unique ID, stage, scope (period or date range), input snapshot (the import versions active at start), rule-set version (matching parameters and mapping-template versions), start and finish times, actor, status, counts and results. | Mandatory | D-REC-18 |
+| FR-REC-069 | **Match ownership model.**<br>• Confirmed matches are persistent relationships, recorded with provenance: the run or user that created them, and any later run or user that changed them.<br>• Each run snapshots its results so runs can be compared.<br>• A run evaluates the records in its scope that are not yet matched, and re-validates the existing automatic matches in scope against current evidence. It never re-creates them.<br>• Candidate search may look beyond the run's date range by the configured window, so a payment and its settlement in adjacent periods are not reported as missing on either side. | Recommended (resolves AF-106; pending OQ-21) | D-REC-18, OQ-21, AF-106 |
 | FR-REC-061 | At most one run per stage is active per workspace. A concurrent request is rejected with the active run's ID, or queued. | Recommended | Checklist §3, L49 |
-| FR-REC-062 | Rerunning with identical inputs and rule-set version gives identical automatic results. | Mandatory (derived from checklist §3, L53, reproducibility) | D-REC-18 |
+| FR-REC-062 | Reproducibility:<br>• replaying a run from its input snapshot and rule-set version, against a clean reconciliation state, gives identical automatic results;<br>• rerunning against the current state when no inputs, rules or decisions have changed creates no new or changed matches, exceptions or drafts. | Mandatory (derived from checklist §3, L53, reproducibility) | D-REC-18 |
 | FR-REC-063 | Manual decisions (matches, unmatches, resolutions) are never erased by a run. If a record behind a manual decision has a new version, the decision is flagged "Needs re-review" rather than silently kept or dropped. | Mandatory (persistence); Unresolved (re-review rule, OQ-21) | D-REC-18, OQ-21 |
 | FR-REC-064 | Users can compare two runs of the same stage and see added, removed and changed matches and exceptions. | Mandatory | D-REC-18 |
 | FR-REC-065 | Runs never change posted journals and never bypass period-close controls. | Mandatory | D-REC-18 |
@@ -580,7 +593,7 @@ No posting rules are approved. This section specifies the mechanism and its cont
 |---|---|---|---|
 | FR-ACC-004 | An accounting template maps one eligible event type to journal-line patterns (account, debit or credit side, amount source field, description). Templates are versioned, and activation is recorded. Each draft references the template version that produced it. No template is active until its content is approved (OQ-23). | Mandatory (mechanism); Unresolved (content) | D-ACC-09, D-ACC-10, OQ-23 |
 | FR-ACC-005 | Activating a template fails unless validation shows that it produces balanced lines for every valid event of its type and uses only active, postable accounts. Events that are ambiguous or not covered by an active template go to review. | Mandatory | D-ACC-10 |
-| FR-ACC-027 | Drafting, activating and retiring templates are sensitive financial settings: MFA is required, and approval follows OQ-31. | Mandatory (MFA, D-SEC-08); Unresolved (approval) | D-SEC-08, OQ-31 |
+| FR-ACC-027 | Drafting, activating and retiring templates are treated as sensitive financial settings, so MFA is required; approval follows OQ-31. | INFERENCE (templates are "sensitive financial settings" under D-SEC-08); Unresolved (approval, OQ-31) | D-SEC-08, OQ-31 |
 
 ### 8.4 Revenue recognition
 
@@ -592,11 +605,12 @@ No posting rules are approved. This section specifies the mechanism and its cont
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-007 | Drafting from events is idempotent. Each event has at most one active draft per template purpose. Regenerating replaces only unposted drafts and keeps their history. | Mandatory (derived from D-IMP-07, no duplicate postings) | D-IMP-07, D-ACC-02 |
+| FR-ACC-007 | Drafting from events is idempotent: each event has at most one active draft per template purpose. Regeneration replaces only drafts that are still in `Draft` state and that no person has edited; their history is kept. A submitted or edited draft is never replaced; it is flagged "Needs re-review" instead. | Mandatory (idempotency, derived from D-IMP-07); Recommended (regeneration rule) | D-IMP-07, D-ACC-02, D-REC-18, AF-113 |
 | FR-ACC-008 | A draft that depends on an open exception, an incomplete settlement group, a conflicting observation, a `Pending approval` item or a cross-currency item is `Blocked`. It cannot be submitted or posted until the dependency clears. | Mandatory | D-ACC-06 |
-| FR-ACC-009 | Preparers can create manual journal drafts that are not generated from events. These drafts follow the same review, approval and posting controls. | Mandatory (INFERENCE from "prepares journal drafts", D-SEC-01); scope per OQ-01 | D-SEC-01, OQ-01 |
-| FR-ACC-010 | Journal states:<br>• `Draft` → `Submitted` (in review) → `Posted`;<br>• `Submitted` → `Draft` (returned with a reason);<br>• `Draft` → `Discarded` (kept for history, never posted);<br>• `Blocked` overlays `Draft`.<br>Recommended: approving and posting happen in one atomic action. | Mandatory (draft → review → authorized posting); Recommended (state names, atomic approve-and-post) | D-ACC-04 |
-| FR-ACC-011 | Posting succeeds only if **all** of these hold:<br>• total debits equal total credits exactly;<br>• there are at least two lines;<br>• each line has one positive amount on exactly one side;<br>• every line uses the functional currency;<br>• all accounts are active and postable;<br>• the accounting date is in an open period;<br>• the date, description and supporting links are present;<br>• the entry is not `Blocked`;<br>• the approver holds Controller/Approver, is not the preparer (FR-WSP-010) and meets MFA and freshness requirements (NFR-SEC-003, NFR-SEC-004). | Mandatory | D-ACC-05, D-ACC-06, D-SEC-08 |
+| FR-ACC-009 | Preparers can create manual journal drafts that are not generated from events. These drafts follow the same review, approval and posting controls. | INFERENCE (from "prepares journal drafts", D-SEC-01); Unresolved (scope, OQ-01) | D-SEC-01, OQ-01 |
+| FR-ACC-010 | Journal states:<br>• `Draft` → `Submitted` (in review) → `Posted`;<br>• `Submitted` → `Draft` (returned with a reason);<br>• `Draft` → `Discarded` (kept for history, never posted);<br>• `Blocked` overlays `Draft`.<br>Recommended: approving and posting happen in one atomic action. Recommended: discarding a draft generated from an event requires a reason and approval by a different user, because discarding removes that event from the ledger. | Mandatory (draft → review → authorized posting); Recommended (state names, atomic approve-and-post, discard control) | D-ACC-04, AF-103 |
+| FR-ACC-030 | Ledger completeness: the close checklist lists every eligible event in the period that has neither a posted journal nor an approved exclusion, and treats such events as a critical item. | Recommended (supports D-ACC-14 and D-REL-01 item 2) | D-ACC-14, AF-103 |
+| FR-ACC-011 | Posting succeeds only if **all** of these hold:<br>• total debits equal total credits exactly;<br>• there are at least two lines;<br>• each line has one positive amount on exactly one side;<br>• every line records its currency; whether all lines must use the functional currency is Unresolved (OQ-19, FR-ACC-001);<br>• all accounts are active and postable;<br>• the accounting date is in an open period;<br>• the date, description and supporting links are present;<br>• the entry is not `Blocked`;<br>• the approver holds Controller/Approver, is not the preparer (FR-WSP-010) and meets MFA and freshness requirements (NFR-SEC-003, NFR-SEC-004). | Mandatory | D-ACC-05, D-ACC-06, D-SEC-08 |
 | FR-ACC-012 | The system never adds a balancing or suspense line automatically to make an entry balance. | Mandatory | D-ACC-06 |
 | FR-ACC-014 | Posting is atomic and idempotent. Repeated or concurrent approval requests post an entry exactly once. | Mandatory (derived from D-IMP-07 and checklist §3, L47) | D-IMP-07 |
 | FR-ACC-015 | Posted entries receive a sequence number per workspace and financial year. Whether it must be gap-free is pending OQ-28. | Unresolved | OQ-28 |
@@ -606,24 +620,29 @@ No posting rules are approved. This section specifies the mechanism and its cont
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-013 | Posted entries cannot be updated or deleted by any application role; the database enforces this. A correction is a reversing entry (an exact mirror that references the original), an adjusting entry, or both. Each goes through the same approval and the links are kept in both directions. | Mandatory | D-ACC-07 |
-| FR-ACC-021 | A correction affecting a closed period is posted in the earliest open period with a reference to the original, unless a Controller reopens the period. | Unresolved (OQ-26); recommended default; EXTERNAL REVIEW REQUIRED | OQ-26 |
+| FR-ACC-013 | Posted entries cannot be updated or deleted by any application role; the database enforces this. A correction is a reversing entry (an exact mirror that references the original), an adjusting entry, or both. Each goes through the same approval and the links are kept in both directions. A database constraint allows at most one full reversal of any original entry. | Mandatory (immutability and correction by reversal); Mandatory (derived: single full reversal, from D-REL-01 item 2) | D-ACC-07, AF-110 |
+| FR-ACC-021 | A correction affecting a closed period is posted in the earliest open period with a reference to the original, unless a Controller reopens the period. The same question arises for new events that arrive late and are dated in a closed period (OQ-26). Which source date sets an event draft's accounting date is part of OQ-23. | Unresolved (OQ-23, OQ-26); recommended default; EXTERNAL REVIEW REQUIRED | OQ-23, OQ-26, AF-109 |
 | FR-ACC-024 | When an unmatch, a report revision or a changed exception resolution affects evidence behind a posted journal, the system creates a "Correction required" item linked to that journal and puts it on the close checklist. It never reverses the journal automatically. A reconciliation-to-ledger consistency report lists every posted journal whose supporting evidence has changed. | Mandatory (correction workflow, D-REC-14); Recommended (consistency report) | D-REC-14, D-IMP-11, AF-45 |
 
 ### 8.7 Opening balances and cutover
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-016 | Opening balances are entered through a guided form or a supported template upload. The system validates account mapping and that debits equal credits. A missing balance blocks posting and is never filled in. A preparer prepares the entry; a different authorized approver posts it as one dedicated opening journal dated at the cutover date. | Mandatory | D-ACC-11, D-ACC-05 |
-| FR-ACC-017 | Events dated before the cutover date never produce journal drafts; they remain available for reconciliation. Post-cutover events linked to pre-cutover events (for example a payment captured before cutover and settled after) raise a "Cutover review" exception before any draft can be submitted. Migrating historical ledgers is not part of self-service onboarding. | Mandatory (no duplicates; separate migration process); Unresolved (straddle treatment, OQ-25) | D-ACC-12, OQ-25, AF-43 |
+| FR-ACC-016 | Opening balances are entered through a guided form or a supported template upload. The system validates account mapping and that debits equal credits. A missing balance blocks posting and is never filled in. A preparer prepares the entry; a different authorized approver posts it as one dedicated opening journal dated at the cutover date. A database constraint allows at most one opening entry per workspace. Recommended: corrections to posted opening balances are approved adjusting entries that reference the opening entry, with the treatment reviewed by an external accountant (OQ-25). The template upload uses the same file controls as every other upload (NFR-SEC-017). | Mandatory; Mandatory (derived: single opening entry, from D-ACC-11 "a dedicated opening journal entry"); Recommended (corrections) | D-ACC-11, D-ACC-05, AF-110 |
+| FR-ACC-017 | Events dated before the cutover date never produce journal drafts; they remain available for reconciliation. Post-cutover events linked to pre-cutover events (for example a payment captured before cutover and settled after) raise a "Cutover review" exception before any draft can be submitted. Which event date decides pre- or post-cutover, and whether events on the cutover date itself fall inside or outside the opening balances, is Unresolved (OQ-25). | Mandatory (no duplicates); Unresolved (straddle treatment and boundary, OQ-25) | D-ACC-12, OQ-25, AF-43 |
+| FR-ACC-028 | No entry may be posted with an accounting date before the cutover date, except the opening entry, which is dated at cutover. Recommended: the cutover date is locked once the first entry is posted, and any later change becomes a controlled, approved re-cutover process (OQ-29). | Mandatory (derived from D-ACC-12: opening balances represent the position at cutover); Recommended (lock); Unresolved (OQ-29) | D-ACC-12, AF-100 |
+| FR-ACC-033 | If historical ledger migration is offered, it runs as a separate authorized process with its own audit trail, never through self-service onboarding or event drafting. It is not scheduled in the M0–M10 plan; offering it needs owner approval (OQ-25). | Conditional | D-ACC-12, AF-116 |
 
 ### 8.8 Periods, close and reopen
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
 | FR-ACC-018 | Accounting periods are calendar months within the financial year, each `Open` or `Closed`. Posting requires an accounting date in an `Open` period. | Mandatory | D-ACC-13 |
-| FR-ACC-019 | The close checklist covers:<br>• unposted, submitted or blocked drafts dated in the period;<br>• unreconciled balances;<br>• unresolved high-risk discrepancies;<br>• "Correction required" items;<br>• unaccounted cross-currency items;<br>• other required tasks.<br>Critical items block closure. Permitted exceptions need authorized approval and a documented rationale. Recommended critical items: unposted or submitted drafts in the period, and unresolved high-risk discrepancies. | Mandatory (checklist and blocking); Unresolved (which items are critical; approval separation, OQ-17) | D-ACC-14, OQ-17 |
-| FR-ACC-020 | Only a Controller/Approver can close or reopen a period. Reopening needs a reason, MFA and fresh authentication, and produces an audit event; Controllers and Admins are notified (Recommended). | Mandatory (except notification) | D-ACC-13, D-SEC-08 |
+| FR-ACC-031 | Period integrity (all Recommended):<br>• the posting transaction checks the period's state under a lock, so a close and a posting cannot interleave;<br>• periods close in order;<br>• posting into future periods beyond the current open period is blocked;<br>• reopening an earlier period flags the reports of later closed periods as "Affected by reopened period" until they are reviewed. | Recommended | D-ACC-13, AF-108, AF-136 |
+| FR-ACC-032 | Cash events (payments, settlements, bank movements) and revenue-recognition events are recorded and modelled separately. A cash event can serve as recognition evidence only under an approved policy that says why (OQ-24). | Mandatory (derived from D-ACC-01, "cash movements and accrual recognition are distinct"); Unresolved (policy) | D-ACC-01, OQ-24, AF-111 |
+| FR-ACC-019 | The close checklist covers:<br>• unposted, submitted or blocked drafts dated in the period;<br>• unreconciled balances;<br>• unresolved high-risk discrepancies;<br>• "Correction required" items;<br>• unaccounted cross-currency items;<br>• other required tasks.<br>Critical items block closure. Permitted exceptions need authorized approval and a documented rationale. Recommended critical items:<br>• unposted, submitted or blocked drafts dated in the period;<br>• unresolved high-risk discrepancies;<br>• "Correction required" items;<br>• unaccounted cross-currency items;<br>• eligible events without a posted journal (FR-ACC-030).<br>Recommended: every non-critical item open at close needs a recorded acknowledgement with a rationale. | Mandatory (checklist and blocking); Unresolved (which items are critical; approval separation, OQ-17) | D-ACC-14, OQ-17, AF-107 |
+| FR-ACC-029 | The meaning of "unreconciled balances" in the close checklist is defined under OQ-51. Recommended default: (i) at period end, the ledger balance of each bank account is compared with the bank statement's closing balance; (ii) each clearing or in-transit account's balance is compared with the total of its open reconciliation items. Differences are listed and block the close until explained. | Mandatory (the checklist item exists, D-ACC-14); Unresolved (definition, OQ-51) | D-ACC-14, OQ-51, AF-102 |
+| FR-ACC-020 | Only a Controller/Approver can close or reopen a period. Reopening needs a reason and MFA, and produces an audit event. Recommended: fresh authentication (OQ-38) and a notification to Controllers and Admins. | Mandatory (Controller only, reason, MFA, audit: D-ACC-13, D-SEC-08); Unresolved (fresh authentication, OQ-38); Recommended (notification) | D-ACC-13, D-SEC-08, OQ-38 |
 
 ### 8.9 Financial year and tax
 
@@ -649,7 +668,11 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | Bank movements unrelated to gateways | Recorded in ClearSettle at all? | OQ-01, OQ-02 |
 | Transactions straddling the cutover | Treatment against opening balances | OQ-25 |
 | Cross-currency settlements | Treatment until FX accounting is approved | OQ-19 |
-| Corrections to closed periods | Prior-period or current-period treatment | OQ-26 |
+| Corrections to closed periods; late events dated in closed periods | Prior-period or current-period treatment | OQ-26 |
+| Accounting date of event drafts | Which source date (order, capture, settlement, bank value date) sets the accounting date? | OQ-23 |
+| Corrections to posted opening balances | Adjusting-entry treatment and approval | OQ-25 |
+| Year-end close | Closing income and expense to retained earnings or current-year profit; sequential close rules | OQ-52 |
+| Unreconciled balances at close | Ledger-to-bank-statement and clearing-account-to-open-items tie-outs | OQ-51 |
 
 ---
 
@@ -659,7 +682,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 |---|---|---|---|
 | FR-RPT-001 | The trial balance (as of a date) is computed from posted entries only and shows that total debits equal total credits. | Mandatory | D-RPT-01 |
 | FR-RPT-002 | The profit and loss (for a period), balance sheet (as of a date), general ledger (by account and period) and journal-entry report (filterable, with links to evidence) are computed from posted entries only. | Mandatory | D-RPT-01 |
-| FR-RPT-003 | Every accounting report shows the status of the periods it covers (`Open` or `Closed`), the number of unposted drafts and open high-risk exceptions in range, and any `Partially imported` inputs. A report that covers an open period, or that has open critical close items, is labelled "Provisional" and never presented as final or verified. | Mandatory (distinguish draft from final; no implied verification); Recommended (wording) | D-RPT-01 |
+| FR-RPT-003 | Every accounting report shows the status of the periods it covers (`Open` or `Closed`), the number of unposted drafts and open high-risk exceptions in range, and any `Partially imported` inputs. A report that covers an open period, or that has open critical close items, is labelled "Provisional" and never presented as final or verified. A closed period's reports also show any "Correction required" item raised against that period after it closed, and any reopening of an earlier period (FR-ACC-031). | Mandatory (distinguish draft from final; no implied verification); Recommended (wording, post-close flags) | D-RPT-01, AF-107 |
 | FR-RPT-004 | Financial statements are labelled as management reports, with no claim of statutory format or compliance. | Unresolved (OQ-32); recommended default | OQ-32 |
 | FR-RPT-005 | The reconciliation summary for each run and stage shows counts and amounts per outcome (matched, candidate, discrepancy, awaiting settlement, unmatched, outside scope). Amounts are kept separate by currency. | Mandatory | D-RPT-02, D-FIN-05 |
 | FR-RPT-006 | The unmatched-transaction report can be filtered by link, age, amount and currency. | Mandatory | D-RPT-02 |
@@ -668,7 +691,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | FR-RPT-009 | The audit-history export can be filtered by date, actor, action and record. Only permitted roles can run it (OQ-37). | Mandatory | D-RPT-02, D-DAT-01 |
 | FR-RPT-010 | Exports come in CSV and XLSX, use the same filters, permissions and underlying data as the on-screen report, and run as background jobs when large. Export files are stored privately, downloaded through short-lived links and expire. Exporting financial data is audited (Recommended). | Mandatory (formats, permissions, same data); Recommended (audit, expiry) | D-RPT-02, D-RPT-03, D-SEC-04 |
 | FR-RPT-011 | Generating a report or export never modifies any record. | Mandatory | D-RPT-04 |
-| FR-RPT-012 | In exports, text cells that start with spreadsheet formula characters are neutralized. Amounts are written as numeric cells in XLSX. | Recommended | AF-66 |
+| FR-RPT-012 | In CSV and XLSX exports and error reports, every text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is neutralized so a spreadsheet cannot run it as a formula. Amount fields are typed as amounts in the export schema and written from their exact decimal value, without a prefix: in XLSX as numeric cells, in CSV as plain decimal text such as `-250.00`. | Recommended (security control; promotion to Mandatory recommended) | AF-66, AF-130 |
 | FR-RPT-013 | Every report and export header states the workspace, parameters, generation time (UTC and workspace time zone), data cut-off, relevant run IDs and warnings about incomplete data. | Recommended (derived from reproducibility, checklist §3, L53) | Checklist §3 |
 | FR-RPT-014 | No total adds amounts in different currencies. | Mandatory (derived from D-FIN-05 and D-FIN-06) | D-FIN-05, D-FIN-06 |
 
@@ -680,10 +703,10 @@ Each scenario below needs an explicit accounting policy before templates can be 
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-SEC-001 | Users authenticate through a managed OIDC provider. The backend validates the provider's tokens: issuer, audience, signature, expiry and nonce where applicable. Recommended flow: Authorization Code with PKCE. ClearSettle never stores passwords. | Mandatory (managed OIDC); Recommended (flow details); Unresolved (provider, OQ-34) | D-SEC-06 |
+| NFR-SEC-001 | Users authenticate through a managed OIDC provider. The backend validates the provider's tokens: issuer, audience, signature, expiry and nonce where applicable. Recommended flow: Authorization Code with PKCE. ClearSettle never stores passwords. Recommended: a user is identified by the provider's issuer and subject identifier pair, never by email address. Email is used only to deliver invitations and to check them at acceptance. Replacing the provider (D-SEC-06) needs a designed relinking process (OQ-34). | Mandatory (managed OIDC); Recommended (flow details, identity key); Unresolved (provider, OQ-34) | D-SEC-06, AF-125 |
 | NFR-SEC-002 | Session and token handling follows OQ-35. Recommended default: Spring Boot is the confidential OIDC client and keeps server-side sessions with `HttpOnly`, `Secure`, `SameSite` cookies. No tokens are kept in browser storage, and the deployment is same-site with CSRF protection. | Unresolved; recommended default | OQ-35, AF-61 |
 | NFR-SEC-003 | The backend enforces MFA for Admins, Controllers and anyone performing approval, period reopening or sensitive-setting actions. It verifies the provider's authentication assertions and never relies on the UI. If the provider cannot assert MFA, privileged actions are refused. | Mandatory (MFA for privileged users); Recommended (assertion-based mechanism) | D-SEC-08, AF-62 |
-| NFR-SEC-004 | High-risk actions require recent authentication. The window and action list follow OQ-38. Recommended actions: posting approval, period reopening, role changes, offboarding, changes to templates and other sensitive settings, and original-file download. | Mandatory ("may require"; owner to confirm the list); Unresolved (defaults) | D-SEC-08, OQ-38 |
+| NFR-SEC-004 | High-risk actions may require recent authentication. The seed says "may require", so whether and where it applies is decided under OQ-38. Recommended actions: posting approval, period reopening, role changes, offboarding steps a person starts, activation of templates and changes to other sensitive settings, and original-file download. | Unresolved (OQ-38); recommended default | D-SEC-08, OQ-38 |
 | NFR-SEC-005 | The idle timeout is configurable, users are warned before expiry, and they can sign out of all sessions. A revoked or expired session is refused on its next backend request. | Mandatory | D-SEC-09 |
 
 ### 10.2 Authorization
@@ -692,15 +715,18 @@ Each scenario below needs an explicit accounting policy before templates can be 
 |---|---|---|---|
 | NFR-SEC-006 | Every API endpoint and background operation checks permissions (§2.3) and tenant scope in the backend service layer, denying by default. A missing check counts as a defect. Automated tests cover every endpoint against an allowed role, a denied role, a non-member and a member of another workspace. | Mandatory | D-SEC-03, D-SEC-04 |
 | NFR-SEC-009 | Inputs are validated at every trust boundary. Request bodies bind only allowlisted fields (no mass assignment). Queries are parameterized. Dynamic sort and filter fields are checked against allowlists. | Mandatory | Checklist §7 |
-| NFR-SEC-010 | CORS allows only the intended frontend origin. CSRF protection applies to cookie-authenticated state changes. Security headers are set. Rate limits apply to authentication-related endpoints, uploads, run triggers and exports. | Mandatory | Checklist #1, #75, #76 |
+| NFR-SEC-010 | CORS allows only the intended frontend origin. CSRF protection applies to cookie-authenticated state changes. Security headers are set. Rate limits apply to authentication-related endpoints, uploads, run triggers, exports, workspace creation and invitations. | Mandatory | Checklist #1, #75, #76, AF-137 |
 | NFR-SEC-013 | Platform-operator access to tenant data follows OQ-05. Until it is decided, no operator access path exists other than infrastructure administration under least privilege. | Unresolved; recommended default | OQ-05, AF-60 |
 
 ### 10.3 Tenant isolation
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-SEC-007 | Isolation is enforced in layers:<br>(a) every tenant-owned row carries a non-null workspace ID;<br>(b) database constraints stop any relationship (match, exception link, journal-line source link) from joining records of different workspaces, for example through composite keys that include the workspace ID;<br>(c) PostgreSQL row-level security applies to tenant tables as defence in depth, with forced RLS, an application role that neither owns the tables nor bypasses RLS, and a per-transaction tenant context that fails closed when absent;<br>(d) background jobs set their tenant context from the job's stored workspace and re-check that every referenced record belongs to it. | Mandatory (layered isolation); Recommended (mechanics a–d) | D-SEC-10, AF-63 |
-| NFR-SEC-008 | Stored objects use opaque, workspace-namespaced keys. The only way to download is through an authorization check that issues a short-lived signed link. Buckets are never public. | Mandatory | D-DAT-03, D-DAT-04 |
+| NFR-SEC-007 | Isolation is enforced in layers:<br>(a) every tenant-owned row carries a non-null workspace ID;<br>(b) database constraints stop any relationship (match, exception link, journal-line source link) from joining records of different workspaces, for example through composite keys that include the workspace ID;<br>(c) PostgreSQL row-level security applies to tenant tables as defence in depth, with forced RLS, an application role that neither owns the tables nor bypasses RLS, and a per-transaction tenant context that fails closed when absent;<br>(d) background jobs set their tenant context from the job's stored workspace and re-check that every referenced record belongs to it;<br>(e) every unique and foreign key on a tenant table includes the workspace ID, because PostgreSQL integrity checks bypass row-level security and a key spanning workspaces could reveal another tenant's data;<br>(f) views over tenant data run with the querying user's permissions (`security_invoker`); materialized views, which row-level security cannot protect, and functions that run with their owner's privileges (`SECURITY DEFINER`) are reviewed before use on tenant data. | Mandatory (layered isolation); Recommended (mechanics a–f) | D-SEC-10, AF-63, AF-120 |
+| NFR-SEC-018 | Each database role has a defined, minimal scope, with every cross-tenant operation listed, audited and tested. Recommended roles:<br>• **application**: tenant context required, row-level security forced;<br>• **job dispatcher**: job metadata only;<br>• **lifecycle**: retention, offboarding and restore checks, audited;<br>• **migration**: schema changes only;<br>• **metrics reader**: aggregates without financial detail.<br>No role is granted the ability to bypass row-level security ad hoc. | Recommended | D-SEC-10, AF-121 |
+| NFR-SEC-008 | Stored objects use opaque, workspace-namespaced keys, and buckets are never public. Every download passes an authorization check that is repeated at download time, including for exports generated in the background. Recommended: stream downloads through the backend. If signed links are used instead, they have a short maximum lifetime (value under OQ-38), are single-use where the storage supports it, and their issuance is audited. Responses carry `Content-Disposition: attachment` and `Cache-Control: no-store`. | Mandatory (private storage, authorization, short-lived access, D-DAT-03 and D-DAT-04); Recommended (mechanism) | D-DAT-03, D-DAT-04, AF-132 |
+| NFR-SEC-017 | Every upload path gets the D-DAT-04 controls, not only source reports. That includes exception evidence attachments and opening-balance template uploads. The controls are: an allowlist of file types, size limits, malware scanning where supported, and private storage. Uploaded files are served only as downloads, with the correct content type and `nosniff`, and are never rendered inline on the application's origin. | Mandatory (derived from D-DAT-04); Recommended (mechanism) | D-DAT-04, AF-119 |
+| NFR-SEC-019 | Roles that can bulk-export data or download original files must also use MFA, not only the privileged roles named in D-SEC-08. | Unresolved (OQ-55); recommended | D-SEC-08, OQ-55, AF-135 |
 | NFR-SEC-016 | Caches, search indexes and logs are scoped by workspace, or contain no tenant financial data. | Mandatory (derived from D-SEC-04) | D-SEC-04 |
 
 ### 10.4 Audit history
@@ -709,7 +735,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 |---|---|---|---|
 | NFR-DAT-001 | Each audit event records: event ID; workspace ID; actor (user, or system job together with the user who started it); action; target type and IDs; UTC timestamp; reason where required; before and after values or a diff; correlation ID. | Mandatory (actor, timestamp, records, action, reason); Recommended (other fields) | D-DAT-01 |
 | NFR-DAT-002 | An audit event is written in the same database transaction as the change it records, so neither can exist without the other. | Recommended (strongly; supports D-DAT-01) | D-DAT-01 |
-| NFR-DAT-003 | The application role can only insert and read audit events. Updates and deletes are refused by database privileges and a guard trigger. Corrections are new events. | Mandatory (append-only); Recommended (mechanism) | D-DAT-01 |
+| NFR-DAT-003 | The application role can only insert and read audit events. Database privileges and a guard trigger refuse updates, deletes and truncation. Only the migration role can disable triggers. Corrections are new events. Audit events are deleted only by the lifecycle role (NFR-SEC-018), under approved retention or offboarding, and each such deletion is recorded in a platform-level deletion log kept outside the workspace. | Mandatory (append-only); Recommended (mechanism, lifecycle deletion) | D-DAT-01, D-DAT-07, AF-126 |
 | NFR-DAT-004 | Audited actions include:<br>• membership and role changes;<br>• workspace and security settings;<br>• uploads, commits and revisions;<br>• runs;<br>• manual matches and unmatches;<br>• exception transitions and resolutions;<br>• approvals, returns and rejections;<br>• postings and reversals;<br>• period close and reopen;<br>• Chart of Accounts and template changes;<br>• exports and original-file downloads (Recommended);<br>• offboarding steps and legal holds;<br>• failed attempts at privileged actions (Recommended). | Mandatory (important financial and administrative events); Recommended (marked items) | D-DAT-01, D-SEC-05 |
 | NFR-DAT-005 | Who can read the audit history follows OQ-37. | Unresolved | OQ-37 |
 | NFR-DAT-012 | No claim of tamper-proof or immutable storage is made. Tamper evidence (for example hash chaining or external log storage) is evaluated during hardening (M9). | Mandatory (no unproven claims); Recommended (evaluation) | D-DAT-02 |
@@ -718,11 +744,11 @@ Each scenario below needs an explicit accounting policy before templates can be 
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-DAT-006 | Retention is configured per category: original uploads, temporary processing artifacts, imported financial records, posted journals, reconciliation history and audit logs. Legal holds (workspace-wide, per category or per record) suspend deletion. Workspace Admins cannot shorten retention below the platform's mandatory minimum. | Mandatory (mechanism); Unresolved (values, OQ-41) | D-DAT-07, D-DAT-08 |
-| NFR-DAT-007 | Automatic deletion of financial records, journals, reconciliation history and audit logs stays disabled until retention periods are approved after qualified review. | Recommended | D-DAT-08, AF-80 |
+| NFR-DAT-006 | Retention is configured per category: original uploads, temporary processing artifacts, imported financial records, posted journals, reconciliation history and audit logs. Legal holds (workspace-wide, per category or per record) suspend deletion. Workspace Admins cannot shorten retention below the platform's mandatory minimum. Recommended (OQ-41):<br>• retention is dependency-aware: evidence cited by a retained record (for example an original upload behind a posted journal) is never deleted, or is reduced to a tombstone that keeps the trace;<br>• export files, error reports, quarantined rows, exception attachments and application logs get explicit categories;<br>• the event that starts each category's retention clock is defined. | Mandatory (mechanism); Unresolved (values and recommended additions, OQ-41) | D-DAT-07, D-DAT-08, AF-127 |
+| NFR-DAT-007 | Automatic deletion of financial records, journals, reconciliation history and audit logs stays disabled until retention periods are approved after qualified review. | Mandatory (derived from D-DAT-07, "mandatory retention cannot be bypassed", and D-DAT-08, "periods unresolved") | D-DAT-07, D-DAT-08, AF-80 |
 | NFR-DAT-008 | Data is minimized and identifiers are masked as described in FR-IMP-022. Only permitted roles can access original reports (OQ-37). | Mandatory; Unresolved (details) | D-DAT-05 |
-| NFR-DAT-009 | Offboarding follows the lifecycle in §2.5:<br>• in-progress jobs are cancelled safely or finish without starting new work;<br>• pending approvals are frozen;<br>• the export runs within its window;<br>• deletion respects retention and legal holds;<br>• every step is audited and cannot proceed without MFA and fresh authentication. | Mandatory (controlled process, D-DAT-06); Unresolved (sequence and windows, OQ-42) | D-DAT-06, AF-85 |
-| NFR-DAT-010 | Temporary processing artifacts (staging rows, files in the quarantine area) are deleted after a short, configurable period. | Mandatory (category); Unresolved (value) | D-DAT-07 |
+| NFR-DAT-009 | Offboarding follows the lifecycle in §2.5:<br>• in-progress jobs are cancelled safely or finish without starting new work;<br>• pending approvals are frozen;<br>• the export runs within its window;<br>• deletion respects retention and legal holds;<br>• every step is audited;<br>• a step started by a person requires that person's MFA (D-SEC-08) and, per OQ-38, fresh authentication; steps the system runs are audited but need no MFA.<br>Who performs the offboarding export, and who may download it, is unresolved (OQ-42). | Mandatory (controlled process, D-DAT-06; audit); Unresolved (sequence, windows, export roles, fresh authentication: OQ-38, OQ-42) | D-DAT-06, AF-85, AF-124 |
+| NFR-DAT-010 | Temporary processing artifacts (staging rows and files in the upload holding area) are deleted after a short, configurable period. Quarantined rows are not temporary artifacts: they follow the retention rules for imported financial records. | Mandatory (category); Unresolved (value) | D-DAT-07 |
 | NFR-DAT-011 | Backup copies age out under their own retention and are not deleted record by record. This behaviour is disclosed in the offboarding documentation. | Recommended; EXTERNAL REVIEW REQUIRED | D-DAT-06, AF-81 |
 
 ---
@@ -733,9 +759,9 @@ Each scenario below needs an explicit accounting policy before templates can be 
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-REL-001 | Every job stores: workspace, type, status (`Queued`, `Processing`, `Partially completed`, `Completed`, `Failed`), attempt count, lease and heartbeat, idempotency key, progress, and actionable failure detail. Only transient failures are retried, a bounded number of times with backoff. Each step is idempotent. | Mandatory (status, safe retries); Recommended (mechanism, OQ-49) | D-OPS-01 |
-| NFR-REL-002 | A job interrupted by a restart or crash resumes or retries safely, without duplicate records, matches, drafts, postings or notifications. | Mandatory | D-OPS-07, D-IMP-07 |
-| NFR-REL-003 | A job that fails permanently stops retrying. It is isolated with its input reference kept, raises an alert, and can be re-run manually and safely once the cause is fixed. | Mandatory (derived from checklist #20 and #12) | Checklist #20 |
+| NFR-REL-001 | Every job stores: workspace, type, status (`Queued`, `Processing`, `Partially completed`, `Completed`, `Failed`), attempt count, lease and heartbeat, idempotency key, progress, and actionable failure detail. Only transient failures are retried, a bounded number of times with backoff. Each step is idempotent. Every batch commit and status write checks a lease version that only ever increases (a fencing token), so a worker that stalls past its lease cannot write after another worker has taken over. | Mandatory (status, safe retries); Recommended (mechanism, OQ-49) | D-OPS-01, AF-133 |
+| NFR-REL-002 | A job interrupted by a restart or crash resumes or retries safely, without duplicate records, matches, drafts or postings. Notifications follow FR-NTF-005: delivery is at least once, so an occasional duplicate notification is possible. | Mandatory | D-OPS-07, D-IMP-07, AF-128 |
+| NFR-REL-003 | A job that fails permanently stops retrying. It is isolated with its input reference kept, raises an alert, and can be re-run manually and safely once the cause is fixed. | Mandatory (derived from D-OPS-01 "safe retries" and checklist #12 "bounded"); Recommended (isolation mechanism, by analogy with checklist #20) | D-OPS-01, checklist #12 |
 | NFR-REL-004 | Concurrency per workspace and queue depth are bounded, so one tenant's large imports cannot starve others. | Recommended | Checklist #44 |
 | NFR-REL-005 | Every call to an external dependency (identity provider, object storage, email, malware scanner) has explicit timeouts. | Mandatory | Checklist #11 |
 
@@ -747,14 +773,14 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | FR-NTF-002 | Emails never contain amounts, account or card identifiers, counterparty names or file contents. They give a generic description and direct the user to sign in. | Mandatory | D-OPS-02 |
 | FR-NTF-003 | Users can configure their notification preferences. Security notices (role changes, MFA changes, sign-ins to new sessions where available) cannot be switched off. | Mandatory (configurable where appropriate); Recommended (security notices) | D-OPS-02 |
 | FR-NTF-004 | Recipients are worked out when the notification is sent: current members of the workspace who are permitted to see its subject. | Mandatory (derived from D-SEC-04) | D-SEC-04 |
-| FR-NTF-005 | Notifications are emitted only after the triggering transaction commits (an outbox pattern) and are deduplicated across retries and restores. | Recommended (supports D-OPS-07) | D-OPS-07, AF-82 |
+| FR-NTF-005 | Notifications are emitted only after the triggering transaction commits (an outbox pattern), and delivery is at least once. Duplicates are reduced with provider idempotency keys where the email provider supports them, and with a send log kept outside the restore scope. Exactly-once delivery through an external email provider is not claimed. | Recommended (supports D-OPS-07) | D-OPS-07, AF-82, AF-128 |
 
 ### 11.3 Backup, recovery and data consistency
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-REL-006 | Database backups are automated, with point-in-time recovery where the host supports it. Evidence files are protected against loss and overwrite, for example by object versioning or soft deletion (Recommended). Backup access is restricted. A documented restore procedure is rehearsed regularly, measuring the data-loss window and the restore time against RPO ≤ 1 hour and RTO ≤ 4 hours. | Mandatory | D-OPS-05, D-OPS-06 |
-| NFR-REL-007 | After any restore, these consistency checks run before service resumes:<br>• every file reference resolves to a stored object;<br>• all posted entries balance and the trial balance totals agree;<br>• audit history is continuous;<br>• jobs left mid-flight are recovered or failed safely;<br>• notifications already sent are not sent again (Recommended). | Mandatory (consistent financial data); Recommended (check list) | D-OPS-07, AF-82 |
+| NFR-REL-006 | Database backups are automated, with point-in-time recovery where the host supports it. Evidence files are protected against loss and overwrite, for example by object versioning or soft deletion (Recommended). Backup access is restricted. A documented restore procedure is rehearsed regularly. Each drill measures the data-loss window and the restore time against RPO ≤ 1 hour and RTO ≤ 4 hours. Recommended:<br>• drills restore *production* backups into an isolated recovery environment run under production controls, not staging (NFR-OPS-002);<br>• RTO is measured from incident declaration, or drill start, to service ready after the NFR-REL-007 checks;<br>• whether the RPO target also covers evidence files is decided under OQ-54. | Mandatory (backups, restore tests, measurement); Recommended (drill environment, measurement points); Unresolved (file RPO, OQ-54) | D-OPS-05, D-OPS-06, AF-122 |
+| NFR-REL-007 | After any restore, these consistency checks run before service resumes:<br>• every file reference resolves to a stored object;<br>• all posted entries balance and the trial balance totals agree;<br>• audit history is continuous;<br>• jobs left mid-flight are recovered or failed safely;<br>• every session is invalidated;<br>• revocations, legal holds and deletions recorded after the restore point are re-applied from a log kept outside the restore scope, so removed users do not regain access and deleted data does not quietly reappear (Recommended);<br>• notifications whose sends after the restore point are recorded in a send log kept outside the restore scope are not re-sent; any duplicates that remain are a documented limitation (Recommended). | Mandatory (consistent financial data); Recommended (check list) | D-OPS-07, AF-82, AF-118, AF-128 |
 | NFR-REL-008 | Health endpoints distinguish whether the process is alive from whether it is ready: database and storage reachable, migrations applied. | Mandatory | Checklist #56 |
 | NFR-REL-009 | Migrations are versioned, reviewed and backward compatible with the running version (expand, migrate, contract). They are tested both on a fresh database and as an upgrade from the previous release. | Mandatory | Checklist #80, #81 |
 
@@ -786,38 +812,38 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 | ID | Given / when | Then | Covers |
 |---|---|---|---|
 | AC-001 | An Analyst uploads a PDF as a settlement report. | It is rejected with a reason naming CSV and XLSX; no source records are created. | FR-IMP-001 |
-| AC-002 | A file exceeds the configured size or row limit. | It is rejected before parsing; record counts are unchanged. | FR-IMP-003 |
+| AC-002 | A file exceeds the configured size or row limit. | Over the size limit: rejected before parsing. Over the row limit: rejected during a streaming pre-scan, before any staging or commit. Either way, record counts are unchanged. | FR-IMP-003 |
 | AC-003 | A password-protected XLSX is uploaded. | It is rejected with "encrypted or password-protected file". | FR-IMP-002 |
 | AC-004 | A byte-identical copy of an imported file is uploaded. (U) | It is blocked with a link to the earlier import; no records are created. | FR-IMP-005 |
 | AC-005 | A 10-row file where row 4 has date 31/02/2026 and row 7 has no currency is committed. | 8 records exist. 2 rows are quarantined with row number, field and reason. The outcome is `Partially imported` with a visible warning. The error-report export contains exactly those 2 rows. | FR-IMP-009, FR-IMP-012, FR-IMP-013 |
 | AC-006 | A mapping's date column is ambiguous (for example 01/02/2026) and the format is unconfirmed. | The mapping cannot be saved or used until a date format is explicitly confirmed. | FR-IMP-007, FR-IMP-008 |
 | AC-007 | Indian digit grouping is configured and an amount reads "1,00,000.50". | It is stored as exactly 100000.50. | FR-IMP-008 |
-| AC-008 | An INR amount has three decimal places. | The row is quarantined with a precision error and is not rounded. | FR-IMP-028 |
+| AC-008 | An INR amount has three decimal places. (U: OQ-53) | The row is quarantined with a precision error and is not rounded. | FR-IMP-028, FR-FIN-006 |
 | AC-009 | A commit job is killed midway and then retried. | Each identity key exists exactly once; job status and import outcome are consistent. | FR-IMP-011, NFR-REL-002 |
 | AC-010 | A second export overlaps the first: 50 rows are identical to existing records and 10 are new. | 10 new records are created; 50 repeat occurrences are recorded; there are no duplicates. | FR-IMP-015 |
 | AC-011 | A later file without revision status has the same payment ID with a different amount. (U) | The existing record is unchanged; a new observation is stored; a "Conflicting source data" exception exists; the record is not eligible for automatic matching. | FR-IMP-016 |
 | AC-012 | One line of payout P is quarantined. | P is marked incomplete; P and its lines are not matched automatically; no journal drafts derive from P. | FR-IMP-014 |
-| AC-013 | A corrected settlement file is designated as a revision of import I. | The diff is shown before commit. Afterwards I is `Superseded`; removed records are `Withdrawn by revision` and still visible; posted journals are unchanged; affected matches show "Needs re-review". | FR-IMP-019, FR-IMP-020 |
-| AC-014 | A file contains a value that passes the card-number checksum. (U) | It is rejected before reaching evidence storage, and the temporary copy is removed. | FR-IMP-022 |
+| AC-013 | A corrected settlement file is designated as a revision of import I. (U: outcome names and revision approval) | The diff is shown before commit. Afterwards I is `Superseded`; removed records are `Withdrawn by revision` and still visible; posted journals are unchanged; affected matches show "Needs re-review". | FR-IMP-019, FR-IMP-020 |
+| AC-014 | A file has a column of 16-digit values that pass the card-number checksum and match card-issuer prefixes. A second file has 16-digit bank references that pass the checksum but match no issuer prefix and sit in a reference column. (U) | The first file is held for confirmation, or rejected, before it reaches evidence storage, and its temporary copy is removed. The second file imports normally. | FR-IMP-022 |
 
 **Reconciliation and exceptions**
 
 | ID | Given / when | Then | Covers |
 |---|---|---|---|
-| AC-020 | Payment X (INR 1,000.00, successful) and a settlement line referencing X with gross INR 1,000.00. | Matched automatically. The match records the run ID, rule-set version and identifier evidence. | FR-REC-003 |
-| AC-021 | As AC-020, but the settlement gross is INR 999.99. | No match. An "Amount mismatch" exception shows both values and their source rows. | FR-REC-004 |
-| AC-022 | Same identifier, but currencies USD and INR. | No match. A "Currency mismatch" exception is raised; nothing is converted. | FR-REC-004, FR-FIN-005 |
+| AC-020 | Payment X (INR 1,000.00, successful) and a settlement line referencing X with gross INR 1,000.00. | Matched automatically. The match records the run ID, rule-set version and identifier evidence. | FR-REC-003, FR-REC-020 |
+| AC-021 | As AC-020, but the settlement gross is INR 999.99. | No match. An "Amount mismatch" exception shows both values and their source rows; a 0.01 difference is not absorbed by any tolerance. | FR-REC-004, FR-REC-007 |
+| AC-022 | Same identifier, but currencies USD and INR. | No match. A "Currency mismatch" exception is raised; nothing is converted. | FR-REC-004, FR-FIN-005, FR-REC-053 |
 | AC-023 | A payment and a settlement line with equal amount and date but no shared identifier. | Never matched automatically; may appear as a candidate with "no identifier evidence" shown. | FR-REC-005 |
 | AC-024 | Two settlement payment lines both reference payment X. | An "Ambiguous reference" exception; no automatic match. | FR-REC-006 |
 | AC-025 | Order O totals 2,000.00, with two successful payments of 1,000.00 each and no split evidence. | A "Multiple successful payments" exception; nothing is aggregated. | FR-REC-011 |
 | AC-026 | A failed attempt exists for order O. | It is linked to O under L1, excluded from L2, and never counted as a payment. | FR-REC-002 |
-| AC-027 | A settlement line has gross 1,000.00, fee 20.00, tax on fee 3.60 and net 976.40. | It passes. If net were 976.00 instead, a "Settlement line inconsistency" exception would be raised and the values kept as reported. | FR-REC-021 |
+| AC-027 | A settlement line has gross 1,000.00, fee 20.00, tax on fee 3.60 and net 976.40. These are illustrative reported values; no fee or tax rate is implied or computed. | It passes. If net were 976.00 instead, a "Settlement line inconsistency" exception would be raised and the values kept as reported. | FR-REC-021 |
 | AC-028 | Payout amount ≠ sum of its lines' net amounts. | A "Payout breakdown inconsistency" exception; journal drafts from that breakdown are `Blocked`. | FR-REC-022, FR-ACC-008 |
 | AC-029 | A payout with UTR U, and a bank credit with UTR U for the same amount. | L3 match. If the amounts differ by 1.00 instead, an open discrepancy shows both amounts. | FR-REC-030, FR-REC-031 |
-| AC-030 | Two payouts sum exactly to one bank credit with no combined-reference evidence. | Proposal only; nothing is confirmed. | FR-REC-032, FR-REC-040 |
+| AC-030 | Two payouts sum exactly to one bank credit with no combined-reference evidence. (U: GR1–GR4 allowlist) | Proposal only; nothing is confirmed. | FR-REC-032, FR-REC-040 |
 | AC-031 | A rerun uses identical inputs and rule-set version. | Run comparison shows zero changes to automatic results. | FR-REC-062, FR-REC-064 |
-| AC-032 | A manual match's settlement line receives a new version through a revision, and then a rerun happens. | The manual match is kept and flagged "Needs re-review"; it is neither silently kept as valid nor dropped. | FR-REC-063 |
-| AC-033 | Two Stage 1 runs are requested at the same time. | One proceeds; the other is rejected with the active run's ID, or queued. | FR-REC-061 |
+| AC-032 | A manual match's settlement line receives a new version through a revision, and then a rerun happens. (U: OQ-21) | The manual match is kept and flagged "Needs re-review"; it is neither silently kept as valid nor dropped. | FR-REC-063 |
+| AC-033 | Two Stage 1 runs are requested at the same time. (U: FR-REC-061) | One proceeds; the other is rejected with the active run's ID, or queued. | FR-REC-061 |
 | AC-034 | Two Analysts manually match the same settlement line to different payments at the same time. | Exactly one succeeds; the other receives a conflict with the current state. | FR-REC-054 |
 | AC-035 | A manual match is submitted without a reason or evidence, or a record is already matched on that link. | Rejected; nothing changes. | FR-REC-050 |
 | AC-036 | An amount-mismatch exception is set to `Resolved` as "Explained" without citing components or evidence. | Rejected; the status is unchanged. | FR-EXC-004, FR-EXC-005 |
@@ -830,16 +856,16 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 | ID | Given / when | Then | Covers |
 |---|---|---|---|
 | AC-050 | A draft has debits of 100.00 and credits of 99.99. | It cannot be submitted or posted; the error states the imbalance; no balancing line is added. | FR-ACC-011, FR-ACC-012 |
-| AC-051 | Preparer P holds both Preparer and Controller roles and approves their own draft through the API. | Rejected (forbidden); the draft stays `Submitted`; the attempt is logged. | FR-WSP-010 |
+| AC-051 | Preparer P holds both Preparer and Controller roles and tries to approve their own draft three ways: through the UI, directly through the API, and by replaying an earlier approval request. | All three are rejected (forbidden) and the draft stays `Submitted`. Recommended: each attempt is logged (NFR-DAT-004). | FR-WSP-010 |
 | AC-052 | Controller C (not P) approves twice, or two approval requests arrive at once. | Exactly one posted entry with one sequence number. | FR-ACC-014 |
 | AC-053 | Something tries to update or delete a posted entry, through the API or as the application database role. | Rejected at both layers. | FR-ACC-013 |
 | AC-054 | A posted entry is reversed. | A mirrored entry references the original; both are visible; their combined effect in the trial balance is zero. | FR-ACC-013 |
 | AC-055 | Posting is attempted into a `Closed` period. | Rejected, naming the period. | FR-ACC-018 |
 | AC-056 | A Controller reopens a period: (a) without a reason; (b) with a reason but stale authentication; (c) with both. | (a) and (b) are rejected or require step-up authentication. (c) reopens the period, writes an audit event and sends notifications. | FR-ACC-020, NFR-SEC-004 |
-| AC-057 | Closing a period that has a submitted, unposted draft. | Blocked, listing the draft. A permitted-exception path needs an approver and a rationale. | FR-ACC-019 |
+| AC-057 | Closing a period that has a submitted, unposted draft. (U: which items are critical) | Blocked, listing the draft. A permitted-exception path needs an approver and a rationale. | FR-ACC-019 |
 | AC-058 | A draft depends on an open exception. | It is `Blocked` and cannot be submitted. | FR-ACC-008 |
 | AC-059 | Opening balances that do not balance. | They cannot be submitted. Once balanced, they need an approver who is not the preparer, and post dated at the cutover date. | FR-ACC-016 |
-| AC-060 | An event dated before cutover; and a settlement after cutover of a payment captured before it. | No draft for the first. A "Cutover review" exception for the second before any draft can be submitted. | FR-ACC-017 |
+| AC-060 | An event dated before cutover; and a settlement after cutover of a payment captured before it. (U: OQ-25 for the second case) | No draft for the first. A "Cutover review" exception for the second before any draft can be submitted. | FR-ACC-017 |
 | AC-061 | Drafts are regenerated for the same event, and someone tries to post the same event twice for the same purpose. | No second active draft. The second posting is rejected by a database constraint. | FR-ACC-007, FR-ACC-025 |
 | AC-062 | A template version whose lines are unbalanced is activated. | Activation is rejected with a validation report. | FR-ACC-005 |
 | AC-063 | Someone deletes an account referenced by a posted entry. | Rejected; deactivating it is allowed. | FR-ACC-003 |
@@ -848,7 +874,7 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 
 | ID | Given / when | Then | Covers |
 |---|---|---|---|
-| AC-070 | A member of workspace A reads, updates, deletes, exports or requests a download link for a resource of workspace B by ID. | Every attempt fails with a response that does not reveal whether the resource exists; nothing leaks; a security event is logged. Matching allowed operations inside A succeed. | NFR-SEC-006, NFR-SEC-007, NFR-SEC-008 |
+| AC-070 | A member of workspace A reads, updates, deletes, exports or requests a download link for a resource of workspace B by ID. | Every attempt fails with a response that does not reveal whether the resource exists, and nothing leaks. The matching allowed operations inside A succeed. Recommended: a security event is logged. Export and download-link parts run once those features exist (M2, M8). | NFR-SEC-006, NFR-SEC-007, NFR-SEC-008 |
 | AC-071 | A job for workspace A is given a payload containing workspace B's record IDs. | It fails without reading or writing B's data. | NFR-SEC-007 |
 | AC-072 | A database query runs on a tenant table without a tenant context. (Recommended mechanism) | It returns no rows and cannot write (fails closed). | NFR-SEC-007 |
 | AC-073 | An Auditor calls any mutating endpoint, and a role whose UI button is hidden calls the API directly. | Both are rejected. | NFR-SEC-006, D-SEC-01 |
@@ -858,7 +884,7 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 | AC-077 | A signed file link is used after it expires, or a member of workspace B asks for a link to workspace A's file. | Both fail. | NFR-SEC-008 |
 | AC-078 | An import-completed email is sent. | It contains no amounts, account identifiers, counterparty names or file contents. | FR-NTF-002 |
 | AC-079 | A user is removed from workspace A before a notification about A is sent. | They do not receive it. | FR-NTF-004 |
-| AC-080 | An audited action commits, and another rolls back. | The committed action has exactly one audit event with the required fields; the rolled-back action has none. | NFR-DAT-001, NFR-DAT-002 |
+| AC-080 | An audited action commits, and another rolls back. (U: NFR-DAT-002) | The committed action has exactly one audit event with the required fields; the rolled-back action has none. | NFR-DAT-001, NFR-DAT-002 |
 | AC-081 | The application role attempts UPDATE or DELETE on audit events. | Rejected. | NFR-DAT-003 |
 | AC-082 | A legal hold covers a workspace when a deletion job runs. | Covered data is not deleted, and the job reports why. | NFR-DAT-006 |
 | AC-083 | An Admin sets retention below the mandatory minimum. | Rejected. | NFR-DAT-006 |
@@ -869,11 +895,83 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 |---|---|---|---|
 | AC-090 | The application is killed during a reconciliation run. | After restart the run resumes, or is marked `Failed` with recoverable state; there are no duplicate matches or drafts. | NFR-REL-002 |
 | AC-091 | A job fails permanently. | After the bounded attempts it is `Failed`, isolated and alerted, never retried in a loop, and can be re-run safely. | NFR-REL-003 |
-| AC-092 | A staging restore drill restores the database to time T. | The NFR-REL-007 checks pass. The measured data-loss window and restore time are recorded against the targets; an unmet target is reported as unmet. | NFR-REL-006, NFR-REL-007 |
+| AC-092 | A restore drill restores production backups to time T in an isolated recovery environment run under production controls. (U: drill environment) | The NFR-REL-007 checks pass. The data-loss window and the restore time (incident declaration to service ready) are measured and recorded against the targets. An unmet target is reported as unmet. | NFR-REL-006, NFR-REL-007 |
 | AC-093 | A trial balance is generated. | Debits equal credits across posted entries; drafts are excluded; period status is shown. | FR-RPT-001, FR-RPT-003 |
 | AC-094 | A report is generated over a period with open high-risk exceptions. | It is labelled "Provisional" and shows their count. | FR-RPT-003 |
 | AC-095 | Data in two currencies is exported. | Totals are separate per currency. Record counts and checksums are unchanged after export. | FR-RPT-010, FR-RPT-011, FR-RPT-014 |
 | AC-096 | An exported text cell starts with "=" and an amount is −250.00. | The text is neutralized; the amount stays a numeric cell. | FR-RPT-012 |
+
+**Additional criteria added after independent review (16 October 2026)**
+
+These cover high-risk requirements that previously had no acceptance criterion (AF-117).
+
+*Imports*
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-100 | A saved template is applied to a file whose headers differ from the template's header signature. | The template is not applied automatically; the user must re-map. | FR-IMP-006 |
+| AC-101 | A bank file uses separate debit and credit columns, and the sign convention is unconfirmed; a row has both columns filled in. | The mapping cannot be used until the convention is confirmed. The row with both columns filled in is quarantined with a sign error. | FR-IMP-008, FR-IMP-009 |
+| AC-102 | An amount column holds minor units (for example 100050 meaning 1,000.50), and the unit is unconfirmed or then confirmed. | Unconfirmed: the mapping cannot be used. Confirmed as minor units: the value is stored as exactly 1000.50. | FR-IMP-008 |
+| AC-103 | An XLSX file has a numeric amount cell holding 1000.1, uses the 1904 date system, and has a formula in an amount cell. (U: formula rule) | The amount is stored as exactly 1000.1. Dates match the source dates. The row containing the formula is quarantined. | FR-IMP-033 |
+| AC-104 | The identifier "001234567890123456789" arrives as CSV text; another identifier arrives as an XLSX number shown in scientific notation. | The first is stored exactly. The second's row is quarantined. | FR-IMP-032 |
+| AC-105 | The same transactions arrive in overlapping exports imported under two different template versions. | One record exists per transaction; the overlap is recorded as repeat occurrences. | FR-IMP-015, FR-IMP-024 |
+| AC-106 | The same merchant order ID appears in reports from two different gateway accounts in one workspace. | The records are not linked or matched across the two accounts. | FR-IMP-034, FR-REC-003 |
+| AC-107 | A bank statement's opening balance differs from the previous statement's closing balance for the same account. (U) | A "Bank statement continuity break" exception is raised; no balance is adjusted. | FR-IMP-031 |
+| AC-108 | A template is edited after an import has used it. | A new template version is created; the earlier import still shows, and was interpreted under, the old version. | FR-IMP-024 |
+| AC-109 | Users preview, validate and export import results. | Record counts and checksums of source records are unchanged. | FR-IMP-026 |
+| AC-110 | Two rows share amount and date but have different identifiers. | Neither is merged or excluded automatically; at most they are shown as "Possible duplicate". | FR-IMP-018 |
+| AC-147 | An Analyst commits a revision that withdraws records. (U: OQ-14) | The revision takes effect only after approval by a different authorized user. | FR-IMP-019 |
+
+*Reconciliation, exceptions and financial events*
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-111 | A rerun happens with no change to inputs, rules or decisions. | No new or changed matches, exceptions or journal drafts; counts are unchanged. | FR-REC-068, FR-REC-062 |
+| AC-112 | A candidate date window is changed. | Confirmed matches, exceptions and eligibility for automatic matching are unchanged. | FR-REC-008 |
+| AC-113 | A run uses a `Partially imported` input. | The run results and every report built on them show the incomplete-data warning. | FR-REC-067 |
+| AC-114 | A settlement report omits the fee column for a line. | The fee is recorded as "not reported", never calculated; any resulting difference becomes a discrepancy. | FR-REC-023 |
+| AC-115 | A run completes over a period that has posted journals. | The posted journals' content and checksums are unchanged. | FR-REC-065 |
+| AC-116 | A successful payment has no settlement line yet. | It shows as "Awaiting settlement" with its age and is never counted as reconciled in summaries. | FR-REC-024 |
+| AC-117 | A group is confirmed whose members have mixed currencies, or whose gross amounts do not agree. | Confirmation is rejected. | FR-REC-041 |
+| AC-118 | A settlement line references a payment attempt mapped as failed. | A "Settlement for non-successful attempt" exception is raised. | FR-REC-002 |
+| AC-119 | A refund is linked to a payment, and a related exception is resolved. | The payment's stored source values are unchanged in both cases. | FR-FIN-004, FR-EXC-007 |
+| AC-120 | Starting from a posted journal line, and then from a source row. | From the journal line, users reach its source rows, file version, import, match or exception, run and template version. From the source row, users reach every match, exception and journal that uses it. | FR-FIN-007 |
+| AC-121 | A high-risk manual match awaits approval. (U: criteria) | It has no effect on reports, eligibility or drafts until a different authorized user approves it. | FR-REC-051 |
+| AC-122 | An exception carrying a difference is resolved as "Outside reconciliation scope" or "Duplicate confirmed"; another is resolved as explained bank charges. (U) | The first needs approval by a different user. The second creates a linked accounting-review item. | FR-EXC-004, FR-EXC-006, FR-EXC-010 |
+
+*Accounting*
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-123 | An order is imported with no recognition evidence. | No revenue draft is generated; the order appears in the review queue when a trigger is configured. | FR-ACC-006, FR-ACC-032 |
+| AC-124 | A draft generated from an event is discarded without a reason or approval; then the period is closed. (U) | The discard is rejected. The close checklist lists the event as having no posted journal. | FR-ACC-010, FR-ACC-030 |
+| AC-125 | A second full reversal of the same entry is submitted, and so is a second opening entry. | Both are rejected by database constraints. | FR-ACC-013, FR-ACC-016 |
+| AC-126 | The cutover date is changed after the first posting; an entry dated before cutover is submitted. (U for the first case) | The change is rejected. The pre-cutover posting is rejected. | FR-ACC-028 |
+| AC-127 | A period close and a posting into that period run at the same moment. (U) | Either the posting commits before the close, or it is rejected. An entry is never posted into a closed period. | FR-ACC-031, FR-ACC-018 |
+| AC-128 | A workspace has one user, who holds every role. | Posting is impossible; the UI explains why and offers no bypass. | FR-WSP-013 |
+| AC-146 | A template version is activated by the user who drafted it, or without MFA. (U: OQ-31) | Activation is rejected. | FR-ACC-027 |
+
+*Security, audit and data lifecycle*
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-129 | A role is changed. | An audit event records actor, target, before and after roles, and time. Recommended: current Admins and the affected user are notified once notifications exist (M5/M8). | FR-WSP-005 |
+| AC-130 | Each action type listed in NFR-DAT-004 is performed once. | Each produces exactly one audit event with the required fields. | NFR-DAT-004 |
+| AC-131 | A user's email changes at the identity provider; separately, a new provider account reuses an old email address. (U) | The first user keeps the same ClearSettle account. The new account gains no access to the old account. | NFR-SEC-001 |
+| AC-132 | Logs are scanned after a test run that seeded known secrets, tokens and file contents. | None of the seeded values appear in any log. | NFR-SEC-012 |
+| AC-133 | A workspace B user searches, or requests cached responses, for data belonging to workspace A. | Nothing from A is returned. | NFR-SEC-016 |
+| AC-134 | A non-permitted role, and then a permitted role, run the audit-history export. | The first is rejected. The second receives only its own workspace's events. | FR-RPT-009 |
+| AC-135 | An evidence attachment of a disallowed type is uploaded; an allowed HTML or SVG attachment is downloaded. | The disallowed upload is rejected. The allowed file is served only as a download, with attachment disposition and `nosniff`, never rendered inline. | NFR-SEC-017 |
+| AC-136 | Workspace B creates a record whose identifier already exists in workspace A. | Creation succeeds, and the response reveals nothing about workspace A. | NFR-SEC-007 |
+| AC-137 | A member's download permission is revoked after a download was prepared for them. (U: mechanism) | The download is refused. Link issuance and the refusal are audited. | NFR-SEC-008 |
+| AC-138 | A worker stalls past its lease while another worker takes over the job. | The stalled worker's later batch commit and status write are rejected by the lease-version check. | NFR-REL-001 |
+| AC-139 | The database is restored to time T after a member was removed, a legal hold was set and data was deleted later than T. (U) | Before service resumes, all sessions are invalidated, the removal and the hold are re-applied, and the deletion is re-applied. | NFR-REL-007 |
+| AC-140 | An Admin starts offboarding. (U: sequence) | MFA is required. Access is disabled. Running jobs start no new work. The export window opens. Legal holds block deletion. Every step is audited. | NFR-DAT-009 |
+| AC-141 | The temporary-artifact cleanup runs. | Holding-area files and staging rows older than the configured period are deleted; quarantined rows are kept. | NFR-DAT-010 |
+| AC-142 | The transaction that would trigger a notification rolls back. | No notification is sent. | FR-NTF-005 |
+| AC-143 | A CSV export contains the text "-1+cmd", a text value starting with a tab, and the amount -250.00. | Both text values are neutralized; the amount is written as `-250.00`, unchanged. | FR-RPT-012, FR-IMP-025 |
+| AC-144 | An XLSX file contains a document type declaration with an external entity. | The file is rejected or parsed without resolving the entity; nothing is fetched. | FR-IMP-030 |
+| AC-145 | A user exceeds the rate limit for workspace creation, or for sending invitations. | Requests over the limit are rejected. | NFR-SEC-010 |
 
 ### 12.2 Nonfunctional requirements without a section above
 
@@ -900,14 +998,16 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 | Import fixtures | Fixtures built from owner-supplied anonymized samples (OQ-07): malformed files, encodings, Indian formats, overlapping exports, revisions, limits | Test fixtures must not contain real customer data. |
 | Reconciliation scenarios | A curated dataset with expected outcomes for every exception type in FR-EXC-003 and every AC-020 to AC-039 case | Kept as regression fixtures. |
 | Accounting golden scenarios | Expected journal outcomes for each §8.10 scenario, written and reviewed by a qualified accountant once policies are approved | A balanced journal can still be economically wrong; only reviewed expectations catch that (AF-91). |
-| Concurrency | Simultaneous runs, manual matches, approvals, imports of the same file, and duplicate submissions | Run repeatedly to expose race conditions. |
+| Concurrency | Simultaneous runs, manual matches, approvals, imports of the same file, and duplicate submissions; a period close racing a posting or draft generation; a revision commit or period reopen racing an active run; stalled workers whose lease has expired | Run repeatedly to expose race conditions. |
 | Failure and recovery | Database unavailability, storage timeouts, killed jobs, exhausted retries, restore drills | Operational exercises produce recorded evidence. |
 | End-to-end (browser) | J1–J12, especially the release-gate path J2 → J10 | Uses synthetic data. |
 | Security | Tenant isolation, role escalation, IDOR, CSRF, XSS, upload abuse (zip bombs, formula injection), rate limits, session revocation | Independent review before production (§13.3). |
 | Performance | The import-limit load tests (NFR-PERF-001), memory bounds, list endpoint latency baselines | Results recorded, not assumed. |
 | Accessibility | Keyboard navigation, focus, contrast and screen-reader checks against the OQ-46 target | — |
 
-**Traceability rule:** every Mandatory requirement maps to at least one acceptance criterion or test, and every test names the requirement it covers. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
+**Traceability rule:** every Mandatory requirement maps to at least one acceptance criterion or test, and every test names the requirement it covers.
+
+**Coverage status (16 October 2026):** 117 of the 173 requirements with a Mandatory part are named by at least one acceptance criterion in §12.1. The other 56 are mostly operational, UX, structural and reporting requirements: environments, CI, migrations, health checks, observability, formatting and UI states, report contents, and exception record fields. Each of them must be mapped to a named test, configuration review or operational exercise in the implementation status document before its milestone exits. The list is in audit finding AF-117. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
 
 ---
 
@@ -928,7 +1028,7 @@ No requirement in this specification implements any of them. Adding one needs th
 
 ### 13.2 Unresolved questions
 
-All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions) (OQ-01 to OQ-50). These most change what gets built:
+All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions) (OQ-01 to OQ-55; OQ-30 is retired). These most change what gets built:
 
 | OQ | Topic | Needed before |
 |---|---|---|
@@ -942,6 +1042,7 @@ All open questions are in [register §3](clearsettle_decision_register.md#3-open
 | OQ-23, OQ-24, OQ-25 | Posting rules, revenue triggers, cutover straddles | Accounting automation (M7) |
 | OQ-34, OQ-35 | Identity provider; session architecture | Foundation (M1) |
 | OQ-41 | Retention periods | Lifecycle hardening (M9) and production |
+| OQ-51, OQ-52 | "Unreconciled balances" at close; year-end close | Accounting core (M6) |
 
 ### 13.3 Professional review required
 
