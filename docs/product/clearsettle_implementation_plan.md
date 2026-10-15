@@ -1,7 +1,7 @@
 # ClearSettle — Phased Implementation Plan
 
 **Document status:** Proposal for owner review. **This plan does not authorize implementation.** Application development starts only when the owner explicitly authorizes it (D-PRC-01). After that, each milestone starts only when its entry conditions are met.
-**Prepared:** 15 October 2026
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review
 **Inputs:** [Decision register](clearsettle_decision_register.md), [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [`CLAUDE.md`](../../CLAUDE.md).
 
 ## 1. Planning principles
@@ -41,8 +41,8 @@
 **Dependency chain:**
 - **Main path:** M0 → M1, then two parallel branches that rejoin at M7:
   - **Reconciliation branch:** M2 → M3 → M4 → M5.
-  - **Accounting branch:** M6.
-- **After M7:** M7 → M8 → M9 → M10.
+  - **Accounting branch:** M6. The opening-balance template upload in M6 waits for the M2 upload pipeline; the form-based entry does not.
+- **After M7:** M7 → M8 → M9 → M10. M8's operational reports can start after M5; its event-based accounting reports need M7.
 
 ## 4. Decision gates
 
@@ -50,15 +50,15 @@ Each open question must be answered before the work it gates begins. Answering e
 
 | Gate | Open questions to resolve | Needed by |
 |---|---|---|
-| G0 — Foundation | OQ-03 (workspace = entity; multi-workspace), OQ-05 (operator access principle), OQ-34 (identity provider, or a development provider plus selection criteria), OQ-35 (session architecture), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions) | M1 |
-| G1 — Imports | OQ-07 (first gateways, samples), OQ-08 (schemas from samples), OQ-09 (conflicting observations), OQ-10 (identical file), OQ-39 (card and bank numbers), OQ-49 (job mechanism) | M2 |
+| G0 — Foundation | OQ-03 (workspace = entity; multi-workspace), OQ-05 (operator access principle), OQ-34 (identity provider, or a development provider plus selection criteria), OQ-35 (session architecture), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions), OQ-43 (partial: the secrets approach and the development and CI environments), OQ-55 (MFA for export roles) | M1 |
+| G1 — Imports | OQ-07 (first gateways, samples), OQ-08 (schemas from samples), OQ-09 (conflicting observations), OQ-10 (identical file), OQ-39 (card and bank numbers), OQ-49 (job mechanism), OQ-53 (excess precision) | M2 |
 | G2 — First reconciliation | OQ-06 (link model), OQ-12 (partial settlements), OQ-13 (expected settlement period), OQ-19 (cross-currency policy: the safe default lets work proceed), OQ-21 (run scope) | M3 |
 | G3 — Full coverage | OQ-02 (records outside gateway flows), OQ-11 (split-payment evidence), OQ-20 (narration references), OQ-22 (parameter governance); bank samples (OQ-07) | M4 |
 | G4 — Exception controls | OQ-14 (risk criteria), OQ-15 (accepted differences), OQ-16 (statuses), OQ-17 (separation-of-duties scope) | M5 |
-| G5 — Accounting core | OQ-01 (ledger completeness and manual journals), OQ-18 (one-person constraint), OQ-19 (functional currency), OQ-26 (closed-period corrections), OQ-27 (default Chart of Accounts: external), OQ-28 (numbering), OQ-29 (financial-year changes), OQ-31 (template and account governance) | M6 |
+| G5 — Accounting core | OQ-01 (ledger completeness and manual journals), OQ-18 (one-person constraint), OQ-19 (functional currency), OQ-26 (closed-period corrections), OQ-27 (default Chart of Accounts: external), OQ-28 (numbering), OQ-29 (financial-year and cutover changes), OQ-31 (template and account governance), OQ-17 (separation-of-duties scope), OQ-51 (unreconciled balances), OQ-52 (year-end close: external) | M6 |
 | G6 — Accounting automation | OQ-23 (posting rules: external), OQ-24 (revenue triggers: external), OQ-25 (cutover straddles: external), OQ-33 (tax mapping: external); accountant golden scenarios (AF-91) | M7 |
 | G7 — Reporting | OQ-32 (management or statutory: external), OQ-43 (email provider) | M8 |
-| G8 — Production readiness | OQ-04 (legal terms), OQ-40 (keys and scanning), OQ-41 (retention: external), OQ-42 (offboarding), OQ-43 (hosting), OQ-44 (performance target) | M9, M10 |
+| G8 — Production readiness | OQ-04 (legal terms), OQ-40 (keys and scanning), OQ-41 (retention: external), OQ-42 (offboarding), OQ-43 (hosting), OQ-44 (performance target), OQ-54 (evidence-file RPO) | M9, M10 |
 
 ## 5. Milestones
 
@@ -97,10 +97,13 @@ Each open question must be answered before the work it gates begins. Answering e
 - **Objective:** A running, deployable skeleton in which a user can sign in, create a workspace, invite teammates and assign roles. Tenant isolation, authorization and audit are enforced and proven by tests from the very first feature.
 - **Included requirements:**
   - Workspace: FR-WSP-001 to FR-WSP-008, FR-WSP-010 (framework), FR-WSP-014.
-  - Security: NFR-SEC-001 to NFR-SEC-012, NFR-SEC-014, NFR-SEC-016.
+    - The functional-currency setting in FR-WSP-007 waits for OQ-19 and is delivered in M6.
+    - The notification part of FR-WSP-005 waits for the notification work in M5 and M8. Its audit part is in M1.
+  - Security: NFR-SEC-001 to NFR-SEC-012, NFR-SEC-014, NFR-SEC-016, NFR-SEC-018, NFR-SEC-019 (if OQ-55 is approved).
+    - Object-storage parts of NFR-SEC-008 are delivered in M2.
   - Audit: NFR-DAT-001 to NFR-DAT-005.
   - Reliability: NFR-REL-005, NFR-REL-008, NFR-REL-009.
-  - Operations: NFR-OPS-001, NFR-OPS-003, NFR-OPS-004 (baseline), NFR-OPS-005.
+  - Operations: NFR-OPS-001 (development and CI environments; staging and production separation completed in M9), NFR-OPS-003, NFR-OPS-004 (baseline), NFR-OPS-005.
   - UX: NFR-UX-002 to NFR-UX-006.
 - **Dependencies:** M0; gate G0.
 - **Deliverables:**
@@ -127,9 +130,20 @@ Each open question must be answered before the work it gates begins. Answering e
   - Unit tests: the permission evaluator and the separation-of-duties checker.
   - Integration tests against real PostgreSQL: cross-workspace constraints, row-level security failing closed (AC-072), audit append-only behaviour (AC-081), audit written atomically with its change (AC-080), migrations on both a fresh and an upgraded database.
   - API tests: the permission matrix generated from specification §2.3 as approved, with allowed and denied cases per endpoint and role (AF-65); cross-tenant attempts (AC-070, AC-076).
-  - Security tests: MFA enforcement for privileged actions (AC-074); session revocation and role removal (AC-075); CSRF and CORS behaviour; mass-assignment attempts.
+  - Security tests:
+    - MFA enforcement for privileged actions (AC-074);
+    - session revocation and role removal (AC-075);
+    - identity keyed by issuer and subject (AC-131);
+    - log redaction scan (AC-132);
+    - cache, search and log scoping (AC-133);
+    - unique keys that include the workspace (AC-136);
+    - rate limits on workspace creation and invitations (AC-145);
+    - CSRF and CORS behaviour;
+    - mass-assignment attempts.
+  - Audit tests: role-change audit (AC-129) and audit coverage per action type for the actions that exist in M1 (AC-130, extended in later milestones).
+  - Database role tests: each role in NFR-SEC-018 can perform only its listed operations.
   - End-to-end tests: J1 onboarding.
-- **Acceptance criteria:** AC-070, AC-072 to AC-077, AC-080, AC-081 pass in CI; J1 works end-to-end on synthetic users.
+- **Acceptance criteria:** AC-070 (except its export and download-link parts, which move to M2 and M8), AC-072 to AC-076, AC-080, AC-081, AC-129 to AC-133, AC-136 and AC-145 pass in CI. J1 works end-to-end on synthetic users.
 - **Risks and mitigations:**
   - The identity provider cannot assert MFA. *Mitigation:* make MFA assertion a selection criterion; refuse privileged actions if it cannot be asserted (NFR-SEC-003).
   - Row-level security is misconfigured. *Mitigation:* fail-closed tests and a non-owner database role.
@@ -143,9 +157,9 @@ Each open question must be answered before the work it gates begins. Answering e
 
 - **Objective:** An analyst can upload real-format gateway transaction and settlement reports, map and validate them, commit the valid rows, quarantine the invalid ones with an exportable error report, and follow the job's progress safely.
 - **Included requirements:**
-  - Imports: FR-IMP-001 to FR-IMP-018, FR-IMP-021 to FR-IMP-028 and FR-IMP-030. Revision requirements FR-IMP-019, FR-IMP-020 and FR-IMP-029 come in M5.
+  - Imports: FR-IMP-001 to FR-IMP-018, FR-IMP-021 to FR-IMP-028, FR-IMP-030, and FR-IMP-032 to FR-IMP-034 (gateway source accounts; bank accounts come in M4). Revision requirements FR-IMP-019, FR-IMP-020 and FR-IMP-029 come in M5.
   - Reliability: NFR-REL-001 to NFR-REL-004.
-  - Storage and data: NFR-SEC-008, NFR-DAT-010 (mechanism).
+  - Storage and data: NFR-SEC-008, NFR-SEC-017 (source-report uploads), NFR-DAT-010 (mechanism).
   - Performance: NFR-PERF-002, NFR-PERF-003.
 - **Dependencies:** M1; gate G1, including at least one gateway's sample files.
 - **Deliverables:**
@@ -166,9 +180,26 @@ Each open question must be answered before the work it gates begins. Answering e
   - Integration tests: idempotent commit under a killed process (AC-009); identity uniqueness constraints.
   - Fixture tests built from the samples: malformed files, wrong encodings, password-protected XLSX, an XLSX expansion bomb, overlapping exports (AC-010), conflicting values (AC-011), incomplete groups (AC-012), card-number detection (AC-014).
   - API and negative tests: AC-001 to AC-008.
+  - Mapping and parsing tests:
+    - header-signature mismatch (AC-100);
+    - amount units (AC-102);
+    - XLSX numeric cells, date systems and formulas (AC-103);
+    - identifiers kept as exact text (AC-104);
+    - overlapping exports across template versions (AC-105);
+    - source-account scoping (AC-106);
+    - template versioning (AC-108);
+    - read-only previews and exports (AC-109);
+    - no automatic action on possible duplicates (AC-110).
+  - Security tests for files:
+    - download-time permission re-check (AC-137);
+    - upload controls (AC-135, source reports);
+    - error-report formula neutralization (AC-143, error-report part);
+    - XML external entities (AC-144).
+  - Reliability tests: lease fencing with a stalled worker (AC-138); temporary-artifact cleanup that keeps quarantined rows (AC-141).
   - Job tenant-isolation test: a job given another workspace's record IDs fails without reading or writing them (AC-071).
+  - Cross-tenant export and download-link attempts (the M2 part of AC-070); expired and cross-workspace links (AC-077).
   - A memory-bound test at the row limit (NFR-PERF-002), and baseline throughput measurements on a synthetic 250,000-row file. These results are recorded, not treated as targets.
-- **Acceptance criteria:** AC-001 to AC-012, AC-014 and AC-071 pass; J2 works end-to-end.
+- **Acceptance criteria:** AC-001 to AC-012, AC-014, AC-071, AC-077, AC-100, AC-102 to AC-106, AC-108 to AC-110, AC-137, AC-138, AC-141 and AC-144 pass, plus the M2 parts of AC-070, AC-135 and AC-143. J2 works end-to-end.
 - **Risks and mitigations:**
   - Real formats differ from the minimum fields in the specification. *Mitigation:* derive fields from the samples and update the specification first.
   - XLSX memory exhaustion. *Mitigation:* streaming parsing and expansion limits.
@@ -179,7 +210,7 @@ Each open question must be answered before the work it gates begins. Answering e
 
 - **Objective:** The first complete vertical slice. An analyst imports gateway transactions and a settlement report, runs Stage 1 L2 reconciliation, and sees matches with their evidence, discrepancies with both values, missing or awaiting settlement items, and settlement-arithmetic exceptions.
 - **Included requirements:**
-  - Reconciliation: FR-REC-001 to FR-REC-008, FR-REC-020 to FR-REC-026, FR-REC-053 (safe default), FR-REC-060 to FR-REC-062, FR-REC-065, FR-REC-066 to FR-REC-068.
+  - Reconciliation: FR-REC-001 to FR-REC-008, FR-REC-020 to FR-REC-026, FR-REC-053 (safe default), FR-REC-060 to FR-REC-062, FR-REC-065 to FR-REC-069.
   - Financial events: FR-FIN-001 to FR-FIN-009.
   - Exceptions: FR-EXC-001 (creation and read), FR-EXC-003, FR-EXC-007, FR-EXC-009.
   - Reports: FR-RPT-005, FR-RPT-014.
@@ -197,10 +228,12 @@ Each open question must be answered before the work it gates begins. Answering e
 - **Tests:**
   - Unit tests: the auto-match decision table, covering every combination of identifier, amount, currency and contradiction; the arithmetic checks.
   - Scenario tests: AC-020 to AC-024, AC-027, AC-028 (detection), AC-039.
-  - Determinism test: AC-031.
+  - Reproducibility and idempotency tests: AC-031, AC-111.
+  - Scenario and invariant tests: AC-113, AC-114, AC-116, AC-118, AC-119 (refund part).
+  - Traceability test: AC-120, as far as source records and matches (completed in M7).
   - Concurrency test: AC-033.
   - Negative test: cross-currency records are never matched automatically (AC-022).
-- **Acceptance criteria:** The tests above pass, and J3 works for L2 on sample-derived data.
+- **Acceptance criteria:** AC-020 to AC-024, AC-027, AC-028 (detection), AC-031, AC-033, AC-039, AC-111, AC-113, AC-114, AC-116, AC-118, the refund part of AC-119 and the reconciliation part of AC-120 pass. J3 works for L2 on sample-derived data.
 - **Risks and mitigations:**
   - Hidden tolerance or rounding shortcuts. *Mitigation:* exact decimal arithmetic tests and code review against FR-REC-007.
   - Runs slow down on large inputs. *Mitigation:* set-based processing in the database, measured against the M2 baseline.
@@ -209,20 +242,26 @@ Each open question must be answered before the work it gates begins. Answering e
 ### M4 — Full source coverage: orders (L1), bank statements (L3), grouped matches
 
 - **Objective:** All four sources and both stages work, including candidates and the supported grouped relationships.
-- **Included requirements:** FR-REC-010 to FR-REC-012, FR-REC-030 to FR-REC-033, FR-REC-040 to FR-REC-043, FR-REC-005 (candidates); order and bank templates (FR-IMP-006 to FR-IMP-008, FR-IMP-027).
+- **Included requirements:** FR-REC-010 to FR-REC-012, FR-REC-030 to FR-REC-033, FR-REC-040, FR-REC-041 and FR-REC-043 (FR-REC-042 is deferred), FR-REC-005 (candidates); order and bank templates (FR-IMP-006 to FR-IMP-008, FR-IMP-027); bank statement continuity (FR-IMP-031); bank source accounts (FR-IMP-034).
 - **Dependencies:** M3; gate G3, including bank samples.
 - **Deliverables:**
   - Order and bank mapping templates.
   - L1 linking, covering failed attempts and multiple successful payments.
   - L3 matching with UTR columns or approved narration extraction.
-  - The grouped-match allowlist (G1–G4).
+  - The grouped-match allowlist (GR1–GR4).
   - Candidate generation with configurable date windows.
   - Expected settlement periods.
   - The outside-gateway classification (OQ-02).
   - Stage 2 runs and summaries.
 - **Database:** Match groups and their members, candidate records, extracted references stored separately from narration, and per-template parameter versions.
 - **API and frontend:** Stage 2 run and results, candidate review, and the group detail view.
-- **Tests:** AC-023, AC-025, AC-026, AC-029, AC-030; extraction tests on bank samples; group ambiguity tests (FR-REC-043).
+- **Tests:**
+  - AC-023, AC-025, AC-026, AC-029, AC-030.
+  - Bank sign conventions (AC-101) and statement continuity (AC-107).
+  - Date-window changes leaving confirmed matches intact (AC-112).
+  - Group confirmation rules (AC-117).
+  - Extraction tests on bank samples.
+  - Group ambiguity tests (FR-REC-043).
 - **Acceptance criteria:** J3 and J4 work end-to-end across all four sources on sample-derived data.
 - **Risks and mitigations:**
   - Narration parsing is unreliable. *Mitigation:* extraction that yields exactly one reference, with candidate-only fallback.
@@ -232,7 +271,7 @@ Each open question must be answered before the work it gates begins. Answering e
 ### M5 — Exception workflow, manual decisions, revisions and reruns
 
 - **Objective:** Analysts and controllers can investigate, resolve, match, unmatch and approve with evidence. Corrected reports flow through revisions and reruns without losing history.
-- **Included requirements:** FR-EXC-001 to FR-EXC-009; FR-REC-050 to FR-REC-052, FR-REC-054; FR-REC-063, FR-REC-064; FR-IMP-019, FR-IMP-020, FR-IMP-029; FR-WSP-011, FR-WSP-012; FR-RPT-006, FR-RPT-007; in-app parts of FR-NTF-001.
+- **Included requirements:** FR-EXC-001 to FR-EXC-010 (FR-EXC-010's accounting-review item is completed in M7); FR-REC-050 to FR-REC-052, FR-REC-054; FR-REC-063, FR-REC-064; FR-IMP-019, FR-IMP-020, FR-IMP-029; FR-WSP-011, FR-WSP-012; FR-RPT-006, FR-RPT-007; NFR-SEC-017 (evidence attachments); in-app parts of FR-NTF-001; the notification part of FR-WSP-005.
 - **Dependencies:** M4; gate G4.
 - **Deliverables:**
   - The exception lifecycle and assignment, with evidence attachments stored in private storage.
@@ -242,7 +281,12 @@ Each open question must be answered before the work it gates begins. Answering e
   - "Needs re-review" propagation.
   - Run comparison.
   - The exception and unmatched reports.
-- **Tests:** AC-013, AC-032, AC-034 to AC-037, AC-038 (exception side; the journal side is completed in M7); concurrency tests for competing resolutions; audit coverage of every transition.
+- **Tests:**
+  - AC-013, AC-032, AC-034 to AC-037, AC-038 (exception side; the journal side is completed in M7).
+  - AC-121, AC-122 (approval side), AC-147.
+  - Attachment upload controls (AC-135).
+  - Concurrency tests for competing resolutions, and for a revision commit racing an active run.
+  - Audit coverage of every transition (AC-130).
 - **Acceptance criteria:** J5 and J6 work end-to-end, and no exception can be resolved without the required reason and evidence.
 - **Risks and mitigations:**
   - Analysts record vague explanations to clear queues. *Mitigation:* structured resolution types that require evidence, plus high-risk approval.
@@ -254,8 +298,8 @@ Each open question must be answered before the work it gates begins. Answering e
 Can start after M1, in parallel with M2 to M5.
 
 - **Objective:** A correct, controlled double-entry ledger with manual journals, independent approval, immutability, corrections, periods, opening balances and cutover.
-- **Included requirements:** FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022; FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level).
-- **Dependencies:** M1; gate G5. The default Chart of Accounts content waits for OQ-27. Until it is approved, accounts are created manually, and no unreviewed default is presented as recommended.
+- **Included requirements:** FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022, FR-ACC-028, FR-ACC-029 (as defined under OQ-51), FR-ACC-031; FR-WSP-007 (functional currency, per OQ-19); FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level). FR-ACC-033 (historical ledger migration) is conditional and not scheduled.
+- **Dependencies:** M1; gate G5. The opening-balance *template upload* also depends on the M2 upload pipeline and its file controls (NFR-SEC-017); form-based entry does not. The default Chart of Accounts content waits for OQ-27. Until it is approved, accounts are created manually, and no unreviewed default is presented as recommended.
 - **Deliverables:**
   - The Chart of Accounts with protected accounts.
   - Financial year and monthly periods.
@@ -269,7 +313,15 @@ Can start after M1, in parallel with M2 to M5.
   - A uniqueness constraint so the same event cannot be posted twice for the same purpose (used fully in M7).
   - Period state, and links between corrections and the entries they correct.
 - **API and frontend:** Chart of Accounts management, the journal editor, the approval queue with step-up authentication, the opening-balance wizard, the period close screen, and trial balance and general ledger views.
-- **Tests:** AC-050 to AC-057, AC-059, AC-063, AC-093; concurrency tests on approvals (AC-052); database immutability (AC-053); separation-of-duties matrix tests.
+- **Tests:**
+  - AC-050 to AC-057, AC-059, AC-063, AC-093.
+  - Single reversal and single opening entry (AC-125).
+  - Cutover lock and pre-cutover postings (AC-126).
+  - Close racing a posting (AC-127).
+  - One-person workspace (AC-128).
+  - Concurrency tests on approvals (AC-052).
+  - Database immutability (AC-053).
+  - Separation-of-duties matrix tests.
 - **Acceptance criteria:** J8 to J10 work for manual journals, and posted entries can never be changed.
 - **Risks and mitigations:**
   - Separation of duties is bypassed through role combinations. *Mitigation:* separation is enforced against identities, not roles, and tested for every combination.
@@ -279,7 +331,7 @@ Can start after M1, in parallel with M2 to M5.
 ### M7 — Journals drafted from events; reconciliation–ledger linkage
 
 - **Objective:** Reconciled events produce correct journal drafts under approved templates. Changes in reconciliation surface as controlled corrections.
-- **Included requirements:** FR-ACC-004 to FR-ACC-008, FR-ACC-017, FR-ACC-023 to FR-ACC-027; the remaining parts of FR-ACC-019; FR-REC-052 (journal side).
+- **Included requirements:** FR-ACC-004 to FR-ACC-008, FR-ACC-017, FR-ACC-023 to FR-ACC-027, FR-ACC-030, FR-ACC-032; the remaining parts of FR-ACC-019; FR-REC-052 (journal side); FR-EXC-010 (accounting-review item).
 - **Dependencies:** M5, M6 and gate G6. **External review must have approved the default templates and revenue triggers.** Without that approval, only the template mechanism may be built, and no default template may be activated (AF-41).
 - **Deliverables:**
   - The template engine with versioning, validation and activation approval (OQ-31).
@@ -292,6 +344,12 @@ Can start after M1, in parallel with M2 to M5.
 - **Tests:**
   - Accountant-reviewed golden scenarios for every specification §8.10 scenario that has an approved policy (AF-91).
   - AC-028 (journal side), AC-038, AC-058, AC-060 to AC-062.
+  - No revenue from an order alone (AC-123).
+  - Controlled discards and the completeness check (AC-124).
+  - Runs leave posted journals unchanged (AC-115).
+  - Full traceability from journal line to source row (AC-120).
+  - Accounting-review items from explained differences (AC-122, accounting side).
+  - Template activation separation and MFA (AC-146).
 - **Acceptance criteria:** The release-gate path from J2 to J10 works end-to-end on sample-derived data and produces the expected journals from the golden scenarios.
 - **Risks and mitigations:**
   - Policy approvals are delayed. *Mitigation:* M8 and M9 work not tied to accounting continues; the release gate cannot pass without M7.
@@ -308,7 +366,13 @@ Can start after M1, in parallel with M2 to M5.
   - The settlement-fee breakdown and the audit-history export.
   - CSV and XLSX export jobs: private, expiring, with formulas neutralized.
   - Email notifications with content rules and user preferences, sent through an outbox.
-- **Tests:** AC-078, AC-079, AC-093 to AC-096; export permission and tenant tests; email content inspection tests.
+- **Tests:**
+  - AC-078, AC-079, AC-093 to AC-096.
+  - Audit-history export permissions (AC-134).
+  - No notification after a rollback (AC-142).
+  - CSV and XLSX formula neutralization in exports (AC-143).
+  - The export part of AC-070 and other export permission and tenant tests.
+  - Email content inspection tests.
 - **Acceptance criteria:** Every report reconciles to its underlying records; exports change nothing (AC-095).
 - **Risks and mitigations:**
   - Reports imply verification. *Mitigation:* status labelling (FR-RPT-003) is tested.
@@ -334,6 +398,9 @@ Can start after M1, in parallel with M2 to M5.
   - An alert-delivery test, simulated identity-provider and storage outages, and a credential-rotation exercise.
   - Load tests at the import limits against the OQ-44 target.
   - AC-082, AC-083, AC-090, AC-091.
+  - Restore safety: sessions invalidated; revocations, holds and deletions re-applied (AC-139).
+  - Offboarding sequence (AC-140).
+  - Restore drills run from production backups in an isolated recovery environment under production controls (AC-092, NFR-REL-006).
   - An independent security review or penetration test, and an accessibility audit against OQ-46.
 - **Acceptance criteria:** Every exercise has recorded evidence. Any target that is not met is reported as not met, with a remediation plan or an owner decision.
 - **Risks and mitigations:**
@@ -352,7 +419,7 @@ Can start after M1, in parallel with M2 to M5.
 - **Acceptance criteria:**
   - All seven D-REL-01 items are evidenced.
   - No open Critical or High defects in security or financial integrity.
-  - The external reviews are complete, or their absence is accepted in writing by the owner, with no compliance claims made.
+  - The external verification that D-REL-01 item 7 requires for production suitability is complete. It cannot be waived inside this plan. Not making legal or compliance claims is a separate obligation, not a substitute. Changing this would be an explicit owner change to D-REL-01, recorded in the register (AF-138).
 - **Exit conditions:** The owner's go or no-go decision.
 
 ## 6. Implementation status document
