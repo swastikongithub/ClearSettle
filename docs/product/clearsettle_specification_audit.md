@@ -1,7 +1,7 @@
 # ClearSettle — Specification Audit: Contradictions and Gaps
 
 **Document status:** Audit for owner review.
-**Audit date:** 15 October 2026
+**Audit date:** 15 October 2026; independent review incorporated 16 October 2026
 **Scope:** Every file present in the repository on 15 October 2026, namely:
 - `CLAUDE.md`
 - `docs/README.md`
@@ -21,7 +21,7 @@ The audit also covers the documents produced from those files:
 
 - Each approved decision was checked against the others, against the engineering checklist and against the earlier register.
 - The resulting specification was then reviewed as if by a separate team preparing to build it. That review looked for ways the product could silently misstate money, leak data across tenants, lose evidence or pass its tests while still being wrong.
-- Two independent reviews, each with no access to the drafting conversation, were started on these documents. When this version was written, their results had not yet been incorporated. They will be added under "Independent review results" at the end of this document.
+- Two independent reviews, each with no access to the drafting conversation, were run on these documents on 15–16 October 2026. Their 60 findings, and what was done about each, are under "Independent review results" at the end of this document (AF-100 to AF-145).
 - **Limitations:**
   - No real gateway or bank report formats were available (AF-90). Matching and import findings are therefore based on reasoning, not on sample data.
   - No accounting, legal, tax or security professional has reviewed these documents.
@@ -57,10 +57,12 @@ The audit also covers the documents produced from those files:
 
 | Severity | Count | IDs |
 |---|---|---|
-| Critical | 0 | No finding is Critical once the specification's interim safe defaults apply. Several High findings would become Critical if built without those defaults (see each finding). |
-| High | 17 | AF-04, AF-20, AF-21, AF-22, AF-23, AF-29, AF-40, AF-41, AF-42, AF-43, AF-44, AF-60, AF-61, AF-67, AF-80, AF-90, AF-91 |
-| Medium | 39 | AF-01, AF-03, AF-05, AF-06, AF-09, AF-24 to AF-28, AF-30 to AF-33, AF-45 to AF-48, AF-50, AF-52, AF-62 to AF-66, AF-68 to AF-70, AF-81 to AF-87, AF-89, AF-92 to AF-94 |
-| Low | 13 | AF-02, AF-07, AF-08, AF-10 to AF-12, AF-49, AF-51, AF-71, AF-72, AF-88, AF-95, AF-96 |
+| Critical | 0 | Rated against approved and Mandatory content, including derived requirements. AF-21, AF-23, AF-29, AF-43 and AF-44 stay High only because the specification proposes safe interim defaults for them, and those defaults are not binding. If the owner rejects a default without an alternative, re-rate that finding as Critical. |
+| High | 28 | AF-04, AF-20, AF-21, AF-22, AF-23, AF-29, AF-40, AF-41, AF-42, AF-43, AF-44, AF-60, AF-61, AF-67, AF-80, AF-90, AF-91, AF-100 to AF-105, AF-114, AF-117, AF-118, AF-119, AF-138 |
+| Medium | 70 | AF-01, AF-03, AF-05, AF-06, AF-09, AF-24 to AF-28, AF-30 to AF-33, AF-45 to AF-48, AF-50, AF-52, AF-62 to AF-66, AF-68 to AF-70, AF-81 to AF-87, AF-89, AF-92 to AF-94, AF-106 to AF-113, AF-115, AF-120 to AF-135, AF-139 to AF-144 |
+| Low | 17 | AF-02, AF-07, AF-08, AF-10 to AF-12, AF-49, AF-51, AF-71, AF-72, AF-88, AF-95, AF-96, AF-116, AF-136, AF-137, AF-145 |
+
+Total: 115 findings. AF-01 to AF-96 come from the drafting audit; AF-100 to AF-145 from the independent reviews.
 
 Of these:
 - **Confirmed contradictions:** AF-03, AF-04, AF-06, AF-72.
@@ -232,7 +234,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Resolution:**
   - One functional currency per workspace.
   - No automatic cross-currency matches.
-  - Manual links only with gateway-reported amounts on both sides, plus high-risk approval.
+  - No manual links either by default. Linking with gateway-reported conversions would be deferred FX scope and needs approval as a scope addition (AF-141).
   - No journal drafts for such items until an FX policy is approved.
 - **Disposition:** Logged as OQ-19. Safe defaults in FR-REC-053, FR-FIN-009, FR-ACC-001 and FR-ACC-026.
 - **Approval required?** Yes (owner and accountant).
@@ -279,7 +281,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Severity:** Medium
 - **Type:** Missing requirement
 - **Evidence:** D-REC-12 requires a "supported relationship" for groups but never lists which relationships are supported.
-- **Resolution:** An allowlist (G1–G4). Anything else is a proposal only.
+- **Resolution:** An allowlist (GR1–GR4). Anything else is a proposal only.
 - **Disposition:** Recommendation pending approval (FR-REC-040).
 - **Approval required?** Yes (confirm).
 
@@ -514,7 +516,7 @@ The rest are missing requirements, potential risks or unanswered questions.
   - A per-transaction tenant context that fails closed.
   - Background jobs set their own context.
   - Test with AC-071 and AC-072.
-- **Disposition:** Specified (Recommended mechanics): NFR-SEC-007.
+- **Disposition:** Specified (Recommended mechanics): NFR-SEC-007. Further bypass paths were added after independent review (AF-120).
 - **Approval required?** Confirm at M1.
 
 ### AF-64 — Admin access to financial data and continuity
@@ -557,7 +559,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Type:** Potential risk
 - **Evidence:** The 50 MB limit (D-IMP-09) applies to the compressed file. XLSX is compressed XML, so a small file can expand enormously (a "zip bomb").
 - **Resolution:** Limits on uncompressed size, cells, columns and parse time; a hardened XML parser with entity expansion and external entities disabled; streaming parsing.
-- **Disposition:** Recommendation: FR-IMP-030, NFR-PERF-002.
+- **Disposition:** Recommendation: FR-IMP-030, NFR-PERF-002. The XML hardening was added to FR-IMP-030 only after independent review (AF-131).
 - **Approval required?** Confirm.
 
 ### AF-69 — Multi-workspace users and context mixing
@@ -619,7 +621,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Type:** Potential risk
 - **Evidence:** D-OPS-05 and D-OPS-07.
 - **Consequence:** A point-in-time database restore can reference files that were uploaded later, or that were deleted. It can also revive jobs that were mid-flight and re-send notifications.
-- **Resolution:** Evidence files are never overwritten (versioning), post-restore consistency checks run, and notifications go through an outbox.
+- **Resolution:** Evidence files are never overwritten (versioning), post-restore consistency checks run, and notifications go through an outbox. Delivery is at least once, and a few duplicate notifications after a restore are a documented limitation (AF-128). Revocations, holds and deletions after the restore point are re-applied (AF-118).
 - **Disposition:** Specified: NFR-REL-007, FR-NTF-005, AC-092.
 - **Approval required?** No.
 
@@ -748,10 +750,10 @@ The rest are missing requirements, potential risks or unanswered questions.
 
 | Question (Brief, Phase 4) | Answer | Findings |
 |---|---|---|
-| Could source reports, reconciliation amounts, settlement breakdowns and postings disagree silently? | Yes, under the approved decisions alone: through settlement arithmetic, incomplete groups and unmatches after posting. The specification closes these with derived requirements. | AF-20, AF-22, AF-45 |
+| Could source reports, reconciliation amounts, settlement breakdowns and postings disagree silently? | Yes, under the approved decisions alone. Disagreement could arise through:<br>• settlement arithmetic;<br>• incomplete groups;<br>• unmatches after posting;<br>• resolutions that do not reach the ledger;<br>• discarded drafts;<br>• no ledger-to-bank tie-out.<br>The specification closes these with derived requirements and recommendations. The tie-out is pending OQ-51. | AF-20, AF-22, AF-45, AF-101, AF-102, AF-103 |
 | How do fees, taxes, refunds, chargebacks, reversals, partial refunds and source adjustments affect matching and journals? | Matching: explicit components from the settlement report only, linked to the original payment, with exact arithmetic. Journals: no approved treatment yet. | AF-26, AF-41; spec §5.4, §8.10 |
 | Is a source reference with an amount mismatch treated as a discrepancy? | Yes. Approved (D-REC-05) and specified (FR-REC-004, AC-021). | — |
-| Can missing, ambiguous, duplicated or conflicting evidence lead to automatic matches? | Not under the specification. FR-REC-003 requires the absence of contradictory evidence; FR-REC-005 and FR-REC-006 cover missing and ambiguous evidence; FR-IMP-016 blocks conflicting observations. | AF-21, AF-32 |
+| Can missing, ambiguous, duplicated or conflicting evidence lead to automatic matches? | Not under the specification.<br>• FR-REC-003 requires the absence of contradictory evidence, and scopes identifiers to source accounts.<br>• FR-REC-005 and FR-REC-006 cover missing and ambiguous evidence.<br>• FR-IMP-016 blocks conflicting observations.<br>• FR-IMP-015 and FR-IMP-032 stop identity keys and identifiers drifting. | AF-21, AF-32, AF-104, AF-105, AF-115 |
 | Do grouped matches always have an explicit supported relationship and correct financial treatment? | The relationships are an allowlist recommendation (G1–G4) pending approval. Financial treatment is pending accounting policy. | AF-28, AF-41 |
 | How does revenue recognition work when evidence is incomplete or contradictory? | It goes to a review queue and is never posted automatically. The trigger policy is unresolved and needs external review. | AF-42 |
 | How do corrections, revisions and reruns affect historical matches and posted journals? | History is kept; affected items are flagged; posted journals are never changed; corrections need approval. Treatment for closed periods is unresolved. | AF-45 |
@@ -760,20 +762,471 @@ The rest are missing requirements, potential risks or unanswered questions.
 | Are invalid drafts and unresolved material discrepancies prevented from posting? | Yes for the approved block conditions (FR-ACC-008, FR-ACC-011). Materiality criteria are pending OQ-14. | AF-30, AF-47 |
 | Can opening balances, cutover and historical imports create duplicates? | Not for pre-cutover events (FR-ACC-017). Cross-cutover transactions are unresolved. | AF-43, AF-52 |
 | Which accounting policies need approval or professional review? | Specification §8.10 and §13.3. | AF-40 to AF-43, AF-50 |
-| Can role combinations bypass independent approval? | Journals: no (approved). Other approval types: only if OQ-17 is not adopted. A sock-puppet second identity: residual risk. | AF-44 |
+| Can role combinations bypass independent approval? | Journals: no (approved). Other approval types: only if OQ-17 is not adopted. A sock-puppet second identity: residual risk. Analysts changing how data is interpreted (revisions, mappings): recommended to need approval. | AF-44, AF-123 |
 | Is access control enforced server-side? | Yes by requirement (NFR-SEC-006), verified by a generated permission-matrix test. | AF-65, AF-94 |
 | Are queries, jobs, files, exports, reports and notifications all tenant-scoped? | Yes by requirement (D-SEC-04, NFR-SEC-007, NFR-SEC-008, NFR-SEC-016, FR-NTF-004, FR-RPT-010). | AF-63 |
 | Do cross-tenant tests cover both allowed and denied operations? | Yes, after this audit. | AF-65 |
-| Are session invalidation, MFA recovery, sensitive actions and privileged settings controlled? | Session invalidation and MFA enforcement: specified. MFA recovery belongs to the identity provider (D-SEC-06); its strength is a selection criterion. Fresh authentication defaults: OQ-38. | AF-62 |
-| Do retention and deletion conflict with records, audit, holds or backups? | Potentially. Automatic deletion stays disabled until periods are approved; holds override; backup behaviour is disclosed. | AF-80, AF-81 |
+| Are session invalidation, MFA recovery, sensitive actions and privileged settings controlled? | Session invalidation and MFA enforcement: specified, including after restores. MFA recovery belongs to the identity provider (D-SEC-06); its strength is a selection criterion. Users are identified by issuer and subject, not email. Download links are re-checked at download. Fresh-authentication defaults: OQ-38. | AF-62, AF-118, AF-125, AF-132 |
+| Do retention and deletion conflict with records, audit, holds or backups? | Potentially. Automatic deletion stays disabled until periods are approved; holds override; backup behaviour is disclosed. Retention is recommended to be dependency-aware, and audit deletion is restricted to a lifecycle role. | AF-80, AF-81, AF-126, AF-127 |
 | How do corrected files and offboarding affect jobs, evidence and history? | Superseded files are kept; offboarding follows a defined sequence. | AF-85, AF-88 |
 | Can partial imports and retries create duplicates or inconsistent job status? | Not under the specified idempotency and transactional status updates. | AF-22, AF-87 |
-| Does restoring a backup include files, metadata and audit history? | Required by D-OPS-05; post-restore consistency checks specified. | AF-82 |
+| Does restoring a backup include files, metadata and audit history? | Required by D-OPS-05. Post-restore consistency checks specified, including re-applying revocations, holds and deletions made after the restore point. Drills use production backups in an isolated environment. | AF-82, AF-118, AF-122 |
 | Are the recovery objectives and import limits achievable and measurable? | Unknown until providers are chosen and load tests run. Both now have measurement criteria. | AF-83, AF-84 |
 | Do failure and disaster-recovery procedures have concrete tests? | Yes, after this audit (AC-090 to AC-092; plan M9). | AF-89, AF-92 |
-| Does every approved high-risk requirement have an acceptance test? | Most do (§12.1). Gaps depend on unresolved policies: accounting scenarios and risk criteria. | AF-91, AF-94 |
+| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-147 were added, 117 of 173 Mandatory requirements are named by an acceptance criterion. The remaining 56 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
 | Could a green test suite leave important risks untested? | Yes: economic correctness (AF-91), real formats (AF-90) and operational readiness (AF-92). | AF-90 to AF-92 |
 
 ## Independent review results
 
-Pending. Two independent read-only reviews were started on 15 October 2026 (one on financial and accounting fidelity, one on security, lifecycle, testing and cross-document consistency). Their findings will be recorded here, with their dispositions, once received and verified.
+Two independent, read-only reviews, each with no access to the drafting conversation, examined the seed, register, specification, audit and plan on 15–16 October 2026:
+- **R1:** financial and accounting fidelity, 29 findings.
+- **R2:** security, data lifecycle, testing and cross-document consistency, 31 findings.
+
+Each finding was checked against the files before acting on it. For example, PostgreSQL's documentation confirms that integrity checks bypass row-level security, and the 1900 and 1904 Excel date systems do differ by 1,462 days. Every finding was adopted, in full or in part, and none was rejected. Partial adoptions are noted in the dispositions below.
+
+The reviews concluded that seed fidelity is high: every seed item appears with the right meaning, and no invented treatments, statutory periods, rates or vendors were found. The weaknesses were new control gaps, label slips and one weakening of the release gate in the plan.
+
+### Mapping of review findings
+
+| Review finding | Recorded as |
+|---|---|
+| R1-1 | AF-100 |
+| R1-2 | AF-101 |
+| R1-3 | AF-102 |
+| R1-4 | AF-103 |
+| R1-5 | AF-104 |
+| R1-6 | AF-138 |
+| R1-7 | AF-105 |
+| R1-8 | AF-106 |
+| R1-9 | AF-140 |
+| R1-10 | AF-139 |
+| R1-11 | AF-107 |
+| R1-12 | AF-108 |
+| R1-13 | AF-109 |
+| R1-14 | AF-110 |
+| R1-15 | AF-111 |
+| R1-16 | AF-141 |
+| R1-17, R1-22, R1-26 | AF-142 |
+| R1-18 | AF-112 |
+| R1-19 | AF-113 |
+| R1-20 | AF-114 |
+| R1-21 | AF-115 |
+| R1-23, R1-24 | AF-144 |
+| R1-25 | AF-145 |
+| R1-27 | AF-143 |
+| R1-28 | AF-116 |
+| R1-29 | AF-145 (fixture) and OQ-53 (precision) |
+| R2-1 | AF-117 |
+| R2-2 | AF-118 |
+| R2-3 | AF-114 |
+| R2-4 | AF-119 |
+| R2-5 | AF-120 |
+| R2-6 | AF-121 |
+| R2-7 | AF-122 |
+| R2-8 | AF-123 |
+| R2-9 | AF-124 |
+| R2-10 | AF-125 |
+| R2-11 | AF-126 |
+| R2-12 | AF-127 |
+| R2-13 | AF-128 |
+| R2-14 | AF-129 |
+| R2-15 | AF-130 |
+| R2-16 | AF-131 |
+| R2-17 | AF-132 |
+| R2-18 | AF-133 |
+| R2-19, R2-20 | AF-142 |
+| R2-21 | AF-144 |
+| R2-22 | AF-143 |
+| R2-23 | AF-134 |
+| R2-24 | AF-135 |
+| R2-25 | AF-142 (labels) and AF-145 (deferred column) |
+| R2-26, R2-27, R2-30, R2-31 | AF-145 |
+| R2-28 | AF-136 |
+| R2-29 | AF-137 |
+
+### Findings added after independent review
+
+Each finding gives its severity and type, then the evidence and consequence, then the resolution and disposition. "Approval" names who must decide.
+
+#### AF-100 — Cutover date can change after posting
+- **Severity / type:** High; new gap (R1-1).
+- **Evidence / consequence:**
+  - FR-WSP-007 and FR-ACC-017 required only MFA to change the cutover date.
+  - Nothing blocked postings dated before cutover, and the cutover boundary was undefined.
+  - Moving the cutover earlier would make events already counted in the opening balances eligible for drafts, duplicating amounts.
+- **Resolution / disposition:**
+  - Specified FR-ACC-028: postings dated before cutover are blocked (Mandatory, derived); the date locks after the first posting (Recommended).
+  - Extended OQ-29 and OQ-25; added AC-126.
+  - **Approval:** Yes (OQ-25, OQ-29).
+
+#### AF-101 — Exception resolutions can bypass risk controls
+- **Severity / type:** High; new gap (R1-2).
+- **Evidence / consequence:**
+  - A single analyst could close a difference-bearing exception as "Outside reconciliation scope", "Duplicate confirmed" or "Explained", without approval.
+  - Explained differences with a cash effect never reached the ledger.
+  - "Duplicate confirmed" had no defined effect.
+- **Resolution / disposition:**
+  - Extended the OQ-14 defaults; defined the `Excluded as duplicate` flag (FR-EXC-004).
+  - Added FR-EXC-010: accounting-review items for explained differences that have a financial effect.
+  - Added AC-122.
+  - **Approval:** Yes (OQ-14, OQ-15).
+
+#### AF-102 — "Unreconciled balances" undefined; no ledger-to-bank tie-out
+- **Severity / type:** High; new gap (R1-3).
+- **Evidence / consequence:**
+  - D-ACC-14 names "unreconciled balances" but nothing defines it.
+  - Reconciliation compares transactions only; no ledger bank balance is compared with the statement, and statement continuity is never checked.
+  - The ledger and the bank could drift apart unnoticed.
+- **Resolution / disposition:**
+  - Added OQ-51 and FR-ACC-029 (Unresolved), FR-IMP-031 (statement continuity, Recommended) and AC-107.
+  - **Approval:** Yes (owner and external accountant).
+
+#### AF-103 — Discarding drafts can drop events from the ledger silently
+- **Severity / type:** High; new gap (R1-4).
+- **Evidence / consequence:** Event-generated drafts could be discarded with no reason or approval. The close checklist did not check that every eligible event was accounted for.
+- **Resolution / disposition:**
+  - Discards need a reason and approval (FR-ACC-010, Recommended).
+  - FR-ACC-030 adds a completeness check to the close checklist.
+  - Added AC-124.
+  - **Approval:** Yes (OQ-17).
+
+#### AF-104 — Identity keys editable through templates
+- **Severity / type:** High; new gap (R1-5).
+- **Evidence / consequence:** An analyst could change a deduplication key by editing a template, so overlapping imports through another template version would create duplicate financial records.
+- **Resolution / disposition:**
+  - Keys are defined per category and provider; changes need approval by a different Controller, followed by a duplicate check across versions (FR-IMP-015).
+  - Extended OQ-22; added AC-105.
+  - **Approval:** Yes (OQ-22).
+
+#### AF-105 — Identifiers not scoped to source accounts
+- **Severity / type:** High; new gap (R1-7).
+- **Evidence / consequence:** References from two gateways or bank accounts could collide and match automatically by coincidence. Masking bank account numbers removed the only way to tell accounts apart.
+- **Resolution / disposition:**
+  - Added FR-IMP-034 (source accounts; scoping is Mandatory, derived) and the matching scope in FR-REC-003(a).
+  - Updated FR-IMP-022; added AC-106.
+  - **Approval:** Confirm mechanism.
+
+#### AF-106 — Match ownership model undefined
+- **Severity / type:** Medium; contradiction (R1-8).
+- **Evidence / consequence:** If confirmed matches were global, rerun determinism was impossible. If they belonged to runs, "already matched" was undefined. Date-range scopes produced false missing items.
+- **Resolution / disposition:**
+  - Added FR-REC-069 (persistent matches with provenance; run snapshots; candidate windows that cross period boundaries).
+  - Reworded FR-REC-062; extended OQ-21; added AC-111.
+  - **Approval:** Yes (OQ-21).
+
+#### AF-107 — Close-checklist criticality incomplete
+- **Severity / type:** Medium; new gap (R1-11).
+- **Evidence / consequence:** "Correction required" items, blocked drafts and cross-currency items were not critical, so closed reports could read as final despite known corrections.
+- **Resolution / disposition:**
+  - Extended the recommended critical items and required acknowledgements (FR-ACC-019).
+  - Closed reports now flag later corrections (FR-RPT-003).
+  - **Approval:** Yes (FR-ACC-019 criticality).
+
+#### AF-108 — Sequential close, reopen impact and year-end close undefined
+- **Severity / type:** Medium; new gap (R1-12).
+- **Evidence / consequence:** No rule made periods close in order, said what reopening does to later periods, or defined year-end close and retained earnings, so balance-sheet equity was undefined.
+- **Resolution / disposition:**
+  - Added FR-ACC-031 (Recommended) and OQ-52 (external accountant).
+  - **Approval:** Yes.
+
+#### AF-109 — Accounting date source and late events
+- **Severity / type:** Medium; new gap (R1-13).
+- **Evidence / consequence:** It was undefined which source date sets an event draft's accounting date, and how new events dated in a closed period are handled.
+- **Resolution / disposition:**
+  - Extended OQ-23 and OQ-26; updated FR-ACC-021.
+  - **Approval:** Yes (external accountant).
+
+#### AF-110 — Double reversal; multiple opening entries
+- **Severity / type:** Medium; new gap (R1-14).
+- **Evidence / consequence:** Two reversals of one entry could both post. Nothing enforced a single opening entry or defined how opening balances are corrected.
+- **Resolution / disposition:**
+  - Database-enforced single full reversal and single opening entry (Mandatory, derived), in FR-ACC-013 and FR-ACC-016.
+  - Opening-balance corrections added to OQ-25; added AC-125.
+  - **Approval:** OQ-25 for corrections.
+
+#### AF-111 — Payment as a revenue trigger conflicts with the accrual basis
+- **Severity / type:** Medium; contradiction (R1-15).
+- **Evidence / consequence:** OQ-24 offered "successful payment" as a default trigger, which is cash-basis recognition. Nothing implemented the seed's distinction between cash movements and accrual recognition.
+- **Resolution / disposition:**
+  - Added FR-ACC-032 (cash and recognition events modelled separately; Mandatory, derived).
+  - OQ-24 now allows a cash trigger only under an approved, justified policy.
+  - **Approval:** Yes (external accountant).
+
+#### AF-112 — Settlements for non-successful attempts not surfaced
+- **Severity / type:** Medium; new gap (R1-18).
+- **Evidence / consequence:** A settlement for a failed, cancelled or pending attempt raised no exception. The phrase "no financial effect" could hide money that had actually moved.
+- **Resolution / disposition:**
+  - FR-REC-002 rewritten; added a new exception type and AC-118.
+  - **Approval:** No (derived).
+
+#### AF-113 — Draft regeneration could overwrite human edits
+- **Severity / type:** Medium; weak derivation (R1-19).
+- **Evidence / consequence:** Regeneration could replace a preparer's edited draft or a submitted draft.
+- **Resolution / disposition:**
+  - FR-ACC-007: only untouched drafts are regenerated; edited or submitted drafts are flagged "Needs re-review" instead.
+  - **Approval:** Confirm.
+
+#### AF-114 — XLSX cell types, date systems, formulas and amount units
+- **Severity / type:** High; new gap (R1-20, R2-3).
+- **Evidence / consequence:**
+  - Binary floating-point cells could fail validation.
+  - Assuming the wrong date system shifts dates by 1,462 days.
+  - Stale cached formula values could be imported.
+  - Amounts in minor units could be overstated 100 times.
+- **Resolution / disposition:**
+  - Added FR-IMP-033 and an amount-unit setting in FR-IMP-008.
+  - Added AC-102 and AC-103.
+  - **Approval:** Confirm the formula rule.
+
+#### AF-115 — Identifiers changed by numeric conversion
+- **Severity / type:** Medium; new gap (R1-21).
+- **Evidence / consequence:** Spreadsheet number conversion can drop leading zeros or lose precision, producing false exact matches or false duplicates.
+- **Resolution / disposition:**
+  - Added FR-IMP-032 (Mandatory, derived) and AC-104.
+  - **Approval:** No.
+
+#### AF-116 — Historical ledger migration reduced to a scope exclusion
+- **Severity / type:** Low; seed item weakened (R1-28).
+- **Evidence / consequence:** Seed L162 requires a separate authorized, audited process for historical ledger migration. The specification had only excluded it from onboarding.
+- **Resolution / disposition:**
+  - Added FR-ACC-033 (Conditional) and extended OQ-25.
+  - **Approval:** Yes, if migration is to be offered.
+
+#### AF-117 — Mandatory requirements without acceptance criteria
+- **Severity / type:** High; missing coverage (R2-1).
+- **Evidence / consequence:** Many high-risk Mandatory requirements had no acceptance criterion, and the audit's own answer ("most do") was inaccurate.
+- **Resolution / disposition:**
+  - Added AC-100 to AC-147 and named four requirements already exercised by existing criteria. Now 117 of 173 Mandatory requirements are named by an acceptance criterion.
+  - The remaining 56 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
+
+    FR-ACC-002, FR-ACC-004, FR-ACC-022, FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-001, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
+
+  - The answers table below is corrected.
+  - **Approval:** No.
+
+#### AF-118 — Restore reverts revocations, holds and deletions
+- **Severity / type:** High; new gap (R2-2).
+- **Evidence / consequence:** A point-in-time restore to time T silently undoes role removals, session sign-outs, legal holds and deletions made after T. Removed users would regain access and deleted data would reappear.
+- **Resolution / disposition:**
+  - NFR-REL-007: invalidate all sessions and re-apply revocations, holds and deletions from a log kept outside the restore scope.
+  - Added AC-139.
+  - **Approval:** Confirm mechanism.
+
+#### AF-119 — Non-report uploads lacked file controls
+- **Severity / type:** High; new gap (R2-4).
+- **Evidence / consequence:** Evidence attachments and opening-balance uploads had no type, size or scanning controls. An attachment rendered inline would be a stored-XSS risk for approvers. The plan let M6 build its upload before the M2 pipeline existed.
+- **Resolution / disposition:**
+  - Added NFR-SEC-017 (Mandatory, derived from D-DAT-04) and AC-135.
+  - The M6 template upload now depends on M2.
+  - **Approval:** No.
+
+#### AF-120 — Further row-level security bypass paths
+- **Severity / type:** Medium; missing technical caveats (R2-5).
+- **Evidence / consequence:**
+  - Unique and foreign-key checks bypass row-level security, which can leak other tenants' data (PostgreSQL documentation).
+  - Ordinary views run with their owner's rights.
+  - Materialized views cannot carry row-level security.
+  - `SECURITY DEFINER` functions run as their owner.
+- **Resolution / disposition:**
+  - NFR-SEC-007(e) and (f) added; added AC-136.
+  - **Approval:** Confirm at M1.
+
+#### AF-121 — Cross-tenant system processes need defined database roles
+- **Severity / type:** Medium; new gap (R2-6).
+- **Evidence / consequence:** Job dispatch, retention sweeps, restore checks and migrations are inherently cross-tenant. Without defined roles, implementers would grant bypass rights ad hoc.
+- **Resolution / disposition:**
+  - Added NFR-SEC-018 (Recommended roles), tested in M1.
+  - **Approval:** Confirm.
+
+#### AF-122 — Restore drill source and RTO and RPO definitions
+- **Severity / type:** Medium; inconsistency (R2-7).
+- **Evidence / consequence:** A drill on synthetic staging data cannot show that production backups restore within the targets. Restoring production data into staging would break the non-production data rule.
+- **Resolution / disposition:**
+  - NFR-REL-006 and AC-092: drills restore production backups into an isolated recovery environment under production controls; RTO measured from declaration to service ready.
+  - Added OQ-54 (whether the RPO target covers evidence files).
+  - **Approval:** Yes (OQ-54).
+
+#### AF-123 — Analysts can change how data is interpreted without approval
+- **Severity / type:** Medium; separation-of-duties gap (R2-8).
+- **Evidence / consequence:** One analyst could submit a doctored revision, or flip a template's sign or currency setting, and so make discrepancies disappear.
+- **Resolution / disposition:**
+  - Revisions that withdraw or change values, and changes to financial-field mappings, are high-risk (OQ-14, OQ-22, FR-IMP-019).
+  - Added AC-147.
+  - **Approval:** Yes.
+
+#### AF-124 — Admin audit access exposes financial data
+- **Severity / type:** Medium; inconsistency (R2-9).
+- **Evidence / consequence:** OQ-36 made the Admin role administrative only, yet OQ-37 gave Admins the full audit history, financial values included. Who performs the offboarding export was undefined.
+- **Resolution / disposition:**
+  - OQ-37: financial values are redacted for Admins without a financial role.
+  - OQ-42: the Admin requests the export, a Controller approves it, and Controllers or Auditors download it.
+  - **Approval:** Yes.
+
+#### AF-125 — Users identified by email
+- **Severity / type:** Medium; new gap (R2-10).
+- **Evidence / consequence:** Keying accounts on email allows account takeover when an address is reassigned, and complicates replacing the identity provider.
+- **Resolution / disposition:**
+  - NFR-SEC-001 and OQ-34: identify users by the provider's issuer and subject identifier pair; design a relinking process.
+  - Added AC-131.
+  - **Approval:** Confirm.
+
+#### AF-126 — Audit deletion conflicts with retention
+- **Severity / type:** Medium; inconsistency (R2-11).
+- **Evidence / consequence:** Audit events could never be deleted by any role, although retention and offboarding will eventually require it. Row triggers do not fire on truncation, and table owners can disable triggers.
+- **Resolution / disposition:**
+  - NFR-DAT-003: deletion only by the lifecycle role, recorded in a platform-level deletion log; truncation and trigger-disabling locked down.
+  - **Approval:** Confirm.
+
+#### AF-127 — Retention ignores dependencies and some categories
+- **Severity / type:** Medium; new gap (R2-12).
+- **Evidence / consequence:** Per-category deletion could break the evidence chain behind retained journals. Several artifacts had no retention category, and retention clocks had no defined start.
+- **Resolution / disposition:**
+  - NFR-DAT-006 additions; OQ-41 extended.
+  - **Approval:** Legal and external accountant.
+
+#### AF-128 — Exactly-once notifications claimed
+- **Severity / type:** Medium; inaccurate claim (R2-13).
+- **Evidence / consequence:** An outbox with an external email provider gives at-least-once delivery, not exactly-once, so the earlier wording promised something impossible.
+- **Resolution / disposition:**
+  - FR-NTF-005, NFR-REL-002 and NFR-REL-007 reworded; AF-82 corrected; added AC-142.
+  - **Approval:** No.
+
+#### AF-129 — Card-number detection false positives
+- **Severity / type:** Medium; inaccurate claim (R2-14).
+- **Evidence / consequence:** About one random digit string in ten passes the card-number checksum, so checksum-only detection would reject legitimate bank and gateway files.
+- **Resolution / disposition:**
+  - FR-IMP-022 and OQ-39 now use length, checksum, issuer prefixes and column context, with a review path.
+  - AC-014 rewritten to include a negative case.
+  - **Approval:** Yes (OQ-39).
+
+#### AF-130 — CSV formula neutralization incomplete
+- **Severity / type:** Medium; partial coverage (R2-15).
+- **Evidence / consequence:** CSV has no numeric type. Tab and carriage-return prefixes were not covered, and negative amounts risked being prefixed.
+- **Resolution / disposition:**
+  - FR-RPT-012 rewritten; added AC-143.
+  - Partially adopted: the requirement stays Recommended, with promotion to Mandatory recommended to the owner.
+  - **Approval:** Yes (promotion).
+
+#### AF-131 — XML hardening missing from FR-IMP-030
+- **Severity / type:** Medium; inconsistency (R2-16).
+- **Evidence / consequence:** AF-68's resolution claimed XML hardening, but FR-IMP-030 did not include it.
+- **Resolution / disposition:**
+  - FR-IMP-030 extended (no document type declarations, entities, external links or macros); added AC-144.
+  - **Approval:** No.
+
+#### AF-132 — Signed links outlive permissions
+- **Severity / type:** Medium; new gap (R2-17).
+- **Evidence / consequence:** A signed link keeps working after the holder's role is removed. Its lifetime, single use and issuance audit were all unspecified.
+- **Resolution / disposition:**
+  - NFR-SEC-008 rewritten (permission re-checked at download; backend streaming recommended); OQ-38 extended.
+  - Added AC-137.
+  - **Approval:** Confirm.
+
+#### AF-133 — Job leases lacked fencing
+- **Severity / type:** Medium; new gap (R2-18).
+- **Evidence / consequence:** A worker that stalls past its lease could keep writing after another worker took over the job.
+- **Resolution / disposition:**
+  - NFR-REL-001 requires a lease version checked on every write (a fencing token); added AC-138.
+  - **Approval:** No.
+
+#### AF-134 — Plan sequencing inconsistencies
+- **Severity / type:** Medium; inconsistency (R2-23).
+- **Evidence / consequence:** M1 included items whose providers or decisions came later: secrets and environments (OQ-43), functional currency (OQ-19), notifications, and storage-dependent acceptance criteria.
+- **Resolution / disposition:**
+  - Plan updated: G0 includes OQ-43 (partial); functional currency moved to M6; notifications moved to M5 and M8; AC-077 and the storage parts of AC-070 moved to M2 and M8.
+  - **Approval:** No.
+
+#### AF-135 — MFA for bulk-export roles
+- **Severity / type:** Medium; suggestion (R2-24).
+- **Evidence / consequence:** Analysts and Auditors can export data in bulk and download originals without MFA.
+- **Resolution / disposition:**
+  - Added OQ-55 and NFR-SEC-019 (Unresolved).
+  - **Approval:** Yes.
+
+#### AF-136 — Further concurrency races
+- **Severity / type:** Low; new gap (R2-28).
+- **Evidence / consequence:** The test list missed a close racing a posting, and a revision or reopen racing an active run.
+- **Resolution / disposition:**
+  - FR-ACC-031 (period-state lock), AC-127, and the concurrency row in specification §12.3.
+  - **Approval:** No.
+
+#### AF-137 — Rate limits on workspace creation and invitations
+- **Severity / type:** Low; new gap (R2-29).
+- **Evidence / consequence:** Without limits, mass workspace creation and invitation spam through ClearSettle's email sender were possible.
+- **Resolution / disposition:**
+  - NFR-SEC-010 extended; added AC-145.
+  - **Approval:** No.
+
+#### AF-138 — Plan allowed waiving external verification
+- **Severity / type:** High; confirmed contradiction (R1-6).
+- **Evidence / consequence:** M10 accepted "absence [of external reviews] accepted in writing by the owner", contradicting Seed L233 and the M7 gate.
+- **Resolution / disposition:**
+  - Waiver removed. Any change now needs an explicit owner change to D-REL-01.
+  - **Disposition:** Fixed in documentation.
+
+#### AF-139 — Gross agreement had been downgraded
+- **Severity / type:** Medium; label problem (R1-10).
+- **Evidence / consequence:** Seed L92 requires gross amounts to agree. The specification had labelled this Recommended and allowed component explanations on gross links.
+- **Resolution / disposition:**
+  - FR-REC-003(c), FR-REC-007 and the amount-semantics paragraph corrected; rounding rules go under approval (OQ-22).
+  - **Disposition:** Fixed in documentation.
+
+#### AF-140 — A recommendation contradicted Mandatory rules
+- **Severity / type:** Medium; contradiction (R1-9).
+- **Evidence / consequence:** FR-REC-022 recommended automatic L3 matching for inconsistent payouts, which FR-IMP-014 and FR-REC-003(d) forbid.
+- **Resolution / disposition:**
+  - Only a manual L3 match with high-risk approval is now allowed for such payouts.
+  - **Disposition:** Fixed in documentation.
+
+#### AF-141 — Manual cross-currency linking was deferred FX scope
+- **Severity / type:** Medium; contradiction (R1-16).
+- **Evidence / consequence:** The OQ-19 default allowed manual cross-currency linking, which is FX conversion reconciliation, deferred under D-DEF-06.
+- **Resolution / disposition:**
+  - The default now forbids manual linking; enabling it needs approval as a scope addition (OQ-19, FR-REC-053).
+  - **Disposition:** Fixed in documentation.
+
+#### AF-142 — Label integrity issues
+- **Severity / type:** Medium; label problems (R1-17, R1-22, R1-26, R2-19, R2-20, R2-25).
+- **Evidence / consequence:** Several items were labelled Mandatory or APPROVED without support, and the reverse.
+- **Resolution / disposition:** Relabelled:
+  - the functional-currency posting condition → Unresolved;
+  - fresh authentication (NFR-SEC-004, FR-ACC-020) → Unresolved, because the seed says "may require";
+  - FR-ACC-009 and FR-ACC-027 → INFERENCE;
+  - NFR-DAT-007 → Mandatory (derived);
+  - NFR-REL-003 → derived from D-OPS-01 and checklist #12;
+  - offboarding MFA limited to steps a person starts;
+  - (U) markers added to AC-008, AC-013, AC-030, AC-032, AC-033, AC-057, AC-060, AC-080 and AC-092;
+  - the register's APPROVED definition now covers engineering rules explicitly.
+  - **Disposition:** Fixed in documentation.
+
+#### AF-143 — Owner instructions not in the repository
+- **Severity / type:** Medium; traceability gap (R1-27, R2-22).
+- **Evidence / consequence:** D-REC-19, the reports-and-notifications extension of D-SEC-04, and D-PRC-04 rest only on instructions given in the working session.
+- **Resolution / disposition:**
+  - Partially adopted. The instructions were not copied into the repository, because the owner's repository rules exclude prompts.
+  - Register §7 lists the affected decisions for owner confirmation.
+  - **Approval:** Yes (confirmation).
+
+#### AF-144 — Audit placeholders and severity framing
+- **Severity / type:** Medium; confirmed error (R1-23, R1-24, R2-21).
+- **Evidence / consequence:** A local draft of this audit counted six finding IDs (numbers 97 to 102) that were never defined. The placeholders were removed before the audit was first committed. The "no Critical findings" statement depended on defaults that are not binding.
+- **Resolution / disposition:**
+  - Counts recomputed.
+  - The summary now says which High findings would become Critical if their recommended defaults were rejected.
+  - **Disposition:** Fixed in documentation.
+
+#### AF-145 — Terminology and minor consistency fixes
+- **Severity / type:** Low; inconsistencies (R1-25, R1-29, R2-25 to R2-27, R2-30, R2-31).
+- **Resolution / disposition:** Fixed in documentation:
+  - J1 now has a Controller confirm the financial settings;
+  - the AC-027 values are marked illustrative;
+  - AI/LLM moved out of the deferred column;
+  - AC-002 now says rows are counted in a streaming pre-scan;
+  - the "upload holding area" is separated from quarantined rows;
+  - grouped relationships renamed GR1–GR4, so they no longer collide with gates G0–G8;
+  - short role names and "assignee" defined;
+  - a line-citation convention stated;
+  - register index statuses aligned with their entries;
+  - OQ-17 added to gate G5, and OQ-43's milestones aligned;
+  - the M8 dependency clarified;
+  - FR-REC-042 removed from the M4 range.
