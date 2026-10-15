@@ -1,7 +1,7 @@
 # ClearSettle — Product Specification
 
 **Document status:** Draft for owner review. Specification phase only. This document does not authorize implementation (D-PRC-01).
-**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08 and the workspace-model decision D-PRD-09
 **Decision source:** [Decision register](clearsettle_decision_register.md). Decision IDs (`D-…`) and open questions (`OQ-…`) refer to it. Audit findings (`AF-…`) refer to the [specification audit](clearsettle_specification_audit.md).
 **Engineering baseline:** [Master engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 
@@ -127,7 +127,8 @@ These terms are binding for APIs, data models, UI copy and tests (checklist §2,
 
 | Term | Definition | Status |
 |---|---|---|
-| **Workspace** | The tenant. One business using ClearSettle, holding its members, data, ledger and settings. Code uses "workspace", not "tenant", "merchant" or "account". | Mandatory (D-SEC-07, D-SEC-10). That one workspace equals one accounting entity is an INFERENCE (OQ-03). |
+| **Workspace** | The tenant, and exactly one accounting entity. It holds its members, data and settings, and owns one Chart of Accounts, one ledger and one financial year, with that entity's accounting periods, opening balances and cutover. Code uses "workspace", not "tenant", "merchant" or "account". | Mandatory (D-SEC-07, D-SEC-10, D-PRD-09) |
+| **Active workspace** | The single workspace a user is working in at a time. The user chooses it explicitly; every relevant request carries it, and the server validates it against the user's membership and permissions. | Mandatory (D-PRD-09) |
 | **Business** | The organization that owns a workspace. In gateway terminology this is the "merchant". | Mandatory |
 | **User** | A person authenticated by the managed identity provider. | Mandatory (D-SEC-06) |
 | **Member** | A user's membership in a workspace, with one or more roles. | Mandatory |
@@ -175,7 +176,7 @@ The word "transaction" alone is ambiguous in this domain. Use the specific recor
 ### 2.2 Domain overview (conceptual, not a schema)
 
 ```
-Workspace (business; one ledger — INFERENCE, OQ-03)
+Workspace (one accounting entity: one Chart of Accounts, ledger, financial year — D-PRD-09)
 ├── Members (user × roles)                          D-SEC-01/02
 ├── Source reports (immutable file versions)        D-IMP-13
 │   └── Imports (job, template version, outcome)
@@ -256,14 +257,18 @@ The backend enforces every cell (D-SEC-03). A user holding several roles has the
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-WSP-001 | A user whose email the identity provider has verified can create a workspace and becomes its Workspace Owner/Admin. | Mandatory | D-SEC-07 |
+| FR-WSP-001 | A user whose email the identity provider has verified can create a workspace and becomes its Workspace Owner/Admin. Creating a workspace creates a new accounting entity (FR-WSP-015), and the creation is recorded as an audit event (NFR-DAT-004). | Mandatory | D-SEC-07, D-PRD-09 |
 | FR-WSP-002 | Creating a workspace never grants access to, reveals the existence of, or returns data from any other workspace. | Mandatory | D-SEC-05, D-SEC-07 |
 | FR-WSP-003 | An Admin can invite teammates by email and choose their initial roles. | Mandatory | D-SEC-07 |
 | FR-WSP-004 | Invitations are single-use and expire. Accepting one requires an authenticated user whose verified email matches the invitation. | Recommended | D-SEC-05 |
 | FR-WSP-005 | Every role or membership change is recorded as an audit event with actor, target user, before and after roles, and timestamp. Current Admins and the affected user are notified. | Mandatory (audit); Recommended (notification) | D-SEC-05, D-DAT-01 |
 | FR-WSP-006 | A workspace always has at least one Admin. Removing or demoting the last Admin is rejected. | Recommended | OQ-36 |
 | FR-WSP-007 | Workspace settings include name, financial-year start (default 1 April), cutover date, functional currency and time zone (default Asia/Kolkata, R). Changes to the financial year, cutover date or functional currency are sensitive financial settings and follow D-SEC-08. | Mandatory (financial year, cutover); Unresolved (functional currency OQ-19); Recommended (time zone) | D-ACC-12, D-ACC-15, D-SEC-08 |
-| FR-WSP-008 | A user may belong to several workspaces and must switch explicitly. Every request is evaluated against one active workspace, and no screen mixes data from two workspaces. | Unresolved; recommended default | OQ-03 |
+| FR-WSP-008 | A user may belong to several workspaces and switches between them explicitly; there is no implicit or automatic switch. Every request is evaluated against one active workspace. Membership and roles in one workspace grant no access to any other. | Mandatory | D-PRD-09, D-SEC-05 |
+| FR-WSP-015 | **Accounting-entity ownership.** Each workspace is exactly one accounting entity and owns exactly one Chart of Accounts, one ledger and one financial year, with that entity's accounting periods, opening balances and cutover date. Every workspace-owned financial record (source records, matches, exceptions, journals and lines, accounts, periods, reports and exports) belongs to exactly one workspace, carries its identifier, and can never refer to another workspace's records (NFR-SEC-007). | Mandatory | D-PRD-09, D-ACC-01, D-ACC-08, D-ACC-12, D-ACC-15, D-SEC-10 |
+| FR-WSP-016 | **Server-side active-workspace validation.** On every relevant request, the backend checks that the user is a current member of the stated active workspace with the needed permission, and that every referenced record belongs to that workspace. A missing, tampered or mismatched workspace identifier is rejected without revealing whether that workspace or its records exist. The client's view of the active workspace is never trusted on its own. | Mandatory | D-PRD-09, D-SEC-03, D-SEC-04 |
+| FR-WSP-017 | **Switch isolation.** Switching workspaces changes the active context everywhere. Data loaded for the previous workspace is cleared from client caches and UI state, and is never shown in the new workspace's screens, search, reports, exports, downloads or notifications. Requests still in flight for the previous workspace keep being authorized against that workspace, and their results are not shown in the new one. Server-side caches, queries, jobs, files and notifications stay scoped to one workspace (NFR-SEC-007, NFR-SEC-008, NFR-SEC-016, FR-NTF-004). | Mandatory (no leakage, D-PRD-09); Recommended (client mechanism) | D-PRD-09, D-SEC-04 |
+| FR-WSP-018 | **No cross-workspace financial views in the MVP.** No screen, report, export or API response combines financial data from more than one workspace. Listing the user's own workspaces for switching is the only cross-workspace display. Any later consolidation or cross-workspace feature needs a separate approved decision. | Mandatory (exclusion for the MVP) | D-PRD-09, D-PRD-06 |
 
 **Workspace lifecycle states** (Recommended; OQ-42):
 1. `Active`
@@ -282,7 +287,7 @@ Each journey names the requirements that govern it. The release-gate workflow (D
 
 ### J1 — Onboard a workspace (UC-01)
 1. The user signs in with the managed identity provider (NFR-SEC-001).
-2. They create a workspace and become its Admin (FR-WSP-001).
+2. They create a workspace, which is a new accounting entity, and become its Admin (FR-WSP-001, FR-WSP-015). A user who belongs to several workspaces switches between them explicitly (FR-WSP-008).
 3. They set the workspace profile and time zone. A Controller confirms the financial year, cutover date and functional currency with MFA before the first posting (FR-WSP-007, FR-ACC-022, FR-ACC-028; Recommended, OQ-29).
 4. They review the default Chart of Accounts (FR-ACC-002; content per OQ-27).
 5. They invite teammates and assign roles (FR-WSP-003). Privileged users must enrol in MFA before using privileged actions (NFR-SEC-003).
@@ -597,14 +602,14 @@ Having manual journal entry does not make an unresolved accounting treatment sup
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-001 | Each workspace has one ledger in one functional currency, set at setup. MVP journal lines use only the functional currency. | Unresolved (OQ-03, OQ-19); recommended default | D-ACC-01, OQ-03, OQ-19 |
+| FR-ACC-001 | Each workspace has exactly one ledger (D-PRD-09). That ledger has one functional currency, set at setup, and MVP journal lines use only the functional currency. | Mandatory (one ledger per workspace, D-PRD-09); Unresolved (functional currency, OQ-19); recommended default | D-ACC-01, D-PRD-09, OQ-19 |
 | FR-ACC-026 | Events in a currency other than the functional currency produce no journal drafts until the OQ-19 policy is approved. They appear in the close checklist as unaccounted items. | Unresolved; recommended default | D-FIN-06, OQ-19 |
 
 ### 8.2 Chart of Accounts
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-002 | New workspaces start with a default Chart of Accounts. Each account has a code, name, type, parent grouping, active flag and system-required flag. Permitted roles can create, rename, organize and map accounts. The default content needs accountant review (OQ-27). Recommended account types: asset, liability, equity, income, expense. | Mandatory (customizable Chart of Accounts with defaults); EXTERNAL REVIEW REQUIRED (content) | D-ACC-08 |
+| FR-ACC-002 | Each workspace has its own Chart of Accounts (D-PRD-09); accounts are never shared across workspaces. New workspaces start with a default Chart of Accounts. Each account has a code, name, type, parent grouping, active flag and system-required flag. Permitted roles can create, rename, organize and map accounts. The default content needs accountant review (OQ-27). Recommended account types: asset, liability, equity, income, expense. | Mandatory (customizable Chart of Accounts with defaults; one per workspace); EXTERNAL REVIEW REQUIRED (content) | D-ACC-08, D-PRD-09 |
 | FR-ACC-003 | System-required accounts cannot be deleted and cannot change type. Accounts referenced by posted entries cannot be deleted or change type; they can only be deactivated. Every change is versioned and audited. | Mandatory ("protect … as appropriate"); Recommended (exact protections) | D-ACC-08 |
 
 ### 8.3 Accounting templates and rules
@@ -745,7 +750,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| NFR-SEC-007 | Isolation is enforced in layers:<br>(a) every tenant-owned row carries a non-null workspace ID;<br>(b) database constraints stop any relationship (match, exception link, journal-line source link) from joining records of different workspaces, for example through composite keys that include the workspace ID;<br>(c) PostgreSQL row-level security applies to tenant tables as defence in depth, with forced RLS, an application role that neither owns the tables nor bypasses RLS, and a per-transaction tenant context that fails closed when absent;<br>(d) background jobs set their tenant context from the job's stored workspace and re-check that every referenced record belongs to it;<br>(e) every unique and foreign key on a tenant table includes the workspace ID, because PostgreSQL integrity checks bypass row-level security and a key spanning workspaces could reveal another tenant's data;<br>(f) views over tenant data run with the querying user's permissions (`security_invoker`); materialized views, which row-level security cannot protect, and functions that run with their owner's privileges (`SECURITY DEFINER`) are reviewed before use on tenant data. | Mandatory (layered isolation); Recommended (mechanics a–f) | D-SEC-10, AF-63, AF-120 |
+| NFR-SEC-007 | Isolation is enforced in layers:<br>(a) every tenant-owned row carries a non-null workspace ID;<br>(b) database constraints stop any relationship (match, exception link, journal-line source link, journal line to account, journal to accounting period) from joining records of different workspaces, for example through composite keys that include the workspace ID;<br>(c) PostgreSQL row-level security applies to tenant tables as defence in depth, with forced RLS, an application role that neither owns the tables nor bypasses RLS, and a per-transaction tenant context that fails closed when absent;<br>(d) background jobs set their tenant context from the job's stored workspace and re-check that every referenced record belongs to it;<br>(e) every unique and foreign key on a tenant table includes the workspace ID, because PostgreSQL integrity checks bypass row-level security and a key spanning workspaces could reveal another tenant's data;<br>(f) views over tenant data run with the querying user's permissions (`security_invoker`); materialized views, which row-level security cannot protect, and functions that run with their owner's privileges (`SECURITY DEFINER`) are reviewed before use on tenant data. | Mandatory (layered isolation); Recommended (mechanics a–f) | D-SEC-10, AF-63, AF-120 |
 | NFR-SEC-018 | Each database role has a defined, minimal scope, with every cross-tenant operation listed, audited and tested. Recommended roles:<br>• **application**: tenant context required, row-level security forced;<br>• **job dispatcher**: job metadata only;<br>• **lifecycle**: retention, offboarding and restore checks, audited;<br>• **migration**: schema changes only;<br>• **metrics reader**: aggregates without financial detail.<br>No role is granted the ability to bypass row-level security ad hoc. | Recommended | D-SEC-10, AF-121 |
 | NFR-SEC-008 | Stored objects use opaque, workspace-namespaced keys, and buckets are never public. Every download passes an authorization check that is repeated at download time, including for exports generated in the background. Recommended: stream downloads through the backend. If signed links are used instead, they have a short maximum lifetime (value under OQ-38), are single-use where the storage supports it, and their issuance is audited. Responses carry `Content-Disposition: attachment` and `Cache-Control: no-store`. | Mandatory (private storage, authorization, short-lived access, D-DAT-03 and D-DAT-04); Recommended (mechanism) | D-DAT-03, D-DAT-04, AF-132 |
 | NFR-SEC-017 | Every upload path gets the D-DAT-04 controls, not only source reports. That includes exception evidence attachments and opening-balance template uploads. The controls are: an allowlist of file types, size limits, malware scanning where supported, and private storage. Uploaded files are served only as downloads, with the correct content type and `nosniff`, and are never rendered inline on the application's origin. | Mandatory (derived from D-DAT-04); Recommended (mechanism) | D-DAT-04, AF-119 |
@@ -759,7 +764,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | NFR-DAT-001 | Each audit event records: event ID; workspace ID; actor (user, or system job together with the user who started it); action; target type and IDs; UTC timestamp; reason where required; before and after values or a diff; correlation ID. | Mandatory (actor, timestamp, records, action, reason); Recommended (other fields) | D-DAT-01 |
 | NFR-DAT-002 | An audit event is written in the same database transaction as the change it records, so neither can exist without the other. | Recommended (strongly; supports D-DAT-01) | D-DAT-01 |
 | NFR-DAT-003 | The application role can only insert and read audit events. Database privileges and a guard trigger refuse updates, deletes and truncation. Only the migration role can disable triggers. Corrections are new events. Audit events are deleted only by the lifecycle role (NFR-SEC-018), under approved retention or offboarding, and each such deletion is recorded in a platform-level deletion log kept outside the workspace. | Mandatory (append-only); Recommended (mechanism, lifecycle deletion) | D-DAT-01, D-DAT-07, AF-126 |
-| NFR-DAT-004 | Audited actions include:<br>• membership and role changes;<br>• workspace and security settings;<br>• uploads, commits and revisions;<br>• runs;<br>• manual matches and unmatches;<br>• exception transitions and resolutions;<br>• approvals, returns and rejections;<br>• postings and reversals;<br>• period close and reopen;<br>• Chart of Accounts and template changes;<br>• exports and original-file downloads (Recommended);<br>• offboarding steps and legal holds;<br>• failed attempts at privileged actions (Recommended). | Mandatory (important financial and administrative events); Recommended (marked items) | D-DAT-01, D-SEC-05 |
+| NFR-DAT-004 | Audited actions include:<br>• workspace creation (D-PRD-09);<br>• membership and role changes;<br>• workspace switching, recorded as a security event in the user's session history rather than as a financial event (Recommended);<br>• workspace and security settings;<br>• uploads, commits and revisions;<br>• runs;<br>• manual matches and unmatches;<br>• exception transitions and resolutions;<br>• approvals, returns and rejections;<br>• postings and reversals;<br>• period close and reopen;<br>• Chart of Accounts and template changes;<br>• exports and original-file downloads (Recommended);<br>• offboarding steps and legal holds;<br>• failed attempts at privileged actions (Recommended). | Mandatory (important financial and administrative events, including workspace creation); Recommended (marked items) | D-DAT-01, D-SEC-05, D-PRD-09 |
 | NFR-DAT-005 | Who can read the audit history follows OQ-37. | Unresolved | OQ-37 |
 | NFR-DAT-012 | No claim of tamper-proof or immutable storage is made. Tamper evidence (for example hash chaining or external log storage) is evaluated during hardening (M9). | Mandatory (no unproven claims); Recommended (evaluation) | D-DAT-02 |
 
@@ -897,7 +902,7 @@ Each criterion describes observable results and includes failure cases. "Rejecte
 
 | ID | Given / when | Then | Covers |
 |---|---|---|---|
-| AC-070 | A member of workspace A reads, updates, deletes, exports or requests a download link for a resource of workspace B by ID. | Every attempt fails with a response that does not reveal whether the resource exists, and nothing leaks. The matching allowed operations inside A succeed. Recommended: a security event is logged. Export and download-link parts run once those features exist (M2, M8). | NFR-SEC-006, NFR-SEC-007, NFR-SEC-008 |
+| AC-070 | A member of workspace A reads, updates, deletes, exports or requests a download link for a resource of workspace B by ID. | Every attempt fails with a response that does not reveal whether the resource exists, and nothing leaks. The matching allowed operations inside A succeed. Recommended: a security event is logged. Export and download-link parts run once those features exist (M2, M8). | NFR-SEC-006, NFR-SEC-007, NFR-SEC-008, FR-WSP-008 |
 | AC-071 | A job for workspace A is given a payload containing workspace B's record IDs. | It fails without reading or writing B's data. | NFR-SEC-007 |
 | AC-072 | A database query runs on a tenant table without a tenant context. (Recommended mechanism) | It returns no rows and cannot write (fails closed). | NFR-SEC-007 |
 | AC-073 | An Auditor calls any mutating endpoint, and a role whose UI button is hidden calls the API directly. | Both are rejected. | NFR-SEC-006, D-SEC-01 |
@@ -1005,6 +1010,18 @@ These cover high-risk requirements that previously had no acceptance criterion (
 | AC-150 | For one period, gateway transactions and settlement reports are imported but no bank statement; one import is `Partially imported`; two manual drafts are unposted; no manual-journal purpose beyond corrections is supported. The trial balance, profit and loss and balance sheet are generated and exported to CSV and XLSX. | Each report and each export shows: the covered period; the source categories and accounts present and absent, with data cut-offs; the partial import; the supported posting purposes; the count of unposted drafts; the known exclusions; open critical items. No report or export states or implies that it covers the business's whole activity. | FR-RPT-003, FR-RPT-013, FR-RPT-015 |
 | AC-151 | A period contains bank transactions classified outside gateway reconciliation, drafts blocked as "purpose not supported" and cross-currency items without journals. The period-close checklist and accounting reports are produced. (U: OQ-02 classification; criticality per FR-ACC-019) | These items are listed as not accounted for, with counts and amounts per currency. None is shown as reconciled or recorded. Closing the period requires them to be cleared or acknowledged with a rationale. | FR-ACC-030, FR-ACC-034, FR-ACC-019, FR-RPT-015 |
 
+*Workspace and accounting-entity model (D-PRD-09, added 16 October 2026)*
+
+The first required negative test (no access to another workspace's financial records without membership and permission) is AC-070, together with AC-073 for missing permission inside a workspace. The other four required tests are below.
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-152 | User U belongs to workspace A only. U sends requests with the active-workspace identifier changed to workspace B in every place a client can supply it, for records of B and for records of A. | Every request is rejected. The response does not reveal whether B or its records exist. Nothing in B is read or written, and A's records are not returned under B's identifier. Recommended: the attempt is logged as a security event. | FR-WSP-016, NFR-SEC-006 |
+| AC-153 | User U belongs to workspaces A and B, views A's ledger, journals and exceptions, then switches explicitly to B, including while one of A's requests is still in flight. | After the switch, no A data appears in B's screens, client caches, UI state, search, suggestions, downloads or notifications. The late A response is not shown in B's context. Returning to A requires another explicit switch. | FR-WSP-017, FR-WSP-008, NFR-SEC-016 |
+| AC-154 | With A active, a user: runs a report whose parameters name B's accounts, periods or runs; starts an export; requests a download of B's file; queues a job that references B's records; triggers a notification about A. | The report and export contain only A's data, and parameters naming B are rejected. The download is refused. The job fails without reading or writing B (as in AC-071). The notification reaches only current, permitted members of A (as in AC-079). File links follow AC-077. | FR-WSP-017, NFR-SEC-007, NFR-SEC-008, FR-RPT-010, FR-NTF-004 |
+| AC-155 | Workspace A has a financial year of 1 April–31 March and its own Chart of Accounts. Workspace B has 1 January–31 December and a different Chart of Accounts. The same user is Preparer in both. With A active, a journal line is created that references B's account, or a journal is dated into a period defined only by B. | Both are rejected by the service check and by the composite database constraints. Each workspace's periods follow its own financial year. Opening balances, cutover and trial balances are computed per workspace, and no record in A refers to a record in B. | FR-WSP-015, FR-ACC-001, FR-ACC-002, FR-ACC-022, NFR-SEC-007 |
+| AC-156 | A user belongs to two workspaces, creates a third, and switches between them. | The workspace switcher lists only the user's own memberships. No screen, report, export or API response combines financial data from two workspaces. Creating the workspace produces an audit event; each switch is recorded as a security event (Recommended). | FR-WSP-018, FR-WSP-001, NFR-DAT-004 |
+
 ### 12.2 Nonfunctional requirements without a section above
 
 | ID | Requirement | Label | Decisions |
@@ -1039,7 +1056,7 @@ These cover high-risk requirements that previously had no acceptance criterion (
 
 **Traceability rule:** every Mandatory requirement maps to at least one acceptance criterion or test, and every test names the requirement it covers.
 
-**Coverage status (16 October 2026, after D-PRD-08):** 122 of the 177 requirements with a Mandatory part are named by at least one acceptance criterion in §12.1. The other 55 are mostly operational, UX, structural and reporting requirements: environments, CI, migrations, health checks, observability, formatting and UI states, report contents, and exception record fields. Each of them must be mapped to a named test, configuration review or operational exercise in the implementation status document before its milestone exits. The list is in audit finding AF-117. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
+**Coverage status (16 October 2026, after D-PRD-08 and D-PRD-09):** 131 of the 183 requirements with a Mandatory part are named by at least one acceptance criterion in §12.1. The other 52 are mostly operational, UX, structural and reporting requirements: environments, CI, migrations, health checks, observability, formatting and UI states, report contents, and exception record fields. Each of them must be mapped to a named test, configuration review or operational exercise in the implementation status document before its milestone exits. The list is in audit finding AF-117. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
 
 ---
 
@@ -1060,12 +1077,11 @@ No requirement in this specification implements any of them. Adding one needs th
 
 ### 13.2 Unresolved questions
 
-All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions): 54 are open (OQ-02 to OQ-56; OQ-30 is retired). OQ-01, about ledger completeness, was resolved for product direction on 16 October 2026 by D-PRD-08 and is kept in register §3.5 for traceability. These open questions most change what gets built:
+All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions): 53 are open (OQ-02 and OQ-04 to OQ-56; OQ-30 is retired). Two were resolved on 16 October 2026 and are kept in register §3.5 for traceability: OQ-01, about ledger completeness, was resolved for product direction by D-PRD-08; OQ-03, about the workspace and accounting-entity model, was resolved by D-PRD-09. These open questions most change what gets built:
 
 | OQ | Topic | Needed before |
 |---|---|---|
 | OQ-56 | Which manual-journal purposes the initial release supports, and their approved treatment | Posting manual journals beyond opening balances and corrections (M6) |
-| OQ-03 | One workspace = one accounting entity; multi-workspace users | Foundation (M1) |
 | OQ-05 | Platform operator access | Foundation design (M1) |
 | OQ-07, OQ-08 | First gateways and banks; sample files; schemas | Imports (M2) |
 | OQ-09 | Same identifier with different values | Imports (M2) |

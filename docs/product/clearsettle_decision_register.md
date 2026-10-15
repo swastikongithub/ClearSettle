@@ -1,7 +1,7 @@
 # ClearSettle — Decision Register
 
 **Document status:** Consolidated for owner review. The project is still in specification; no application implementation is authorized.
-**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope) recorded 16 October 2026
+**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope) and D-PRD-09 (workspace and accounting entity) recorded 16 October 2026
 **Primary source:** [`clearsettle_approved_decisions_seed.md`](clearsettle_approved_decisions_seed.md), cited below as "Seed §n, Lxx".
 **Related documents:** [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Implementation plan](clearsettle_implementation_plan.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [Pre-consolidation register (archived)](archive/clearsettle_decision_register_pre_consolidation.md).
 
@@ -28,7 +28,8 @@ An entry can carry more than one label. For example, "APPROVED; EXTERNAL REVIEW 
 1. **Owner instructions and decisions** given in the working sessions:
    - the 15 October 2026 product consolidation brief, cited as "Brief §A–G";
    - the Git and GitHub workflow and attribution rules, cited as "Git instruction";
-   - the ledger-scope decision of 16 October 2026 (Option C), cited as "Owner decision, 16 October 2026".
+   - the ledger-scope decision of 16 October 2026 (Option C), cited as "Owner decision, 16 October 2026";
+   - the workspace and accounting-entity approval of 16 October 2026, cited as "Owner approval, 16 October 2026 (workspace model)".
 2. **The seed**, which is the primary record of discovery decisions.
 3. **Project instructions:** [`CLAUDE.md`](../../CLAUDE.md), [`docs/README.md`](../README.md) and the [engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 4. **The prior register.** Where it conflicts with the seed, the seed governs. Section 5 records the disposition of every prior entry.
@@ -62,6 +63,7 @@ Each decision records the following fields:
 | D-PRD-06 | No blanket scope expansion | APPROVED |
 | D-PRD-07 | No AI/LLM features by default | APPROVED (engineering rule) |
 | D-PRD-08 | Full-ledger vision with staged initial-release scope | APPROVED |
+| D-PRD-09 | Workspace represents one accounting entity | APPROVED |
 | D-TEC-01 | Java and Spring Boot backend | APPROVED |
 | D-TEC-02 | PostgreSQL, shared database | APPROVED |
 | D-TEC-03 | Next.js, React and JavaScript frontend | APPROVED |
@@ -256,6 +258,30 @@ Each decision records the following fields:
 - **Source:** Owner decision, 16 October 2026 (Option C: full ledger, introduced gradually), given in the working session; see §7.
 - **Does not decide:** accounting policies, which manual-journal purposes are supported (OQ-56), revenue-recognition triggers (OQ-24), event-to-journal rules (OQ-23), whether reports are management or statutory (OQ-32), or how records outside gateway flows are handled (OQ-02). It does not authorize implementation (D-PRC-01).
 - **Open:** OQ-56, OQ-23, OQ-24, OQ-32, OQ-02.
+
+#### D-PRD-09 — Workspace represents one accounting entity
+- **Status:** APPROVED
+- **Decision:** One workspace represents one accounting entity and owns exactly one Chart of Accounts, one ledger and one financial year. A user may belong to several workspaces and must switch between them explicitly. The MVP provides no cross-workspace financial views.
+- **Rationale (source):** It sets clear accounting boundaries and supports tenant isolation in a shared PostgreSQL database.
+- **Behaviour:**
+  - Every workspace-owned financial record belongs to exactly one workspace.
+  - The active workspace is explicit, and validated server-side on every relevant request.
+  - Membership in one workspace grants no access to another.
+  - Switching updates the active context. It must not leak data through caches, queries, reports, exports, files, background jobs or notifications.
+  - The Chart of Accounts, ledger, accounting periods, financial year, opening balances and cutover all belong to the workspace's accounting entity.
+  - Any later cross-workspace consolidation feature needs a separate approved decision.
+- **Constraints:** Keeps backend authorization, deny-by-default access, tenant-scoped queries, layered database isolation, composite tenant constraints, audit history and cross-tenant negative tests (D-SEC-03, D-SEC-04, D-SEC-10). The approved layered isolation design is unchanged.
+- **Depends on:** D-SEC-01, D-SEC-03, D-SEC-04, D-SEC-07, D-SEC-10, D-ACC-01, D-ACC-08, D-ACC-12. *(The approval also listed D-PRD-09 among its own dependencies. That self-reference is not recorded as a dependency; the owner should confirm whether another decision was intended.)*
+- **Tests:**
+  - No access to another workspace's records without membership and permission (AC-070).
+  - A tampered active-workspace identifier is rejected (AC-152).
+  - Switching does not leak earlier data (AC-153).
+  - Jobs, file downloads, reports, exports and notifications stay within their workspace (AC-154, with AC-071, AC-077, AC-079).
+  - Two workspaces keep separate Charts of Accounts and financial years (AC-155).
+  - No cross-workspace financial views; workspace creation is audited (AC-156).
+- **Source:** Owner approval in the ClearSettle product-discovery conversation, 16 October 2026 (workspace model); see §7.
+- **Does not decide:** the session and token design (OQ-35); Admin access to financial data (OQ-36); the functional currency (OQ-19); operator access (OQ-05). It does not authorize implementation (D-PRC-01).
+- **Open:** OQ-35, OQ-36, OQ-19.
 
 ### 2.2 Technology and architecture
 
@@ -833,8 +859,9 @@ Each decision records the following fields:
 #### D-SEC-07 — Self-service workspace onboarding
 - **Status:** APPROVED
 - **Decision:** A verified user can create a business workspace and becomes its first administrator, then invites teammates. Onboarding never exposes existing tenants.
+- **Workspace model:** Each workspace is one accounting entity, and users may belong to several (D-PRD-09; OQ-03 resolved 16 October 2026).
 - **Source:** Seed §8, L193.
-- **Open:** OQ-03, OQ-36.
+- **Open:** OQ-36.
 
 #### D-SEC-08 — MFA for privileged users
 - **Status:** APPROVED
@@ -1059,11 +1086,12 @@ Every "Recommended default" is a RECOMMENDATION, not a decision.
 | ID | Question | Why it matters | Recommended default | Type | Approval | Blocks |
 |---|---|---|---|---|---|---|
 | OQ-02 | How are records outside gateway flows handled: orders paid by cash on delivery or direct bank transfer, and bank transactions unrelated to gateway payouts? D-PRD-08 does not settle this. | Without a rule they either flood the exception queue or vanish unexplained (AF-25). | Mark them "Outside gateway reconciliation" through a template rule or a user classification with a reason. They are not exceptions and not "reconciled". Bank movements become journal drafts only through approved templates, or through manual drafts for a supported purpose (OQ-56). Reports list them as not covered until they are recorded (FR-RPT-015). | (a) | Owner | M4 |
-| OQ-03 | Does one workspace equal one accounting entity (one Chart of Accounts, one ledger, one financial year)? Can a user belong to several workspaces, and how do they switch? | The tenant boundary, ledger boundary and session design all depend on this (AF-69). | One workspace = one accounting entity. A user may belong to several workspaces and switches explicitly; the active workspace is carried in every request and checked server-side. No cross-workspace views in the MVP. | (a) | Owner | M1 |
 | OQ-04 | Are billing and subscriptions, terms of service, privacy policy and data-processing terms in scope before onboarding real customers? | A production SaaS needs them, but none is mentioned in the approved decisions (AF-70). | Keep billing out of the MVP build. Treat legal terms as a release prerequisite prepared by qualified counsel. | (a)(d) | Owner; legal | M10 |
 | OQ-05 | How may ClearSettle staff (platform operators) access tenant data for support or incidents? | Uncontrolled operator access defeats tenant isolation (AF-60). | No standing access. A time-bound break-glass procedure requiring customer consent (except in a documented emergency), MFA, reason capture and audit events visible to the workspace. | (a)(d) | Owner; security | M1 (design), M10 |
 
 OQ-01 (ledger completeness) was resolved for product direction on 16 October 2026 by D-PRD-08. It is kept in §3.5 for traceability and is no longer counted as open.
+
+OQ-03 (workspace and accounting entity) was resolved on 16 October 2026 by D-PRD-09. It is kept in §3.5 for traceability and is no longer counted as open or listed as a blocker.
 
 ### 3.2 Imports and reconciliation
 
@@ -1139,6 +1167,7 @@ Kept for traceability. Resolved questions are not counted as open.
 | ID | Original question | Resolution | Date and source | What remains open |
 |---|---|---|---|---|
 | OQ-01 | Is ClearSettle's ledger meant to be the business's complete general ledger, recording all activity including expenses, payroll and other income through manual journals? Or are its statements limited to payment-flow activity? *(Originally recommended: keep the full ledger, support general manual journals, show coverage indicators, and make no claim of replacing full bookkeeping until that scope is approved. Type (a)(d); approval owner and accountant; blocked M6.)* | Product direction resolved by D-PRD-08: a complete business ledger is the long-term direction, introduced gradually. The initial release posts only approved, evidence-backed payment-related workflows and explicitly supported manual journals. Reports disclose their coverage. | 16 October 2026; owner decision (Option C) | Supported manual-journal purposes (OQ-56); event-to-journal rules (OQ-23); revenue-recognition triggers (OQ-24); management or statutory classification of reports (OQ-32); records outside gateway flows (OQ-02). The resolution does not settle any accounting policy. |
+| OQ-03 | Does one workspace equal one accounting entity (one Chart of Accounts, one ledger, one financial year)? Can a user belong to several workspaces, and how do they switch? *(Originally recommended: one workspace = one accounting entity; a user may belong to several workspaces and switches explicitly; the active workspace is carried in every request and checked server-side; no cross-workspace views in the MVP. Type (a); approval owner; blocked M1.)* | Resolved by D-PRD-09. One workspace is one accounting entity with its own Chart of Accounts, ledger and financial year. Users may belong to several workspaces and switch explicitly. The active workspace is validated server-side on every relevant request. The MVP has no cross-workspace financial views. | 16 October 2026; owner approval (workspace model) | Session and token design (OQ-35); Admin financial-data access (OQ-36); functional currency (OQ-19). Any future cross-workspace consolidation needs a separate approved decision. |
 
 ---
 
@@ -1152,7 +1181,7 @@ The checklist's 110-concept table (§10) is unchanged. These approved decisions 
 | §3 "Ledger scope decision" | Open | Ledger in scope: balanced double entry, immutable posted entries, correction by reversal or adjustment are now mandatory (D-ACC-01, D-ACC-07). |
 | §13 Q1 Data ingestion | Open | CSV/XLSX uploads; gateway APIs and webhooks deferred (D-IMP-02, D-DEF-02). |
 | §13 Q2 Ledger boundary | Open | Answered by D-PRD-05. The scope direction is a full ledger with a staged initial scope (D-PRD-08; OQ-01 resolved 16 October 2026). Supported manual-journal purposes are in OQ-56. |
-| §13 Q3 Tenant model | Open | Multi-tenant SaaS, shared PostgreSQL with layered isolation (D-SEC-10); entity model OQ-03. |
+| §13 Q3 Tenant model | Open | Multi-tenant SaaS, shared PostgreSQL with layered isolation (D-SEC-10). Entity model approved: one workspace is one accounting entity (D-PRD-09; OQ-03 resolved 16 October 2026). |
 | §13 Q4 Background processing | Open | Limits approved as targets (D-IMP-09); mechanism OQ-49; performance target OQ-44. |
 | §13 Q5 Authentication | Open | Managed OIDC (D-SEC-06); provider OQ-34; session design OQ-35. |
 | §13 Q6 Deployment target | Open | Recovery targets approved (D-OPS-06); providers OQ-43. |
@@ -1196,7 +1225,7 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | §2 Decision 2 (matching shapes and policy) | Approved | Carried forward as D-REC-04 to D-REC-12. "Tolerances" superseded by D-REC-07. |
 | §2 Decision 3 (financial edge cases) | Open | Partly answered by D-FIN-01 to D-FIN-06 and D-REC-07; remainder in OQ-12, OQ-19, OQ-23. |
 | §2 Decision 4 (reconciliation vs ledger) | Open | Answered by D-PRD-05 and D-ACC-01. The completeness question (OQ-01) was resolved for product direction by D-PRD-08 on 16 October 2026. |
-| §2 Decision 5 (users and tenants) | Open | Answered by D-PRD-02, D-SEC-01, D-SEC-07, D-SEC-10; entity model in OQ-03. |
+| §2 Decision 5 (users and tenants) | Open | Answered by D-PRD-02, D-SEC-01, D-SEC-07, D-SEC-10. The entity model (OQ-03) was resolved by D-PRD-09 on 16 October 2026. |
 | §2 Decision 6 (import contracts) | Open | Answered by D-IMP-02 to D-IMP-09 and D-DAT-05; remainder in OQ-07 to OQ-10, OQ-39, OQ-41. |
 | §2 Decision 7 (exception lifecycle) | Open | Answered by D-REC-13 to D-REC-16; remainder in OQ-14 to OQ-17, OQ-21. |
 | §2 Decision 8 (reports) | Open | Answered by D-RPT-01 to D-RPT-04. |
@@ -1217,12 +1246,13 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | 15 October 2026 | Register rebuilt from the seed and the owner's consolidation brief. Prior register archived verbatim. Prior entries mapped in §5. Open questions consolidated into OQ-01 to OQ-50. |
 | 16 October 2026 | Independent-review changes: label definition clarified for engineering rules; index statuses aligned with entries; OQ-14, OQ-19, OQ-21 to OQ-26, OQ-29, OQ-34, OQ-37 to OQ-39 and OQ-41 to OQ-43 extended; OQ-51 to OQ-55 added; §7 lists decisions that depend on owner instructions not stored in the repository. |
 | 16 October 2026 | Owner decision recorded as D-PRD-08 (Option C: full ledger, introduced gradually). OQ-01 resolved for product direction and moved to §3.5. OQ-56 added (supported manual-journal purposes). D-PRD-01, D-PRD-05, D-ACC-01, D-RPT-01, OQ-02, §4 and §5 updated to match. No other approved decision changed. |
+| 16 October 2026 | Owner approval recorded as D-PRD-09 (one workspace is one accounting entity; multi-workspace membership with explicit switching; no cross-workspace financial views in the MVP). OQ-03 resolved and moved to §3.5. D-SEC-07, §4 and §5 updated to match. No other approved decision changed. |
 
 ---
 
 ## 7. Decisions whose only source is an owner instruction outside the repository
 
-The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workflow instruction and the 16 October 2026 ledger-scope decision during working sessions. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
+The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workflow instruction, and the 16 October 2026 ledger-scope decision and workspace-model approval during working sessions. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
 
 | Decision | What depends only on the owner instruction | Owner confirmation |
 |---|---|---|
@@ -1230,3 +1260,4 @@ The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workf
 | D-SEC-04 | Extending tenant scope to reports and notifications (Brief §E). The seed lists queries, file actions, jobs, endpoints and exports (L189). | Pending |
 | D-PRC-04 | The Git and GitHub workflow and the no-AI-attribution rule (Git instruction). | Pending |
 | D-PRD-08 | Full-ledger direction with staged initial scope (owner decision, 16 October 2026, Option C). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
+| D-PRD-09 | Workspace represents one accounting entity (owner approval, 16 October 2026, workspace model). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
