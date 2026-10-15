@@ -1,7 +1,7 @@
 # ClearSettle — Phased Implementation Plan
 
 **Document status:** Proposal for owner review. **This plan does not authorize implementation.** Application development starts only when the owner explicitly authorizes it (D-PRC-01). After that, each milestone starts only when its entry conditions are met.
-**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08 and the workspace-model decision D-PRD-09
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08, the workspace-model decision D-PRD-09 and the authentication-architecture decision D-SEC-11
 **Inputs:** [Decision register](clearsettle_decision_register.md), [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [`CLAUDE.md`](../../CLAUDE.md).
 
 ## 1. Planning principles
@@ -50,7 +50,7 @@ Each open question must be answered before the work it gates begins. Answering e
 
 | Gate | Open questions to resolve | Needed by |
 |---|---|---|
-| G0 — Foundation | Approved workspace model: D-PRD-09 (OQ-03 resolved 16 October 2026; no longer a blocker). Still to resolve: OQ-05 (operator access principle), OQ-34 (identity provider, or a development provider plus selection criteria), OQ-35 (session architecture), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions), OQ-43 (partial: the secrets approach and the development and CI environments), OQ-55 (MFA for export roles) | M1 |
+| G0 — Foundation | Approved: the workspace model, D-PRD-09 (OQ-03 resolved 16 October 2026), and the authentication session architecture A′, D-SEC-11 (OQ-35 resolved 16 October 2026). Neither is a blocker any longer. Also required: the authentication spike report (M0), accepted by the owner. Still to resolve: OQ-05 (operator access principle), OQ-34 (identity provider, decided after the spike), OQ-57 (session cookie `SameSite` value, decided after the spike), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions), OQ-43 (partial: the secrets approach and the development and CI environments), OQ-55 (MFA for export roles) | M1 |
 | G1 — Imports | OQ-07 (first gateways, samples), OQ-08 (schemas from samples), OQ-09 (conflicting observations), OQ-10 (identical file), OQ-39 (card and bank numbers), OQ-49 (job mechanism), OQ-53 (excess precision) | M2 |
 | G2 — First reconciliation | OQ-06 (link model), OQ-12 (partial settlements), OQ-13 (expected settlement period), OQ-19 (cross-currency policy: the safe default lets work proceed), OQ-21 (run scope) | M3 |
 | G3 — Full coverage | OQ-02 (records outside gateway flows), OQ-11 (split-payment evidence), OQ-20 (narration references), OQ-22 (parameter governance); bank samples (OQ-07) | M4 |
@@ -64,14 +64,14 @@ Each open question must be answered before the work it gates begins. Answering e
 
 ### M0 — Decision closure and project setup
 
-- **Objective:** Turn the specification into an implementation-ready baseline and set up the repository workflow, without writing application code.
+- **Objective:** Turn the specification into an implementation-ready baseline and set up the repository workflow, without writing product code. The only code is the authentication spike's throwaway prototype, and only if the owner authorizes the spike.
 - **Scope:**
   - Owner review of the register, specification, audit and this plan.
   - Resolve gate G0 and as much of G1 as possible.
   - Start the external reviews early, because they take the longest:
     - an accountant for OQ-23 to OQ-28, OQ-32 and OQ-56;
     - legal counsel for OQ-04, OQ-41 and OQ-42;
-    - a security reviewer for OQ-05, OQ-35 and OQ-39.
+    - a security reviewer for OQ-05, OQ-39, OQ-57 and the D-SEC-11 spike evidence.
   - Collect anonymized sample reports (OQ-07).
 - **Included requirements:** D-PRC-01 to D-PRC-04; audit AF-09, AF-10, AF-11.
 - **Deliverables:**
@@ -80,12 +80,30 @@ Each open question must be answered before the work it gates begins. Answering e
   - The implementation status document (§6) created.
   - Confirmation that the `frontend-design` skill loads in the tooling used.
   - A decision on the CI provider.
+  - **Authentication design spike (D-SEC-11 validation gate).** It needs the owner's authorization before it starts. Its prototype code is throwaway and is not merged into the product (D-PRC-01). It produces a written report with test evidence for:
+    - OIDC login and callback with PKCE explicitly enabled (inspect the authorization request), `state` and `nonce` validation, exact redirect URIs, and ID-token validation failures (AC-157, AC-158);
+    - login and callback behaviour under `SameSite=Lax` and `SameSite=Strict`, including how in-progress login state is stored, to support the OQ-57 decision;
+    - CSRF-token issuance and validation, the required custom header, and rejection of forged and cross-origin state-changing requests (AC-160, AC-161);
+    - cookie attributes and cookie behaviour across sign-in, logout, expiry and re-authentication (AC-159, AC-162);
+    - sign out everywhere across two instances using Spring Session JDBC (AC-163);
+    - fail-closed step-up when authentication-strength or recency claims are missing or insufficient, a same-user check on re-authentication, and no automatic replay (AC-164, AC-165);
+    - whether a Next.js static export fits the app's routing (dynamic workspace routes) and other requirements (AF-155).
+  - **Identity-provider comparison under OQ-34** (recommendation pending owner confirmation: Amazon Cognito and Auth0, with Keycloak for development, CI and as a fallback). It tests real behaviour:
+    - OIDC login and logout;
+    - MFA enrollment and account recovery (NFR-SEC-026);
+    - the authentication-strength and recency evidence each provider actually issues;
+    - fail-closed behaviour;
+    - revocation and provider-initiated logout;
+    - data residency, privacy and contract terms;
+    - operational burden, cost, migration and vendor-specific limits.
+    It proposes a provider-to-ClearSettle authentication-strength mapping for approval. It selects no production provider.
   - The owner's written authorization to start M1.
-- **User-visible outcome:** None. This milestone is documentation and setup only.
-- **Database, API, frontend:** None.
+- **User-visible outcome:** None. This milestone is documentation and setup, plus the authorized spike.
+- **Database, API, frontend:** None in the product. The spike's prototype is discarded after its report.
 - **Tests:** Documentation consistency checks (links, ID resolution, status labels), repeated after each change.
 - **Acceptance criteria:**
   - Every G0 open question has a recorded decision or an explicitly accepted default.
+  - The authentication spike report is complete, its evidence supports the OQ-34, OQ-38 and OQ-57 decisions, and its gaps are recorded.
   - The register, specification and plan agree.
 - **Risks and mitigations:**
   - External reviews arrive late, so M7 stalls. *Mitigation:* start them now; M6 can proceed without them.
@@ -106,7 +124,7 @@ Each open question must be answered before the work it gates begins. Answering e
     - FR-WSP-015's Chart of Accounts, ledger and period tables are built in M6, using the ownership pattern set here.
     - The functional-currency setting in FR-WSP-007 waits for OQ-19 and is delivered in M6.
     - The notification part of FR-WSP-005 waits for the notification work in M5 and M8. Its audit part is in M1.
-  - Security: NFR-SEC-001 to NFR-SEC-012, NFR-SEC-014, NFR-SEC-016, NFR-SEC-018, NFR-SEC-019 (if OQ-55 is approved).
+  - Security: NFR-SEC-001 to NFR-SEC-012, NFR-SEC-014, NFR-SEC-016, NFR-SEC-018, NFR-SEC-019 (if OQ-55 is approved), and NFR-SEC-020 to NFR-SEC-026 (authentication session architecture, D-SEC-11). NFR-SEC-027 arrives with background jobs in M2.
     - Object-storage parts of NFR-SEC-008 are delivered in M2.
   - Audit: NFR-DAT-001 to NFR-DAT-005.
   - Reliability: NFR-REL-005, NFR-REL-008, NFR-REL-009.
@@ -117,7 +135,8 @@ Each open question must be answered before the work it gates begins. Answering e
   - **Spring Boot modular monolith** with explicit module boundaries: identity and workspace, imports, reconciliation, exceptions, accounting, reporting, audit, jobs, notifications. Boundaries are enforced by a build-time architecture test (Recommended).
   - **PostgreSQL** with versioned migrations (tool per OQ-48).
   - **Next.js application shell** with sign-in and workspace screens.
-  - **Docker-based local environment.**
+  - **Docker-based local environment,** including a same-origin reverse proxy and a local OIDC provider for development and CI (D-SEC-11).
+  - **Server-side sessions** in PostgreSQL through Spring Session JDBC, with the OIDC client configuration validated in the spike (NFR-SEC-001, NFR-SEC-002, NFR-SEC-021 to NFR-SEC-024).
   - **CI** running build, lint, unit tests, integration tests against real PostgreSQL, a dependency vulnerability scan and the permission-matrix test harness.
   - **Health endpoints, structured logging and correlation IDs.**
 - **Database:**
@@ -128,7 +147,7 @@ Each open question must be answered before the work it gates begins. Answering e
   - Forced row-level security with a fail-closed tenant context. The application database role neither owns the tables nor can bypass row-level security.
 - **API:**
   - The `/api/v1` conventions (OQ-50).
-  - Authentication and session endpoints per OQ-35.
+  - Authentication and session endpoints per D-SEC-11: OIDC login and callback, logout, sign out everywhere, and a step-up response for sensitive operations. Workspace-scoped routes follow `/api/v1/workspaces/{workspaceId}/...` (FR-WSP-016).
   - Workspace creation, invitation, membership and role endpoints.
   - An explicit active-workspace context on every relevant request. The service layer validates membership, permission and record ownership for that workspace on each request (FR-WSP-016).
   - An endpoint listing the user's own memberships for the workspace switcher. It is the only cross-workspace response (FR-WSP-018).
@@ -156,15 +175,16 @@ Each open question must be answered before the work it gates begins. Answering e
     - no cross-workspace financial views, and workspace creation is audited (AC-156).
   - Audit tests: role-change audit (AC-129) and audit coverage per action type for the actions that exist in M1 (AC-130, extended in later milestones).
   - Database role tests: each role in NFR-SEC-018 can perform only its listed operations.
+  - Authentication and session tests (D-SEC-11): AC-157 to AC-166 and AC-168, run against a real local OIDC provider, not protocol mocks.
   - End-to-end tests: J1 onboarding.
-- **Acceptance criteria:** AC-070 (except its export and download-link parts, which move to M2 and M8), AC-072 to AC-076, AC-080, AC-081, AC-129 to AC-133, AC-136, AC-145, AC-152, AC-153 and AC-156 pass in CI. J1 works end-to-end on synthetic users, including a user who belongs to two workspaces and switches between them.
+- **Acceptance criteria:** AC-070 (except its export and download-link parts, which move to M2 and M8), AC-072 to AC-076, AC-080, AC-081, AC-129 to AC-133, AC-136, AC-145, AC-152, AC-153, AC-156, AC-157 to AC-166 and AC-168 pass in CI. J1 works end-to-end on synthetic users, including a user who belongs to two workspaces and switches between them.
 - **Risks and mitigations:**
   - The identity provider cannot assert MFA. *Mitigation:* make MFA assertion a selection criterion; refuse privileged actions if it cannot be asserted (NFR-SEC-003).
   - Row-level security is misconfigured. *Mitigation:* fail-closed tests and a non-owner database role.
   - Design scope creep. *Mitigation:* build only the screens the owner approved.
-- **Entry conditions:** G0 is satisfied, and the owner has explicitly authorized implementation (D-PRC-01). The workspace model is already approved (D-PRD-09).
+- **Entry conditions:** G0 is satisfied, and the owner has explicitly authorized implementation (D-PRC-01). The workspace model (D-PRD-09) and the authentication session architecture (D-SEC-11) are already approved. Authentication work starts only after the spike report is accepted and OQ-34, OQ-38 and OQ-57 are decided.
 - **Exit conditions:**
-  - All M1 tests pass, including the workspace-model criteria AC-152, AC-153 and AC-156.
+  - All M1 tests pass, including the workspace-model criteria AC-152, AC-153 and AC-156, and the authentication criteria AC-157 to AC-166 and AC-168.
   - The implementation status document records the evidence.
   - The owner has reviewed the running skeleton and the approved design proposal.
 
@@ -175,6 +195,7 @@ Each open question must be answered before the work it gates begins. Answering e
   - Imports: FR-IMP-001 to FR-IMP-018, FR-IMP-021 to FR-IMP-028, FR-IMP-030, and FR-IMP-032 to FR-IMP-034 (gateway source accounts; bank accounts come in M4). Revision requirements FR-IMP-019, FR-IMP-020 and FR-IMP-029 come in M5.
   - Reliability: NFR-REL-001 to NFR-REL-004.
   - Storage and data: NFR-SEC-008, NFR-SEC-017 (source-report uploads), NFR-DAT-010 (mechanism).
+  - Background-work authorization: NFR-SEC-027.
   - Performance: NFR-PERF-002, NFR-PERF-003.
 - **Dependencies:** M1; gate G1, including at least one gateway's sample files.
 - **Deliverables:**
@@ -212,10 +233,11 @@ Each open question must be answered before the work it gates begins. Answering e
     - XML external entities (AC-144).
   - Reliability tests: lease fencing with a stalled worker (AC-138); temporary-artifact cleanup that keeps quarantined rows (AC-141).
   - Job tenant-isolation test: a job given another workspace's record IDs fails without reading or writing them (AC-071).
+  - Job re-authorization: a job aborts when its actor loses membership or permission before it runs (AC-167).
   - Cross-tenant export and download-link attempts (the M2 part of AC-070); expired and cross-workspace links (AC-077).
   - Workspace boundaries for jobs and file downloads (the job and file parts of AC-154).
   - A memory-bound test at the row limit (NFR-PERF-002), and baseline throughput measurements on a synthetic 250,000-row file. These results are recorded, not treated as targets.
-- **Acceptance criteria:** AC-001 to AC-012, AC-014, AC-071, AC-077, AC-100, AC-102 to AC-106, AC-108 to AC-110, AC-137, AC-138, AC-141 and AC-144 pass, plus the M2 parts of AC-070, AC-135, AC-143 and AC-154. J2 works end-to-end.
+- **Acceptance criteria:** AC-001 to AC-012, AC-014, AC-071, AC-077, AC-100, AC-102 to AC-106, AC-108 to AC-110, AC-137, AC-138, AC-141, AC-144 and AC-167 pass, plus the M2 parts of AC-070, AC-135, AC-143 and AC-154. J2 works end-to-end.
 - **Risks and mitigations:**
   - Real formats differ from the minimum fields in the specification. *Mitigation:* derive fields from the samples and update the specification first.
   - XLSX memory exhaustion. *Mitigation:* streaming parsing and expansion limits.
@@ -478,7 +500,7 @@ Update rule: the status record changes in the same commit as the work it describ
 | Workstream | Can proceed once | Notes |
 |---|---|---|
 | External accounting review (OQ-23 to OQ-28, OQ-32, OQ-33, OQ-56) | Now (documentation only) | The longest-lead dependency for M7; OQ-56 also governs which manual journals M6 can post |
-| Legal review (OQ-04, OQ-41, OQ-42) and security review (OQ-05, OQ-35, OQ-39) | Now | Needed for M9 and M10, and partly for M1 |
+| Legal review (OQ-04, OQ-41, OQ-42) and security review (OQ-05, OQ-39, OQ-57, and the D-SEC-11 spike evidence) | Now | Needed for M9 and M10, and partly for M1 |
 | Sample report collection (OQ-07) | Now | Gates M2 |
 | UI design proposal (OQ-47) | After implementation is authorized | `CLAUDE.md` requires the proposal before UI is built. No UI work in the current phase. |
 | M6 accounting core | After M1 | Independent of the imports and reconciliation modules except for shared audit, auth and jobs |
@@ -504,7 +526,7 @@ Per D-PRC-04 and the owner's Git instruction:
 
 ## 10. What this plan does not do
 
-- It does not authorize implementation, scaffolding, dependency installation or UI work. Neither the ledger-scope decision D-PRD-08 nor the workspace-model decision D-PRD-09 (both 16 October 2026) changes this; D-PRC-01 still applies.
+- It does not authorize implementation, scaffolding, dependency installation or UI work. None of the decisions D-PRD-08 (ledger scope), D-PRD-09 (workspace model) or D-SEC-11 (authentication architecture), all of 16 October 2026, changes this; D-PRC-01 still applies. The authentication spike also needs the owner's authorization.
 - It does not estimate dates or effort.
 - It does not resolve any open question. Every recommended default stays a recommendation until the owner approves it.
 - It does not claim that following it will make ClearSettle secure, compliant or financially correct. Only the evidence required at M10 can support such statements.
