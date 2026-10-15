@@ -1,7 +1,7 @@
 # ClearSettle — Specification Audit: Contradictions and Gaps
 
 **Document status:** Audit for owner review.
-**Audit date:** 15 October 2026; independent review incorporated 16 October 2026; AF-40 revised 16 October 2026 for D-PRD-08; AF-69 revised 16 October 2026 for D-PRD-09
+**Audit date:** 15 October 2026; independent review incorporated 16 October 2026; AF-40 revised 16 October 2026 for D-PRD-08; AF-69 revised 16 October 2026 for D-PRD-09; AF-61 and AF-62 revised and AF-146 to AF-155 added 16 October 2026 for D-SEC-11
 **Scope:** Every file present in the repository on 15 October 2026, namely:
 - `CLAUDE.md`
 - `docs/README.md`
@@ -24,6 +24,7 @@ The audit also covers the documents produced from those files:
 - Two independent reviews, each with no access to the drafting conversation, were run on these documents on 15–16 October 2026. Their 60 findings, and what was done about each, are under "Independent review results" at the end of this document (AF-100 to AF-145).
 - On 16 October 2026 the owner approved D-PRD-08 (full-ledger direction, staged initial scope). AF-40 was revised to match. Its severity stays High because of the residual reporting risk. No other finding's severity changed.
 - On 16 October 2026 the owner also approved D-PRD-09 (one workspace is one accounting entity; multi-workspace membership with explicit switching). AF-69 was revised to match and stays Medium, because the isolation controls still need implementation and test evidence. The tenant-isolation, database-constraint, job, report, export and file findings (AF-60, AF-63, AF-65, AF-120, AF-121, AF-132 and others) are unchanged.
+- On 16 October 2026 the owner also approved D-SEC-11 (authentication session architecture A′). AF-61 was revised and stays High, because the controls are not implemented or tested and the cookie's `SameSite` value is undecided. AF-62 was revised and stays Medium. AF-146 to AF-155 were added from the authentication architecture review, the owner's corrections to it, and primary sources (specification §10.6). They are listed in the last section, "Findings added for the authentication architecture (D-SEC-11)".
 - **Limitations:**
   - No real gateway or bank report formats were available (AF-90). Matching and import findings are therefore based on reasoning, not on sample data.
   - No accounting, legal, tax or security professional has reviewed these documents.
@@ -60,11 +61,11 @@ The audit also covers the documents produced from those files:
 | Severity | Count | IDs |
 |---|---|---|
 | Critical | 0 | Rated against approved and Mandatory content, including derived requirements. AF-21, AF-23, AF-29, AF-43 and AF-44 stay High only because the specification proposes safe interim defaults for them, and those defaults are not binding. If the owner rejects a default without an alternative, re-rate that finding as Critical. |
-| High | 28 | AF-04, AF-20, AF-21, AF-22, AF-23, AF-29, AF-40, AF-41, AF-42, AF-43, AF-44, AF-60, AF-61, AF-67, AF-80, AF-90, AF-91, AF-100 to AF-105, AF-114, AF-117, AF-118, AF-119, AF-138 |
-| Medium | 70 | AF-01, AF-03, AF-05, AF-06, AF-09, AF-24 to AF-28, AF-30 to AF-33, AF-45 to AF-48, AF-50, AF-52, AF-62 to AF-66, AF-68 to AF-70, AF-81 to AF-87, AF-89, AF-92 to AF-94, AF-106 to AF-113, AF-115, AF-120 to AF-135, AF-139 to AF-144 |
-| Low | 17 | AF-02, AF-07, AF-08, AF-10 to AF-12, AF-49, AF-51, AF-71, AF-72, AF-88, AF-95, AF-96, AF-116, AF-136, AF-137, AF-145 |
+| High | 29 | AF-04, AF-20, AF-21, AF-22, AF-23, AF-29, AF-40, AF-41, AF-42, AF-43, AF-44, AF-60, AF-61, AF-67, AF-80, AF-90, AF-91, AF-100 to AF-105, AF-114, AF-117, AF-118, AF-119, AF-138, AF-146 |
+| Medium | 78 | AF-01, AF-03, AF-05, AF-06, AF-09, AF-24 to AF-28, AF-30 to AF-33, AF-45 to AF-48, AF-50, AF-52, AF-62 to AF-66, AF-68 to AF-70, AF-81 to AF-87, AF-89, AF-92 to AF-94, AF-106 to AF-113, AF-115, AF-120 to AF-135, AF-139 to AF-144, AF-147 to AF-154 |
+| Low | 18 | AF-02, AF-07, AF-08, AF-10 to AF-12, AF-49, AF-51, AF-71, AF-72, AF-88, AF-95, AF-96, AF-116, AF-136, AF-137, AF-145, AF-155 |
 
-Total: 115 findings. AF-01 to AF-96 come from the drafting audit; AF-100 to AF-145 from the independent reviews.
+Total: 125 findings. AF-01 to AF-96 come from the drafting audit; AF-100 to AF-145 from the independent reviews; AF-146 to AF-155 from the authentication architecture review of 16 October 2026.
 
 Of these:
 - **Confirmed contradictions:** AF-03, AF-04, AF-06, AF-72.
@@ -490,13 +491,24 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Approval required?** Yes (owner and security).
 
 ### AF-61 — Session and token architecture with Next.js
-- **Severity:** High
-- **Type:** Unanswered question
-- **Evidence:** D-TEC-03 (Next.js) and D-SEC-06 (managed OIDC) together leave open where tokens and sessions live. Next.js can render on the server, which adds a second component that may carry credentials.
-- **Consequence:** If tokens are kept in browser storage, an XSS flaw could steal them. Inconsistent cookie and origin choices weaken CSRF and CORS protection.
-- **Resolution:** Spring Boot acts as the confidential OIDC client and keeps server-side sessions, with same-site deployment and CSRF tokens. No tokens are kept in the browser.
-- **Disposition:** Logged as OQ-35; NFR-SEC-002.
-- **Approval required?** Yes.
+- **Severity:** High (unchanged after D-SEC-11; see below)
+- **Type:** Unanswered question; architecture resolved 16 October 2026, residual risks open
+- **Evidence:** D-TEC-03 (Next.js) and D-SEC-06 (managed OIDC) together left open where tokens and sessions live. Next.js can render on the server, which adds a second component that may carry credentials.
+- **Consequence:** If tokens are kept in browser storage, an XSS flaw could steal them. Inconsistent cookie and origin choices weaken CSRF protection.
+- **Resolution:**
+  - The owner approved A′ on 16 October 2026 (D-SEC-11):
+    - Spring Boot owns the OIDC integration and the server-side sessions in PostgreSQL.
+    - The Next.js frontend is client-rendered and served from the same origin.
+    - Browser-held tokens are not the session mechanism.
+  - Specified as NFR-SEC-001, NFR-SEC-002 and NFR-SEC-020 to NFR-SEC-025, with AC-157 to AC-168.
+- **Why it stays High:**
+  - None of these controls is implemented or tested yet.
+  - The cookie's `SameSite` value is undecided (AF-146).
+  - The authentication spike has not run.
+  - Keeping tokens out of the browser reduces token theft. It does not stop an XSS flaw from sending requests as the signed-in user from the ClearSettle page, so XSS prevention stays essential (analysis).
+  - Residual risks are tracked in AF-146 to AF-155.
+- **Disposition:** Architecture approved (D-SEC-11); OQ-35 resolved and kept in register §3.5. Re-rate after the spike evidence is accepted.
+- **Approval required?** Architecture: given. Remaining: OQ-34, OQ-38 and OQ-57.
 
 ### AF-62 — MFA must be verifiable by the server
 - **Severity:** Medium
@@ -507,8 +519,13 @@ The rest are missing requirements, potential risks or unanswered questions.
   - The backend verifies MFA and the authentication time from the provider's assertions (NFR-SEC-003, NFR-SEC-004).
   - Privileged actions are refused when MFA cannot be asserted.
   - The ability to assert MFA becomes a provider-selection criterion.
-- **Disposition:** Specified; OQ-34.
-- **Approval required?** Provider selection.
+  - Revised 16 October 2026 for D-SEC-11:
+    - fresh-authentication checks fail closed when evidence is missing, invalid, too old or insufficient (NFR-SEC-024);
+    - the provider-to-ClearSettle strength mapping is defined only after provider evidence (AF-150);
+    - MFA enrollment and recovery are evaluated (AF-154);
+    - tested by AC-164 and AC-165.
+- **Disposition:** Specified; OQ-34. Severity stays Medium, because the controls are not implemented and the provider is not chosen.
+- **Approval required?** Provider selection, and the strength mapping.
 
 ### AF-63 — Pitfalls in row-level security
 - **Severity:** Medium
@@ -780,14 +797,14 @@ The rest are missing requirements, potential risks or unanswered questions.
 | Is access control enforced server-side? | Yes by requirement (NFR-SEC-006), verified by a generated permission-matrix test. | AF-65, AF-94 |
 | Are queries, jobs, files, exports, reports and notifications all tenant-scoped? | Yes by requirement (D-SEC-04, NFR-SEC-007, NFR-SEC-008, NFR-SEC-016, FR-NTF-004, FR-RPT-010). | AF-63 |
 | Do cross-tenant tests cover both allowed and denied operations? | Yes, after this audit. | AF-65 |
-| Are session invalidation, MFA recovery, sensitive actions and privileged settings controlled? | Session invalidation and MFA enforcement: specified, including after restores. MFA recovery belongs to the identity provider (D-SEC-06); its strength is a selection criterion. Users are identified by issuer and subject, not email. Download links are re-checked at download. Fresh-authentication defaults: OQ-38. | AF-62, AF-118, AF-125, AF-132 |
+| Are session invalidation, MFA recovery, sensitive actions and privileged settings controlled? | Specified, not implemented or tested:<br>• Session invalidation is specified, including after restores, under the approved architecture D-SEC-11: server-side sessions, sign out everywhere, and invalidation on membership changes.<br>• MFA enforcement and fresh authentication fail closed, re-authentication must be the same user, and actions are not replayed.<br>• Users are identified by issuer and subject, not email.<br>• Download links are re-checked at download.<br>Still open: MFA enrollment and recovery, which run at the identity provider (D-SEC-06) but must be evaluated (NFR-SEC-026); fresh-authentication defaults (OQ-38); the cookie's `SameSite` value (OQ-57). | AF-62, AF-118, AF-125, AF-132, AF-146 to AF-154 |
 | Do retention and deletion conflict with records, audit, holds or backups? | Potentially. Automatic deletion stays disabled until periods are approved; holds override; backup behaviour is disclosed. Retention is recommended to be dependency-aware, and audit deletion is restricted to a lifecycle role. | AF-80, AF-81, AF-126, AF-127 |
 | How do corrected files and offboarding affect jobs, evidence and history? | Superseded files are kept; offboarding follows a defined sequence. | AF-85, AF-88 |
 | Can partial imports and retries create duplicates or inconsistent job status? | Not under the specified idempotency and transactional status updates. | AF-22, AF-87 |
 | Does restoring a backup include files, metadata and audit history? | Required by D-OPS-05. Post-restore consistency checks specified, including re-applying revocations, holds and deletions made after the restore point. Drills use production backups in an isolated environment. | AF-82, AF-118, AF-122 |
 | Are the recovery objectives and import limits achievable and measurable? | Unknown until providers are chosen and load tests run. Both now have measurement criteria. | AF-83, AF-84 |
 | Do failure and disaster-recovery procedures have concrete tests? | Yes, after this audit (AC-090 to AC-092; plan M9). | AF-89, AF-92 |
-| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-156 were added, 131 of 183 Mandatory requirements are named by an acceptance criterion (as of 16 October 2026, after D-PRD-08 and D-PRD-09). The remaining 52 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
+| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-168 were added, 140 of 192 Mandatory requirements are named by an acceptance criterion (as of 16 October 2026, after D-PRD-08, D-PRD-09 and D-SEC-11). The remaining 52 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
 | Could a green test suite leave important risks untested? | Yes: economic correctness (AF-91), real formats (AF-90) and operational readiness (AF-92). | AF-90 to AF-92 |
 
 ## Independent review results
@@ -1012,7 +1029,8 @@ Each finding gives its severity and type, then the evidence and consequence, the
 - **Resolution / disposition:**
   - Added AC-100 to AC-147 and named four requirements already exercised by existing criteria. That brought coverage to 117 of 173 Mandatory requirements.
   - After D-PRD-08 (16 October 2026) added FR-ACC-034 and FR-RPT-015, made FR-ACC-009 and part of FR-RPT-013 Mandatory, and added AC-148 to AC-151, coverage was 122 of 177. FR-ACC-004 became covered by AC-148.
-  - After D-PRD-09 (16 October 2026) added FR-WSP-015 to FR-WSP-018, made FR-WSP-008 Mandatory, and added AC-152 to AC-156, coverage is 131 of 183. FR-ACC-002, FR-ACC-022 and FR-WSP-001 are now covered by AC-155 and AC-156.
+  - After D-PRD-09 (16 October 2026) added FR-WSP-015 to FR-WSP-018, made FR-WSP-008 Mandatory, and added AC-152 to AC-156, coverage was 131 of 183. FR-ACC-002, FR-ACC-022 and FR-WSP-001 became covered by AC-155 and AC-156.
+  - After D-SEC-11 (16 October 2026) added NFR-SEC-020 to NFR-SEC-027, made NFR-SEC-002 and NFR-OPS-007 Mandatory, and added AC-157 to AC-168, coverage is 140 of 192. NFR-SEC-026 is not counted, because it is Unresolved. Every newly Mandatory requirement is covered, so the gap list below is unchanged.
   - The remaining 52 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
 
     FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
@@ -1246,3 +1264,128 @@ Each finding gives its severity and type, then the evidence and consequence, the
   - OQ-17 added to gate G5, and OQ-43's milestones aligned;
   - the M8 dependency clarified;
   - FR-REC-042 removed from the M4 range.
+
+---
+
+## Findings added for the authentication architecture (D-SEC-11)
+
+These findings were added on 16 October 2026, when the owner approved the authentication session architecture A′. They come from:
+- the authentication architecture review;
+- the owner's corrections to it;
+- primary sources checked that day (specification §10.6).
+
+They are not the output of an independent review, and no security professional has reviewed them. Each gives its severity and type, then the evidence and consequence, then the resolution and disposition.
+
+### AF-146 — `SameSite` value versus OIDC callback state
+- **Severity / type:** High; open design question (OQ-57).
+- **Evidence / consequence:**
+  - RFC 10017 says the session cookie of a backend-for-frontend SHOULD be `SameSite=Strict`.
+  - By default, Spring Security stores the in-progress authorization request in the HTTP session until the callback. The identity provider's redirect back to ClearSettle is a cross-site navigation, and browsers do not send `Strict` cookies on cross-site navigations.
+  - Analysis, to be confirmed by the spike: with a `Strict` session cookie and default storage, the callback may not find its authorization request, and login fails.
+  - `Lax` avoids this but is weaker defense in depth, because top-level cross-site GET navigations carry the cookie. It is acceptable only if GET never changes state and the CSRF defense is complete.
+- **Resolution / disposition:**
+  - OQ-57 added, with `Lax` as the initial candidate. `Strict` is evaluated in the M0 spike with separate storage for login state.
+  - Specified: NFR-SEC-021 and NFR-SEC-022; AC-159.
+  - **Approval:** Yes (OQ-57), on the spike evidence. M1 authentication work cannot start until it is decided.
+
+### AF-147 — CORS treated as a CSRF control
+- **Severity / type:** Medium; documentation error and potential risk.
+- **Evidence / consequence:**
+  - A draft of the authentication architecture review wrongly treated the absence of cross-origin access as protection against requests from other sites. The owner identified the error.
+  - Browsers send "simple" requests, such as a form POST, without a CORS preflight. CORS only controls whether the calling script may read the response (MDN, CORS guide).
+  - NFR-SEC-010 listed CORS and CSRF together without saying this.
+  - If CORS were relied on, a cross-site form POST would still reach a state-changing endpoint, carrying the session cookie whenever `SameSite` allows it.
+- **Resolution / disposition:**
+  - NFR-SEC-020 and NFR-SEC-022 state that CORS is not a CSRF control and that GET never changes state.
+  - NFR-SEC-010 now points to them.
+  - AC-160 and AC-161 test a cross-site form POST and a credentialed `fetch`.
+  - **Approval:** No.
+
+### AF-148 — PKCE is not automatic for a confidential client
+- **Severity / type:** Medium; potential risk.
+- **Evidence / consequence:**
+  - Spring Security 7.1.1 applies PKCE automatically only to public clients, or when `requireProofKey` is `true` on the client registration.
+  - A Spring Boot confidential client with a client secret would otherwise send no `code_challenge`, while the documents described the flow as using PKCE.
+  - RFC 9700 recommends PKCE for confidential clients as well.
+- **Resolution / disposition:**
+  - NFR-SEC-001 requires the setting explicitly and a test that inspects the authorization request (AC-157).
+  - **Approval:** No.
+
+### AF-149 — Step-up can switch user or replay an action
+- **Severity / type:** Medium; new gap.
+- **Evidence / consequence:**
+  - NFR-SEC-004 said high-risk actions may require recent authentication. It did not say how re-authentication relates to the existing session or to the pending action.
+  - If a different person signs in at the provider during step-up, the session could combine one person's identity with another person's authentication evidence.
+  - Automatically resubmitting a pending action, such as a posting approval, after the redirect could perform a financial action the user did not confirm again, possibly on stale data.
+- **Resolution / disposition:**
+  - NFR-SEC-024 requires a same-user check that ends the session on a mismatch, and forbids automatic replay.
+  - Tested by AC-164.
+  - **Approval:** No for these rules, which derive from D-SEC-11. Yes for the action list and windows (OQ-38).
+
+### AF-150 — Authentication-strength claims vary by provider
+- **Severity / type:** Medium; unanswered question.
+- **Evidence / consequence:**
+  - OpenID Connect Core defines the `acr`, `amr` and `auth_time` claims but leaves most of their values to agreement between the parties.
+  - Providers differ in which of these claims they issue, and in which plans support requesting a particular strength or recency. This is evaluated under OQ-34.
+  - A naive check, such as accepting any token whose `amr` contains `mfa`, could accept weaker methods than intended. Treating a missing claim as success would bypass the requirement.
+- **Resolution / disposition:**
+  - NFR-SEC-003 and NFR-SEC-024 fail closed.
+  - The mapping is defined only after provider evidence, and approved.
+  - Tested by AC-165.
+  - **Approval:** Yes (the mapping, with OQ-34).
+
+### AF-151 — Session revocation across instances and provider logout
+- **Severity / type:** Medium; potential risk.
+- **Evidence / consequence:**
+  - With Spring Session JDBC, sessions live in PostgreSQL, so deleting a session affects every instance, unless some other layer caches it.
+  - Spring Security's OIDC back-channel logout uses an in-memory session registry by default, which does not work across instances.
+  - Spring Security also notes that clearing the cookie on logout may not work on every servlet container.
+  - Sign out everywhere, or a provider-initiated logout, could therefore leave a session usable on another instance or in another browser.
+- **Resolution / disposition:**
+  - NFR-SEC-023 does not assume deletion takes effect immediately; it requires tests to show it.
+  - AC-163 runs across two instances.
+  - Whether provider-initiated logout is required is evaluated under OQ-34. If it is adopted, the session registry must be backed by the database.
+  - **Approval:** Yes for whether provider-initiated logout is required (OQ-34).
+
+### AF-152 — Background jobs run without the requester's authorization context
+- **Severity / type:** Medium; new gap.
+- **Evidence / consequence:**
+  - NFR-SEC-006 requires background operations to check permissions but did not say whose, or when.
+  - A job runs after the request that queued it, and by then the actor may have lost membership or permission.
+  - A removed member's export could still run and produce output.
+- **Resolution / disposition:**
+  - NFR-SEC-027 records the actor and workspace with the job, and re-checks permission when the job runs and when its output is accessed.
+  - Tested by AC-167 (M2).
+  - **Approval:** No.
+
+### AF-153 — Session identifiers in logs
+- **Severity / type:** Medium; missing requirement.
+- **Evidence / consequence:**
+  - NFR-SEC-012 excluded tokens and secrets from logs but did not name session IDs or authorization codes.
+  - With server-side sessions, the session ID is the credential: anyone who can read it from logs could take over the session.
+- **Resolution / disposition:**
+  - NFR-SEC-012 and NFR-SEC-025 now name them.
+  - AC-132 and AC-168 seed session IDs before scanning the logs.
+  - **Approval:** No.
+
+### AF-154 — MFA enrollment and recovery can bypass MFA
+- **Severity / type:** Medium; unanswered question; external review required.
+- **Evidence / consequence:**
+  - The audit's earlier answer assigned MFA recovery to the identity provider.
+  - The real strength of MFA depends on how factors are enrolled, recovered and reset, including resets by administrators.
+  - A weak recovery path, such as email alone, could let an attacker replace a privileged user's factor.
+- **Resolution / disposition:**
+  - NFR-SEC-026 requires these processes to be evaluated for the chosen provider in the OQ-34 spike and reviewed by a security specialist before production.
+  - **Approval:** Yes (with OQ-34), plus external security review.
+
+### AF-155 — A static export may not fit dynamic workspace routes
+- **Severity / type:** Low; potential risk.
+- **Evidence / consequence:**
+  - A Next.js static export does not support dynamic routes without `generateStaticParams`, and does not support cookies, rewrites, Proxy or Server Actions (Next.js static exports guide).
+  - Frontend routes that include a workspace ID are dynamic.
+  - If a static export does not fit, the team might run a Next.js server and drift into server-side data fetching or a second session, which D-SEC-11 rules out.
+- **Resolution / disposition:**
+  - The spike tests the routing approach.
+  - NFR-SEC-020 forbids Next.js from holding a session or rendering authenticated data, whichever hosting mode is used.
+  - Tested by AC-166.
+  - **Approval:** No; a technical question, confirmed by the spike.

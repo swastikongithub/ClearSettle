@@ -1,7 +1,7 @@
 # ClearSettle — Decision Register
 
 **Document status:** Consolidated for owner review. The project is still in specification; no application implementation is authorized.
-**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope) and D-PRD-09 (workspace and accounting entity) recorded 16 October 2026
+**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope), D-PRD-09 (workspace and accounting entity) and D-SEC-11 (authentication architecture) recorded 16 October 2026
 **Primary source:** [`clearsettle_approved_decisions_seed.md`](clearsettle_approved_decisions_seed.md), cited below as "Seed §n, Lxx".
 **Related documents:** [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Implementation plan](clearsettle_implementation_plan.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [Pre-consolidation register (archived)](archive/clearsettle_decision_register_pre_consolidation.md).
 
@@ -29,7 +29,8 @@ An entry can carry more than one label. For example, "APPROVED; EXTERNAL REVIEW 
    - the 15 October 2026 product consolidation brief, cited as "Brief §A–G";
    - the Git and GitHub workflow and attribution rules, cited as "Git instruction";
    - the ledger-scope decision of 16 October 2026 (Option C), cited as "Owner decision, 16 October 2026";
-   - the workspace and accounting-entity approval of 16 October 2026, cited as "Owner approval, 16 October 2026 (workspace model)".
+   - the workspace and accounting-entity approval of 16 October 2026, cited as "Owner approval, 16 October 2026 (workspace model)";
+   - the authentication-architecture approval of 16 October 2026 (A′), cited as "Owner approval, 16 October 2026 (authentication architecture)".
 2. **The seed**, which is the primary record of discovery decisions.
 3. **Project instructions:** [`CLAUDE.md`](../../CLAUDE.md), [`docs/README.md`](../README.md) and the [engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 4. **The prior register.** Where it conflicts with the seed, the seed governs. Section 5 records the disposition of every prior entry.
@@ -146,6 +147,7 @@ Each decision records the following fields:
 | D-SEC-08 | MFA for privileged users | APPROVED |
 | D-SEC-09 | Session controls | APPROVED; UNRESOLVED (defaults) |
 | D-SEC-10 | Layered tenant isolation in shared PostgreSQL | APPROVED |
+| D-SEC-11 | Authentication session architecture A′ | APPROVED (architecture); UNRESOLVED (`SameSite` value, session limits, identity provider, MFA scope) |
 | D-DAT-01 | Append-only application audit trail | APPROVED |
 | D-DAT-02 | Tamper evidence evaluated later; no unproven claims | APPROVED |
 | D-DAT-03 | Private encrypted object storage | APPROVED |
@@ -280,8 +282,8 @@ Each decision records the following fields:
   - Two workspaces keep separate Charts of Accounts and financial years (AC-155).
   - No cross-workspace financial views; workspace creation is audited (AC-156).
 - **Source:** Owner approval in the ClearSettle product-discovery conversation, 16 October 2026 (workspace model); see §7.
-- **Does not decide:** the session and token design (OQ-35); Admin access to financial data (OQ-36); the functional currency (OQ-19); operator access (OQ-05). It does not authorize implementation (D-PRC-01).
-- **Open:** OQ-35, OQ-36, OQ-19.
+- **Does not decide:** the session and token design (OQ-35, since resolved by D-SEC-11 on 16 October 2026); Admin access to financial data (OQ-36); the functional currency (OQ-19); operator access (OQ-05). It does not authorize implementation (D-PRC-01).
+- **Open:** OQ-36, OQ-19.
 
 ### 2.2 Technology and architecture
 
@@ -313,7 +315,8 @@ Each decision records the following fields:
 - **Behaviour:** One Spring Boot deployable with explicit module boundaries. A separate Next.js frontend. Versioned internal APIs under `/api/v1` (checklist §5, L93).
 - **Constraints:** No microservices, gateway, queue or distributed transactions without demonstrated need (checklist §5, L104).
 - **Source:** Seed §2, L35.
-- **Open:** OQ-35 (session and backend-for-frontend design), OQ-50 (API conventions).
+- **Session design:** D-SEC-11 (OQ-35 resolved 16 October 2026).
+- **Open:** OQ-50 (API conventions).
 
 #### D-TEC-05 — Internal APIs only
 - **Status:** APPROVED
@@ -854,7 +857,8 @@ Each decision records the following fields:
   - The ClearSettle backend keeps responsibility for business roles, tenant authorization and financial permissions.
   - No identity provider has been selected.
 - **Source:** Seed §8, L191–192. Supersedes prior register Decision 9. Triggers checklist concept #69 (OAuth).
-- **Open:** OQ-34, OQ-35.
+- **Session architecture:** D-SEC-11 (OQ-35 resolved 16 October 2026).
+- **Open:** OQ-34.
 
 #### D-SEC-07 — Self-service workspace onboarding
 - **Status:** APPROVED
@@ -870,7 +874,7 @@ Each decision records the following fields:
   - High-risk actions may require fresh authentication.
   - The identity provider's MFA capability and vendor are not selected.
 - **Source:** Seed §8, L194.
-- **Open:** OQ-34, OQ-38.
+- **Open:** OQ-34, OQ-38, OQ-55.
 
 #### D-SEC-09 — Session controls
 - **Status:** APPROVED; UNRESOLVED (default values)
@@ -888,6 +892,57 @@ Each decision records the following fields:
   - Isolation is enforced through backend authorization, database constraints, and PostgreSQL Row-Level Security where appropriately designed.
   - Hostile cross-tenant access is tested explicitly.
 - **Source:** Seed §9, L202–203. Answers checklist §13 question 3.
+
+#### D-SEC-11 — Authentication session architecture A′
+- **Status:** APPROVED (architectural choice); UNRESOLVED (the cookie `SameSite` value, OQ-57; session lifetime values and the fresh-authentication policy, OQ-38; the identity provider, OQ-34; MFA scope, OQ-55)
+- **Decision:** ClearSettle's MVP authentication and session architecture is A′:
+  - Spring Boot integrates with the managed OpenID Connect (OIDC) identity provider as the application's OIDC client, and owns the application authentication session.
+  - Sessions are stored server-side in PostgreSQL through Spring Session (JDBC).
+  - The logged-in Next.js frontend is client-rendered. A static export is preferred if it fits the application's actual requirements; the authentication spike confirms this.
+  - Frontend and API are served from the same origin. A reverse proxy routes the API, OIDC login and callback, and logout paths to Spring Boot, and serves the frontend assets separately.
+  - Next.js is not a second authenticated application server and holds no separate session.
+  - Browser-held access and refresh tokens are not the application-session mechanism.
+  - The session cookie is `HttpOnly`, `Secure`, host-only (no `Domain` attribute) and `Path=/`, and uses a `__Host-` name prefix where the deployment allows it. Its `SameSite` value is not yet decided (OQ-57).
+  - Workspace-scoped API routes carry the workspace identifier in the URL, for example `/api/v1/workspaces/{workspaceId}/...`. The identifier names the target of the request; it is not proof of authorization.
+  - Spring Boot authorizes every request against authoritative backend data, including current workspace membership and permissions. Client-side checks never replace server-side authorization.
+  - The existing isolation decisions stay in force: row-level security, composite-key constraints and cross-tenant tests (D-SEC-03, D-SEC-04, D-SEC-10, D-PRD-09).
+- **Rationale (source and analysis):**
+  - The owner approved A′ on 16 October 2026, after the authentication architecture review held in the working session. That review was not independent, and no security professional has reviewed the decision.
+  - Tokens stay out of the browser, and the session lives in the one backend that already enforces authorization and tenant isolation. That is the backend-for-frontend pattern, which RFC 10017 ranks most secure for browser-based applications.
+  - It keeps revocation and fresh-authentication checks in the same place as authorization.
+  - This choice reduces specific risks. It does not make ClearSettle secure on its own: security depends on the controls below being implemented and tested.
+- **Security constraints** (mandatory, planned, not yet implemented or verified):
+  - **OIDC:** Authorization Code flow with PKCE explicitly enabled in configuration and verified by test; state and nonce validated; exact redirect URIs registered; full ID-token validation; accounts keyed on issuer plus subject identifier, never on email (NFR-SEC-001).
+  - **CSRF:** a complete defense for state-changing requests, combining framework CSRF tokens, a required custom header, and no state change through GET (NFR-SEC-022).
+    - Same-origin deployment, `SameSite`, the `__Host-` prefix and the custom header each help, but none replaces the others.
+    - CORS controls whether a script can read a response. It does not stop requests from reaching the server and is not a CSRF control.
+    - No cross-origin application access unless an approved use case is documented (NFR-SEC-020).
+  - **Sessions:** idle and absolute limits (values under OQ-38); session-ID rotation at authentication; local logout; sign out everywhere; invalidation after relevant membership or role changes; invalidation of restored sessions after database recovery (NFR-SEC-023, AF-118).
+  - **Fresh authentication fails closed:** sensitive operations are rejected when the required evidence is missing, invalid, too old or insufficient. The re-authenticated person must be the same user. A pending financial mutation is never replayed automatically (NFR-SEC-024).
+  - **Logging and audit:** no session IDs, tokens or secrets in logs; authentication events are audited (NFR-SEC-012, NFR-SEC-025).
+  - **Background work:** jobs and exports keep their actor and workspace context, and permissions are re-checked when a job runs and when its output is accessed (NFR-SEC-027).
+- **Depends on:** D-SEC-03, D-SEC-04, D-SEC-06, D-SEC-08, D-SEC-09, D-SEC-10, D-PRD-09, D-TEC-03, D-TEC-04.
+- **Validation gate:** An authentication design spike (implementation plan M0) must produce test evidence before M1 authentication work starts. It covers:
+  - login and callback under the candidate cookie policy;
+  - CSRF-token issuance and validation, and custom-header enforcement;
+  - rejection of forged and unauthorized cross-origin state-changing requests;
+  - cookie behaviour across sign-in, logout, expiry and re-authentication;
+  - the presence of PKCE;
+  - fail-closed checks on authentication claims;
+  - the further items listed under implementation plan M0.
+
+  The spike itself needs the owner's authorization (D-PRC-01).
+- **Tests:** AC-131, AC-132, AC-152, AC-157 to AC-168.
+- **Source:** Owner approval, 16 October 2026 (authentication architecture), given in the working session; see §7. Supporting sources, verified 16 October 2026, are listed in specification §10.6.
+- **Does not decide:**
+  - the identity provider (OQ-34);
+  - the `SameSite` value (OQ-57);
+  - session lifetime values, and the fresh-authentication action list and window (OQ-38);
+  - MFA for every user (OQ-55);
+  - whether provider-initiated logout is required, and provider data residency and account-recovery requirements (all evaluated under OQ-34).
+
+  It does not authorize implementation (D-PRC-01).
+- **Open:** OQ-34, OQ-38, OQ-55, OQ-57.
 
 ### 2.10 Audit, privacy, storage, retention and offboarding
 
@@ -1135,11 +1190,10 @@ OQ-03 (workspace and accounting entity) was resolved on 16 October 2026 by D-PRD
 
 | ID | Question | Why it matters | Recommended default | Type | Approval | Blocks |
 |---|---|---|---|---|---|---|
-| OQ-34 | Which identity provider? It needs standard OIDC, MFA, MFA assertions, forced reauthentication, session revocation and suitable data residency. | MFA must be verified server-side (AF-62). | Choose against these criteria. Development may use a standards-compliant local OIDC provider. Users are identified by the provider's issuer and subject identifier pair, never by email, and replacing the provider needs a designed relinking process (AF-125). | (a)(b) | Owner; security | M1 |
-| OQ-35 | Where do OIDC tokens and sessions live in a Next.js plus Spring Boot architecture? | Determines exposure to XSS token theft, CSRF and CORS (AF-61). | Spring Boot acts as the confidential OIDC client and holds server-side sessions with `HttpOnly`, `Secure`, `SameSite` cookies. Deploy on the same site, use CSRF tokens, keep no tokens in browser storage, and keep financial data fetching out of Next.js server code. | (b) | Owner; security | M1 |
+| OQ-34 | Which identity provider? It needs standard OIDC, MFA, MFA assertions, forced reauthentication, session revocation and suitable data residency. | MFA must be verified server-side (AF-62). | Choose against these criteria. Development may use a standards-compliant local OIDC provider. Users are identified by the provider's issuer and subject identifier pair, never by email, and replacing the provider needs a designed relinking process (AF-125). Recommendation (unapproved; from the 16 October 2026 architecture review): a time-boxed spike comparing Amazon Cognito and Auth0, with Keycloak for development, CI and as a fallback. The spike tests real behaviour, not advertised features:<br>• OIDC login and logout;<br>• MFA enrollment and account recovery;<br>• authentication strength and recency evidence (`acr`, `amr`, `auth_time` as each provider issues them);<br>• fail-closed behaviour when claims are missing;<br>• revocation and sign-out, including provider-initiated logout;<br>• data residency, privacy and contract terms;<br>• operational burden, cost, migration and vendor-specific limits.<br>Pricing and regional availability must be re-verified from current official sources at decision time. No provider is selected. | (a)(b) | Owner; security | M1 |
 | OQ-36 | Does the Admin role include financial-data access? How are the last admin and ownership transfer handled? | Least privilege versus usability for small teams (AF-64). | Admin is administrative only; financial access comes from additional roles. The creator can assign themselves roles, which is audited and notified. Every workspace always has at least one Admin. | (a) | Owner | M1 |
 | OQ-37 | Who can read the audit history, and who can download original reports? | D-DAT-01 and D-DAT-05 restrict access, but D-SEC-01 gives Auditors "supporting evidence". | Auditors and Controllers see the full audit history. Admins see administrative events in full, with financial values redacted unless they also hold a financial role (AF-124). Others see the timelines of records they can access. Original-file download is limited to Analysts, Controllers and Auditors. | (a) | Owner | M1, M2 |
-| OQ-38 | What are the default idle timeout, absolute session lifetime and fresh-authentication window, and which actions need fresh authentication? | D-SEC-09 makes them configurable but sets no defaults. | Defaults for approval: 30 minutes idle, 12 hours absolute, and fresh authentication within 5 minutes for posting approval, period reopening, role changes, offboarding steps a person starts, activation of templates and changes to other sensitive settings, and original-file download. Signed download links, if used, last a few minutes at most (AF-132). | (a)(b) | Owner; security | M1 |
+| OQ-38 | What are the default idle timeout, absolute session lifetime and fresh-authentication window, and which actions need fresh authentication? | D-SEC-09 makes them configurable but sets no defaults. | Defaults for approval: 30 minutes idle, 12 hours absolute, and fresh authentication within 5 minutes for posting approval, period reopening, role changes, offboarding steps a person starts, activation of templates and changes to other sensitive settings, and original-file download. Signed download links, if used, last a few minutes at most (AF-132). These values are unapproved candidates; D-SEC-11 does not set them. They will apply to the Spring Boot server-side sessions. | (a)(b) | Owner; security | M1 |
 | OQ-39 | Uploads may contain full card numbers or bank account numbers. Reject or mask them? | Stored original files would retain them. Card numbers could raise PCI DSS questions (AF-67). | Detect likely card numbers before the file reaches evidence storage. Use length, checksum, issuer-prefix and column context, because the checksum alone gives frequent false positives (AF-129). Hold the file for user confirmation, and reject outright only in high-confidence cases. Show bank account numbers masked to the last four digits, and tell accounts apart through configured source accounts (FR-IMP-034). Seek specialist review. | (a)(d) | Owner; security | M2 |
 | OQ-40 | What are the encryption key-management design and the malware-scanning provider? | Listed as unresolved in Seed §13, L255. | Use platform-managed encryption keys first and record the residual risks. Choose the scanner together with the hosting platform. | (b)(d) | Security | M9 |
 | OQ-41 | What are the numeric retention periods for each category, and what is the legal-hold process? | D-DAT-08 forbids inventing them. | None set. Implement the retention mechanism with periods left empty until a qualified adviser validates them, and block automatic deletion until the periods are approved. The adviser should also confirm: dependency-aware retention (evidence cited by retained records is kept or reduced to a tombstone); the categories for exports, error reports, quarantined rows, attachments and logs; and the event that starts each retention clock (AF-127). | (d) | Legal; accountant | M9 |
@@ -1156,9 +1210,12 @@ OQ-03 (workspace and accounting entity) was resolved on 16 October 2026 by D-PRD
 | OQ-52 | What happens at year-end close (moving income and expense to retained earnings or current-year profit)? Must periods close in order? | Balance-sheet equity is undefined without a year-end policy (AF-108). | External accountant defines the year-end treatment. Periods close in order (FR-ACC-031). | (d) | External accountant | M6 |
 | OQ-53 | A value has more decimal places than its currency allows: quarantine the row, or keep it exactly and flag it? | Both readings are consistent with D-FIN-07, and quarantine can make a settlement group incomplete (FR-IMP-014). | Quarantine, with an error report. | (a) | Owner | M2 |
 | OQ-54 | Does the RPO target (≤ 1 hour) also cover uploaded evidence files and exports? | D-OPS-05 requires evidence to be covered by backups, but D-OPS-06 does not say whether its target applies to files (AF-122). | Yes, for evidence files; exports can be regenerated. | (a) | Owner | M9 |
-| OQ-55 | Should MFA also be required for roles that can bulk-export data or download original files (Analysts, Auditors)? | D-SEC-08 sets the minimum; these roles can take data out in bulk (AF-135). | Yes. | (a) | Owner; security | M1 |
+| OQ-55 | Should MFA also be required for roles that can bulk-export data or download original files (Analysts, Auditors)? | D-SEC-08 sets the minimum; these roles can take data out in bulk (AF-135). | Yes. The 16 October 2026 architecture review also proposed MFA for every user. That broader proposal is unapproved and recorded here only as a candidate. | (a) | Owner; security | M1 |
+| OQ-57 | Which `SameSite` value should the session cookie use (`Lax` or `Strict`)? If `Strict`, how is in-progress login state stored? | Spring Security stores the in-progress authorization request in the HTTP session by default (`HttpSessionOAuth2AuthorizationRequestRepository`). The identity provider's redirect back is a cross-site navigation, so a `Strict` session cookie may not be sent and login may fail unless that state is stored differently. This is analysis, to be confirmed by the spike. RFC 10017 says the cookie SHOULD be `Strict` (AF-146). | `Lax` as the initial candidate. Evaluate `Strict` in the authentication spike, with a separate store for login state, and decide on the spike evidence. Neither value replaces the CSRF defense (NFR-SEC-022). | (b)(a) | Owner; security | M1 |
 
 OQ-30 was merged into OQ-17 during consolidation. The number is retired so existing references stay stable.
+
+OQ-35 (where OIDC tokens and sessions live) was resolved for the architectural choice on 16 October 2026 by D-SEC-11. It is kept in §3.5 for traceability and is no longer counted as open or listed as a blocker. OQ-57 was added for the session cookie's `SameSite` value.
 
 ### 3.5 Resolved open questions
 
@@ -1167,7 +1224,8 @@ Kept for traceability. Resolved questions are not counted as open.
 | ID | Original question | Resolution | Date and source | What remains open |
 |---|---|---|---|---|
 | OQ-01 | Is ClearSettle's ledger meant to be the business's complete general ledger, recording all activity including expenses, payroll and other income through manual journals? Or are its statements limited to payment-flow activity? *(Originally recommended: keep the full ledger, support general manual journals, show coverage indicators, and make no claim of replacing full bookkeeping until that scope is approved. Type (a)(d); approval owner and accountant; blocked M6.)* | Product direction resolved by D-PRD-08: a complete business ledger is the long-term direction, introduced gradually. The initial release posts only approved, evidence-backed payment-related workflows and explicitly supported manual journals. Reports disclose their coverage. | 16 October 2026; owner decision (Option C) | Supported manual-journal purposes (OQ-56); event-to-journal rules (OQ-23); revenue-recognition triggers (OQ-24); management or statutory classification of reports (OQ-32); records outside gateway flows (OQ-02). The resolution does not settle any accounting policy. |
-| OQ-03 | Does one workspace equal one accounting entity (one Chart of Accounts, one ledger, one financial year)? Can a user belong to several workspaces, and how do they switch? *(Originally recommended: one workspace = one accounting entity; a user may belong to several workspaces and switches explicitly; the active workspace is carried in every request and checked server-side; no cross-workspace views in the MVP. Type (a); approval owner; blocked M1.)* | Resolved by D-PRD-09. One workspace is one accounting entity with its own Chart of Accounts, ledger and financial year. Users may belong to several workspaces and switch explicitly. The active workspace is validated server-side on every relevant request. The MVP has no cross-workspace financial views. | 16 October 2026; owner approval (workspace model) | Session and token design (OQ-35); Admin financial-data access (OQ-36); functional currency (OQ-19). Any future cross-workspace consolidation needs a separate approved decision. |
+| OQ-03 | Does one workspace equal one accounting entity (one Chart of Accounts, one ledger, one financial year)? Can a user belong to several workspaces, and how do they switch? *(Originally recommended: one workspace = one accounting entity; a user may belong to several workspaces and switches explicitly; the active workspace is carried in every request and checked server-side; no cross-workspace views in the MVP. Type (a); approval owner; blocked M1.)* | Resolved by D-PRD-09. One workspace is one accounting entity with its own Chart of Accounts, ledger and financial year. Users may belong to several workspaces and switch explicitly. The active workspace is validated server-side on every relevant request. The MVP has no cross-workspace financial views. | 16 October 2026; owner approval (workspace model) | Session and token design (OQ-35, since resolved by D-SEC-11 on 16 October 2026); Admin financial-data access (OQ-36); functional currency (OQ-19). Any future cross-workspace consolidation needs a separate approved decision. |
+| OQ-35 | Where do OIDC tokens and sessions live in a Next.js plus Spring Boot architecture? *(Originally recommended: Spring Boot acts as the confidential OIDC client and holds server-side sessions with `HttpOnly`, `Secure`, `SameSite` cookies; deploy on the same site; use CSRF tokens; keep no tokens in browser storage; keep financial data fetching out of Next.js server code. Type (b); approval owner and security; blocked M1.)* | Resolved for the architectural choice by D-SEC-11 (A′):<br>• Spring Boot owns the OIDC integration and the server-side sessions, stored in PostgreSQL.<br>• The Next.js frontend is client-rendered and served from the same origin.<br>• Browser-held tokens are not the session mechanism.<br>• Workspace-scoped routes carry the workspace ID in the URL, with server-side authorization.<br>• The security constraints and the spike gate are recorded in D-SEC-11. | 16 October 2026; owner approval (authentication architecture) | The `SameSite` value (OQ-57); session limits and the fresh-authentication policy (OQ-38); the identity provider (OQ-34); MFA scope (OQ-55); spike evidence before M1. |
 
 ---
 
@@ -1183,14 +1241,16 @@ The checklist's 110-concept table (§10) is unchanged. These approved decisions 
 | §13 Q2 Ledger boundary | Open | Answered by D-PRD-05. The scope direction is a full ledger with a staged initial scope (D-PRD-08; OQ-01 resolved 16 October 2026). Supported manual-journal purposes are in OQ-56. |
 | §13 Q3 Tenant model | Open | Multi-tenant SaaS, shared PostgreSQL with layered isolation (D-SEC-10). Entity model approved: one workspace is one accounting entity (D-PRD-09; OQ-03 resolved 16 October 2026). |
 | §13 Q4 Background processing | Open | Limits approved as targets (D-IMP-09); mechanism OQ-49; performance target OQ-44. |
-| §13 Q5 Authentication | Open | Managed OIDC (D-SEC-06); provider OQ-34; session design OQ-35. |
+| §13 Q5 Authentication | Open | Managed OIDC (D-SEC-06); provider OQ-34. Session architecture approved as D-SEC-11 (OQ-35 resolved 16 October 2026); cookie `SameSite` value OQ-57. |
 | §13 Q6 Deployment target | Open | Recovery targets approved (D-OPS-06); providers OQ-43. |
 | #15 Message queues / background processing | P1, conditional | Background jobs with tracked status and safe retries are required (D-OPS-01); mechanism OQ-49. |
 | #20 Dead-letter queues | P1 if queue adopted | An equivalent isolation of permanently failed jobs is required whichever mechanism is chosen (spec NFR-REL-003). |
 | #21 Cron jobs | P1 when scheduled work exists | Scheduled work will exist (expiry of access links, retention processing, job lease recovery). Singleton coordination required. |
 | #69 OAuth | Conditional | Triggered: OIDC is approved (D-SEC-06). |
-| #70 JWT rotation | Conditional P1 | Depends on OQ-35. |
+| #70 JWT rotation | Conditional P1 | Not used for the application session: D-SEC-11 keeps sessions server-side, with no tokens in the browser. Validation of the provider's tokens is covered by NFR-SEC-001. |
 | #72 Encryption at rest | P1 before sensitive data | Approved for object storage (D-DAT-03); key management OQ-40. |
+| #75 CORS | P0 | Same-origin deployment, with no cross-origin application access unless an approved use case is documented (D-SEC-11, NFR-SEC-020). CORS is not a CSRF control. |
+| #76 CSRF | P0 where cookie auth applies | Applies, because the session uses a cookie (D-SEC-11): CSRF tokens, a required custom header and no state change via GET (NFR-SEC-022). The `SameSite` value is under OQ-57. |
 | #82 Disaster recovery / #83 Backups | P1 / P0 before real data | Targets and restore testing approved (D-OPS-05, D-OPS-06). |
 | #100 Webhooks | Conditional P1 | Gateway webhooks stay out of scope because gateway integrations are deferred (D-DEF-02). Re-assess if an identity or email provider requires inbound webhooks. |
 | #109 On-call | P2 / deployment-dependent | The product is production-oriented (D-PRD-04): a named responder and contact path are required before production. |
@@ -1229,10 +1289,10 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | §2 Decision 6 (import contracts) | Open | Answered by D-IMP-02 to D-IMP-09 and D-DAT-05; remainder in OQ-07 to OQ-10, OQ-39, OQ-41. |
 | §2 Decision 7 (exception lifecycle) | Open | Answered by D-REC-13 to D-REC-16; remainder in OQ-14 to OQ-17, OQ-21. |
 | §2 Decision 8 (reports) | Open | Answered by D-RPT-01 to D-RPT-04. |
-| §2 Decision 9 (authentication) | Open | Answered by D-SEC-06, D-SEC-08, D-SEC-09; remainder in OQ-34, OQ-35, OQ-38. |
+| §2 Decision 9 (authentication) | Open | Answered by D-SEC-06, D-SEC-08, D-SEC-09 and D-SEC-11 (OQ-35 resolved 16 October 2026). The remainder is in OQ-34, OQ-38 and OQ-57. |
 | §2 Decision 10 (real product vs demonstrator) | Open | Answered by D-PRD-04. |
 | §3 Frontend choices (libraries, layout, responsiveness, accessibility, theme, locale) | Candidates | Remain proposals; recorded in OQ-46, OQ-47, OQ-48. |
-| §4 Architecture and operational choices | Open | OQ-35, OQ-43, OQ-48 to OQ-50; storage approach approved (D-TEC-06); Git workflow in D-PRC-04. |
+| §4 Architecture and operational choices | Open | OQ-35 resolved by D-SEC-11 (16 October 2026); OQ-43 and OQ-48 to OQ-50 still open; storage approach approved (D-TEC-06); Git workflow in D-PRC-04. |
 | §5 Traceability and verification rules | Rule | Carried into the product specification §12 and the implementation plan. |
 | §6 Documentation corrections | Pending | Applied on 15 October 2026: links corrected in `CLAUDE.md` and `docs/README.md`; checklist wording reconciled. Implementation-status document defined in the implementation plan, to be created when implementation is authorized. |
 | §7 Recommended next discussion | Proposal | Replaced by OQ-06 to OQ-13 and the implementation plan's decision gates. |
@@ -1247,12 +1307,13 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | 16 October 2026 | Independent-review changes: label definition clarified for engineering rules; index statuses aligned with entries; OQ-14, OQ-19, OQ-21 to OQ-26, OQ-29, OQ-34, OQ-37 to OQ-39 and OQ-41 to OQ-43 extended; OQ-51 to OQ-55 added; §7 lists decisions that depend on owner instructions not stored in the repository. |
 | 16 October 2026 | Owner decision recorded as D-PRD-08 (Option C: full ledger, introduced gradually). OQ-01 resolved for product direction and moved to §3.5. OQ-56 added (supported manual-journal purposes). D-PRD-01, D-PRD-05, D-ACC-01, D-RPT-01, OQ-02, §4 and §5 updated to match. No other approved decision changed. |
 | 16 October 2026 | Owner approval recorded as D-PRD-09 (one workspace is one accounting entity; multi-workspace membership with explicit switching; no cross-workspace financial views in the MVP). OQ-03 resolved and moved to §3.5. D-SEC-07, §4 and §5 updated to match. No other approved decision changed. |
+| 16 October 2026 | Owner approval recorded as D-SEC-11 (authentication session architecture A′). OQ-35 resolved for the architectural choice and moved to §3.5. OQ-57 added for the session cookie's `SameSite` value. OQ-34, OQ-38 and OQ-55 stay open: OQ-34 gained a spike proposal, OQ-38 its values labelled as unapproved candidates, and OQ-55 the MFA-for-everyone proposal labelled as unapproved. References to OQ-35 in D-PRD-09, D-TEC-04, D-SEC-06 and the OQ-03 resolution updated; D-SEC-08, §4 and §5 updated. No other approved decision changed. |
 
 ---
 
 ## 7. Decisions whose only source is an owner instruction outside the repository
 
-The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workflow instruction, and the 16 October 2026 ledger-scope decision and workspace-model approval during working sessions. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
+The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workflow instruction, and the 16 October 2026 ledger-scope decision, workspace-model approval and authentication-architecture approval during working sessions. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
 
 | Decision | What depends only on the owner instruction | Owner confirmation |
 |---|---|---|
@@ -1261,3 +1322,4 @@ The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workf
 | D-PRC-04 | The Git and GitHub workflow and the no-AI-attribution rule (Git instruction). | Pending |
 | D-PRD-08 | Full-ledger direction with staged initial scope (owner decision, 16 October 2026, Option C). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
 | D-PRD-09 | Workspace represents one accounting entity (owner approval, 16 October 2026, workspace model). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
+| D-SEC-11 | Authentication session architecture A′ (owner approval, 16 October 2026, authentication architecture). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
