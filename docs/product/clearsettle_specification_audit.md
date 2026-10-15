@@ -1,7 +1,7 @@
 # ClearSettle — Specification Audit: Contradictions and Gaps
 
 **Document status:** Audit for owner review.
-**Audit date:** 15 October 2026; independent review incorporated 16 October 2026
+**Audit date:** 15 October 2026; independent review incorporated 16 October 2026; AF-40 revised 16 October 2026 for D-PRD-08
 **Scope:** Every file present in the repository on 15 October 2026, namely:
 - `CLAUDE.md`
 - `docs/README.md`
@@ -22,6 +22,7 @@ The audit also covers the documents produced from those files:
 - Each approved decision was checked against the others, against the engineering checklist and against the earlier register.
 - The resulting specification was then reviewed as if by a separate team preparing to build it. That review looked for ways the product could silently misstate money, leak data across tenants, lose evidence or pass its tests while still being wrong.
 - Two independent reviews, each with no access to the drafting conversation, were run on these documents on 15–16 October 2026. Their 60 findings, and what was done about each, are under "Independent review results" at the end of this document (AF-100 to AF-145).
+- On 16 October 2026 the owner approved D-PRD-08 (full-ledger direction, staged initial scope). AF-40 was revised to match. Its severity stays High because of the residual reporting risk. No other finding's severity changed.
 - **Limitations:**
   - No real gateway or bank report formats were available (AF-90). Matching and import findings are therefore based on reasoning, not on sample data.
   - No accounting, legal, tax or security professional has reviewed these documents.
@@ -333,17 +334,22 @@ The rest are missing requirements, potential risks or unanswered questions.
 
 ## C. Accounting integrity
 
-### AF-40 — Is the ledger a complete general ledger?
-- **Severity:** High
-- **Type:** Unanswered question
-- **Evidence:** The seed approves a double-entry ledger with a profit and loss and balance sheet (L150, L168). Its event-driven drafts cover only sales, payments, settlements, fees, refunds and bank movements (L152). Nothing says whether expenses, payroll, purchases and other activity are recorded in ClearSettle.
-- **Consequence:** A profit and loss and balance sheet built only from payment flows would be economically incomplete and could mislead users and auditors.
-- **Resolution:**
-  - Keep the approved ledger and support general manual journals.
-  - Label statements with their coverage and provisional status.
-  - Do not claim to replace full bookkeeping unless that scope is approved.
-- **Disposition:** Logged as OQ-01; FR-ACC-009, FR-RPT-003, FR-RPT-004. External review required.
-- **Approval required?** Yes (owner and accountant).
+### AF-40 — Ledger completeness: full-ledger direction approved, initial scope staged
+- **Severity:** High (unchanged)
+- **Type:** Scope question now answered; a residual potential risk remains.
+- **Evidence:**
+  - The seed approves a double-entry ledger with a profit and loss and balance sheet (L150, L168). Its event-driven drafts cover only sales, payments, settlements, fees, refunds and bank movements (L152).
+  - On 16 October 2026 the owner approved D-PRD-08 (Option C). The long-term direction is a complete business ledger, introduced gradually. The initial release limits posting to approved, evidence-backed payment-related workflows and explicitly supported manual journals.
+  - No manual-journal purposes are approved yet (OQ-56), and the posting policies are not approved (OQ-23, OQ-24).
+- **Consequence:** The scope question is answered, but the financial-reporting risk stays high. By design, the initial ledger records only part of a business's activity. A profit and loss or balance sheet from it can be balanced yet economically incomplete. It could mislead users and auditors if its coverage were not disclosed, if unsupported activity were treated as recorded, or if manual journals let unreviewed treatments be posted.
+- **Resolution:** D-PRD-08 settles the direction. These controls remain necessary:
+  - **Coverage disclosure:** on every accounting statement and export (FR-RPT-003, FR-RPT-013, FR-RPT-015).
+  - **Posting limited to supported purposes:** event templates must be approved; manual-journal purposes must be on an approved list (FR-ACC-009, FR-ACC-034).
+  - **Completeness checks at close:** for unsupported activity (FR-ACC-030, FR-ACC-019).
+  - **Accountant-approved policies:** for templates, revenue triggers and manual-journal purposes (OQ-23, OQ-24, OQ-56).
+  - **Report classification:** management or statutory (OQ-32).
+- **Disposition:** The product direction was resolved by owner decision D-PRD-08 (16 October 2026); OQ-01 is closed and kept in register §3.5. The residual risk is controlled by FR-ACC-009, FR-ACC-034, FR-ACC-030, FR-RPT-003, FR-RPT-013 and FR-RPT-015, and verified by AC-148 to AC-151. The policies stay open. External review required.
+- **Approval required?** No further owner approval for the scope direction. Yes for OQ-56 (owner and external accountant), and for OQ-23, OQ-24 and OQ-32 (external accountant, with legal for OQ-32).
 
 ### AF-41 — No approved posting rules
 - **Severity:** High
@@ -773,7 +779,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 | Does restoring a backup include files, metadata and audit history? | Required by D-OPS-05. Post-restore consistency checks specified, including re-applying revocations, holds and deletions made after the restore point. Drills use production backups in an isolated environment. | AF-82, AF-118, AF-122 |
 | Are the recovery objectives and import limits achievable and measurable? | Unknown until providers are chosen and load tests run. Both now have measurement criteria. | AF-83, AF-84 |
 | Do failure and disaster-recovery procedures have concrete tests? | Yes, after this audit (AC-090 to AC-092; plan M9). | AF-89, AF-92 |
-| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-147 were added, 117 of 173 Mandatory requirements are named by an acceptance criterion. The remaining 56 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
+| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-151 were added, 122 of 177 Mandatory requirements are named by an acceptance criterion (as of 16 October 2026, after D-PRD-08). The remaining 55 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
 | Could a green test suite leave important risks untested? | Yes: economic correctness (AF-91), real formats (AF-90) and operational readiness (AF-92). | AF-90 to AF-92 |
 
 ## Independent review results
@@ -996,10 +1002,11 @@ Each finding gives its severity and type, then the evidence and consequence, the
 - **Severity / type:** High; missing coverage (R2-1).
 - **Evidence / consequence:** Many high-risk Mandatory requirements had no acceptance criterion, and the audit's own answer ("most do") was inaccurate.
 - **Resolution / disposition:**
-  - Added AC-100 to AC-147 and named four requirements already exercised by existing criteria. Now 117 of 173 Mandatory requirements are named by an acceptance criterion.
-  - The remaining 56 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
+  - Added AC-100 to AC-147 and named four requirements already exercised by existing criteria. That brought coverage to 117 of 173 Mandatory requirements.
+  - After D-PRD-08 (16 October 2026) added FR-ACC-034 and FR-RPT-015, made FR-ACC-009 and part of FR-RPT-013 Mandatory, and added AC-148 to AC-151, coverage is 122 of 177. FR-ACC-004 is now covered by AC-148.
+  - The remaining 55 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
 
-    FR-ACC-002, FR-ACC-004, FR-ACC-022, FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-001, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
+    FR-ACC-002, FR-ACC-022, FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-001, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
 
   - The answers table below is corrected.
   - **Approval:** No.
@@ -1191,7 +1198,7 @@ Each finding gives its severity and type, then the evidence and consequence, the
 - **Resolution / disposition:** Relabelled:
   - the functional-currency posting condition → Unresolved;
   - fresh authentication (NFR-SEC-004, FR-ACC-020) → Unresolved, because the seed says "may require";
-  - FR-ACC-009 and FR-ACC-027 → INFERENCE;
+  - FR-ACC-009 and FR-ACC-027 → INFERENCE (FR-ACC-009 later became Mandatory under owner decision D-PRD-08, 16 October 2026);
   - NFR-DAT-007 → Mandatory (derived);
   - NFR-REL-003 → derived from D-OPS-01 and checklist #12;
   - offboarding MFA limited to steps a person starts;

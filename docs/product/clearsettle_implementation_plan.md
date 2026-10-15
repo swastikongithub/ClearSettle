@@ -1,7 +1,7 @@
 # ClearSettle — Phased Implementation Plan
 
 **Document status:** Proposal for owner review. **This plan does not authorize implementation.** Application development starts only when the owner explicitly authorizes it (D-PRC-01). After that, each milestone starts only when its entry conditions are met.
-**Prepared:** 15 October 2026; revised 16 October 2026 after independent review
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08
 **Inputs:** [Decision register](clearsettle_decision_register.md), [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [`CLAUDE.md`](../../CLAUDE.md).
 
 ## 1. Planning principles
@@ -55,7 +55,7 @@ Each open question must be answered before the work it gates begins. Answering e
 | G2 — First reconciliation | OQ-06 (link model), OQ-12 (partial settlements), OQ-13 (expected settlement period), OQ-19 (cross-currency policy: the safe default lets work proceed), OQ-21 (run scope) | M3 |
 | G3 — Full coverage | OQ-02 (records outside gateway flows), OQ-11 (split-payment evidence), OQ-20 (narration references), OQ-22 (parameter governance); bank samples (OQ-07) | M4 |
 | G4 — Exception controls | OQ-14 (risk criteria), OQ-15 (accepted differences), OQ-16 (statuses), OQ-17 (separation-of-duties scope) | M5 |
-| G5 — Accounting core | OQ-01 (ledger completeness and manual journals), OQ-18 (one-person constraint), OQ-19 (functional currency), OQ-26 (closed-period corrections), OQ-27 (default Chart of Accounts: external), OQ-28 (numbering), OQ-29 (financial-year and cutover changes), OQ-31 (template and account governance), OQ-17 (separation-of-duties scope), OQ-51 (unreconciled balances), OQ-52 (year-end close: external) | M6 |
+| G5 — Accounting core | OQ-56 (supported manual-journal purposes: owner and external accountant; needed before manual journals beyond opening balances and corrections can be posted), OQ-18 (one-person constraint), OQ-19 (functional currency), OQ-26 (closed-period corrections), OQ-27 (default Chart of Accounts: external), OQ-28 (numbering), OQ-29 (financial-year and cutover changes), OQ-31 (template and account governance), OQ-17 (separation-of-duties scope), OQ-51 (unreconciled balances), OQ-52 (year-end close: external) | M6 |
 | G6 — Accounting automation | OQ-23 (posting rules: external), OQ-24 (revenue triggers: external), OQ-25 (cutover straddles: external), OQ-33 (tax mapping: external); accountant golden scenarios (AF-91) | M7 |
 | G7 — Reporting | OQ-32 (management or statutory: external), OQ-43 (email provider) | M8 |
 | G8 — Production readiness | OQ-04 (legal terms), OQ-40 (keys and scanning), OQ-41 (retention: external), OQ-42 (offboarding), OQ-43 (hosting), OQ-44 (performance target), OQ-54 (evidence-file RPO) | M9, M10 |
@@ -69,7 +69,7 @@ Each open question must be answered before the work it gates begins. Answering e
   - Owner review of the register, specification, audit and this plan.
   - Resolve gate G0 and as much of G1 as possible.
   - Start the external reviews early, because they take the longest:
-    - an accountant for OQ-23 to OQ-28 and OQ-32;
+    - an accountant for OQ-23 to OQ-28, OQ-32 and OQ-56;
     - legal counsel for OQ-04, OQ-41 and OQ-42;
     - a security reviewer for OQ-05, OQ-35 and OQ-39.
   - Collect anonymized sample reports (OQ-07).
@@ -297,13 +297,18 @@ Each open question must be answered before the work it gates begins. Answering e
 
 Can start after M1, in parallel with M2 to M5.
 
-- **Objective:** A correct, controlled double-entry ledger with manual journals, independent approval, immutability, corrections, periods, opening balances and cutover.
-- **Included requirements:** FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022, FR-ACC-028, FR-ACC-029 (as defined under OQ-51), FR-ACC-031; FR-WSP-007 (functional currency, per OQ-19); FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level). FR-ACC-033 (historical ledger migration) is conditional and not scheduled.
-- **Dependencies:** M1; gate G5. The opening-balance *template upload* also depends on the M2 upload pipeline and its file controls (NFR-SEC-017); form-based entry does not. The default Chart of Accounts content waits for OQ-27. Until it is approved, accounts are created manually, and no unreviewed default is presented as recommended.
+- **Objective:** The initial double-entry ledger foundation (D-PRD-08): Chart of Accounts foundation, opening balances, accounting periods, the manual-journal lifecycle, independent approval and correction controls. Only explicitly defined journal purposes and approved accounting treatments are supported.
+- **Scope limits (D-PRD-08):**
+  - No account mappings, posting rules or broad business-transaction workflows are invented to make the ledger look complete.
+  - Manual journals can be drafted, validated and approved for any purpose, but are postable only for purposes on the OQ-56 approved list. The approved opening-balance and correction workflows are postable now; counting them as supported is an INFERENCE pending OQ-56.
+  - Every other manual-journal purpose needs owner and external-accountant approval under OQ-56 before it is treated as supported. Until then, those drafts stay `Blocked` with "purpose not supported" (FR-ACC-034).
+- **Included requirements:** FR-ACC-034 (manual-journal purposes and the opening-balance and correction workflows); FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022, FR-ACC-028, FR-ACC-029 (as defined under OQ-51), FR-ACC-031; FR-WSP-007 (functional currency, per OQ-19); FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level). FR-ACC-033 (historical ledger migration) is conditional and not scheduled.
+- **Dependencies:** M1; gate G5. OQ-01 no longer blocks M6: the product direction was resolved by D-PRD-08 on 16 October 2026. Posting manual journals beyond opening balances and corrections depends on OQ-56. The form-based opening-balance workflow is separate from the opening-balance *template upload*: only the upload depends on the M2 upload pipeline and its file controls (NFR-SEC-017). The default Chart of Accounts content waits for OQ-27. Until it is approved, accounts are created manually, and no unreviewed default is presented as recommended.
 - **Deliverables:**
   - The Chart of Accounts with protected accounts.
   - Financial year and monthly periods.
-  - Manual journal drafts, the draft → submit → post lifecycle, posting validation, and atomic, idempotent posting.
+  - Manual journal drafts with a required purpose; the draft → submit → post lifecycle; posting validation, including the supported-purpose check (FR-ACC-034); atomic, idempotent posting.
+  - A list of the manual-journal purposes that still need owner and accountant approval under OQ-56, kept in the implementation status document.
   - Sequence numbering (OQ-28).
   - Reversing and adjusting entries.
   - Opening balances (form and template upload) and the cutover setting.
@@ -319,10 +324,11 @@ Can start after M1, in parallel with M2 to M5.
   - Cutover lock and pre-cutover postings (AC-126).
   - Close racing a posting (AC-127).
   - One-person workspace (AC-128).
+  - Manual-journal validation, supported-purpose blocking and independent approval (AC-149).
   - Concurrency tests on approvals (AC-052).
   - Database immutability (AC-053).
   - Separation-of-duties matrix tests.
-- **Acceptance criteria:** J8 to J10 work for manual journals, and posted entries can never be changed.
+- **Acceptance criteria:** J8 to J10 work for manual journals with supported purposes; drafts with unsupported purposes cannot be posted (AC-149); posted entries can never be changed.
 - **Risks and mitigations:**
   - Separation of duties is bypassed through role combinations. *Mitigation:* separation is enforced against identities, not roles, and tested for every combination.
   - A balancing line is added "helpfully". *Mitigation:* an explicit test (AC-050) and code review.
@@ -331,8 +337,8 @@ Can start after M1, in parallel with M2 to M5.
 ### M7 — Journals drafted from events; reconciliation–ledger linkage
 
 - **Objective:** Reconciled events produce correct journal drafts under approved templates. Changes in reconciliation surface as controlled corrections.
-- **Included requirements:** FR-ACC-004 to FR-ACC-008, FR-ACC-017, FR-ACC-023 to FR-ACC-027, FR-ACC-030, FR-ACC-032; the remaining parts of FR-ACC-019; FR-REC-052 (journal side); FR-EXC-010 (accounting-review item).
-- **Dependencies:** M5, M6 and gate G6. **External review must have approved the default templates and revenue triggers.** Without that approval, only the template mechanism may be built, and no default template may be activated (AF-41).
+- **Included requirements:** FR-ACC-004 to FR-ACC-008, FR-ACC-017, FR-ACC-023 to FR-ACC-027, FR-ACC-030, FR-ACC-032; FR-ACC-034 (event-generated purposes); the remaining parts of FR-ACC-019; FR-REC-052 (journal side); FR-EXC-010 (accounting-review item).
+- **Dependencies:** M5, M6 and gate G6. **External review must have approved the default templates and revenue triggers.** Without that approval, only the template mechanism may be built, and no default template may be activated (AF-41). Event-to-journal templates and revenue-recognition triggers are activated only after a qualified accountant has approved the applicable policies. The long-term full-ledger direction (D-PRD-08) does not override this gate.
 - **Deliverables:**
   - The template engine with versioning, validation and activation approval (OQ-31).
   - Idempotent draft generation and the dependency-based `Blocked` state.
@@ -350,6 +356,8 @@ Can start after M1, in parallel with M2 to M5.
   - Full traceability from journal line to source row (AC-120).
   - Accounting-review items from explained differences (AC-122, accounting side).
   - Template activation separation and MFA (AC-146).
+  - No postable entries from event types without an approved, active template (AC-148).
+  - Unsupported activity listed in the close checklist, never treated as accounted for (AC-151, close-checklist part).
 - **Acceptance criteria:** The release-gate path from J2 to J10 works end-to-end on sample-derived data and produces the expected journals from the golden scenarios.
 - **Risks and mitigations:**
   - Policy approvals are delayed. *Mitigation:* M8 and M9 work not tied to accounting continues; the release gate cannot pass without M7.
@@ -358,10 +366,18 @@ Can start after M1, in parallel with M2 to M5.
 ### M8 — Reporting, exports and notifications
 
 - **Objective:** A complete, reproducible, permission-scoped set of reports and exports, plus notifications.
-- **Included requirements:** FR-RPT-001 to FR-RPT-014; FR-NTF-001 to FR-NTF-005.
+- **Included requirements:** FR-RPT-001 to FR-RPT-015; FR-NTF-001 to FR-NTF-005.
 - **Dependencies:** M5, M6, M7 (for reports based on events); gate G7.
 - **Deliverables:**
   - Profit and loss and balance sheet, labelled per OQ-32, with "Provisional" status.
+  - Coverage disclosures (FR-RPT-015) on every accounting statement and its CSV and XLSX exports, covering:
+    - the covered period;
+    - source categories present and absent, with data cut-offs;
+    - partial imports;
+    - supported posting purposes;
+    - unposted, submitted and blocked journals;
+    - known exclusions and unsupported categories;
+    - other incomplete-data warnings.
   - The full general ledger and a journal report with links to evidence.
   - The settlement-fee breakdown and the audit-history export.
   - CSV and XLSX export jobs: private, expiring, with formulas neutralized.
@@ -371,11 +387,13 @@ Can start after M1, in parallel with M2 to M5.
   - Audit-history export permissions (AC-134).
   - No notification after a rollback (AC-142).
   - CSV and XLSX formula neutralization in exports (AC-143).
+  - Coverage disclosures on reports and exports, with partial data, unsupported categories and unposted journals (AC-150).
+  - Unsupported activity shown as not accounted for in reports (AC-151, reporting part).
   - The export part of AC-070 and other export permission and tenant tests.
   - Email content inspection tests.
 - **Acceptance criteria:** Every report reconciles to its underlying records; exports change nothing (AC-095).
 - **Risks and mitigations:**
-  - Reports imply verification. *Mitigation:* status labelling (FR-RPT-003) is tested.
+  - Reports imply verification or whole-business completeness. *Mitigation:* status labelling (FR-RPT-003) and coverage disclosures (FR-RPT-015) are tested (AC-094, AC-150).
   - Sensitive details leak into email. *Mitigation:* emails are built from content templates that cannot include financial fields.
 - **Exit conditions:** Tests pass and the owner reviews the work.
 
@@ -441,7 +459,7 @@ Update rule: the status record changes in the same commit as the work it describ
 
 | Workstream | Can proceed once | Notes |
 |---|---|---|
-| External accounting review (OQ-23 to OQ-28, OQ-32, OQ-33) | Now (documentation only) | The longest-lead dependency for M7 |
+| External accounting review (OQ-23 to OQ-28, OQ-32, OQ-33, OQ-56) | Now (documentation only) | The longest-lead dependency for M7; OQ-56 also governs which manual journals M6 can post |
 | Legal review (OQ-04, OQ-41, OQ-42) and security review (OQ-05, OQ-35, OQ-39) | Now | Needed for M9 and M10, and partly for M1 |
 | Sample report collection (OQ-07) | Now | Gates M2 |
 | UI design proposal (OQ-47) | After implementation is authorized | `CLAUDE.md` requires the proposal before UI is built. No UI work in the current phase. |
@@ -468,7 +486,7 @@ Per D-PRC-04 and the owner's Git instruction:
 
 ## 10. What this plan does not do
 
-- It does not authorize implementation, scaffolding, dependency installation or UI work.
+- It does not authorize implementation, scaffolding, dependency installation or UI work. The ledger-scope decision D-PRD-08 (16 October 2026) does not change this; D-PRC-01 still applies.
 - It does not estimate dates or effort.
 - It does not resolve any open question. Every recommended default stays a recommendation until the owner approves it.
 - It does not claim that following it will make ClearSettle secure, compliant or financially correct. Only the evidence required at M10 can support such statements.

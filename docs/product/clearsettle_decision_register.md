@@ -1,7 +1,7 @@
 # ClearSettle — Decision Register
 
 **Document status:** Consolidated for owner review. The project is still in specification; no application implementation is authorized.
-**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review
+**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope) recorded 16 October 2026
 **Primary source:** [`clearsettle_approved_decisions_seed.md`](clearsettle_approved_decisions_seed.md), cited below as "Seed §n, Lxx".
 **Related documents:** [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Implementation plan](clearsettle_implementation_plan.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [Pre-consolidation register (archived)](archive/clearsettle_decision_register_pre_consolidation.md).
 
@@ -13,7 +13,7 @@ This register is the authoritative record of what has and has not been decided. 
 
 | Label | Meaning |
 |---|---|
-| APPROVED | Explicitly approved during product discovery. The evidence is the seed, an owner instruction in the 15 October 2026 consolidation brief, or an entry marked "Confirmed" in the prior register that nothing later contradicts. "APPROVED (engineering rule)" marks a rule that the owner's project instructions (`CLAUDE.md`) make binding through the engineering checklist; the owner may override it. |
+| APPROVED | Explicitly approved by the owner. The evidence is the seed, an owner instruction in the 15 October 2026 consolidation brief, a later explicit owner decision recorded here with its date (for example D-PRD-08, 16 October 2026), or an entry marked "Confirmed" in the prior register that nothing later contradicts. "APPROVED (engineering rule)" marks a rule that the owner's project instructions (`CLAUDE.md`) make binding through the engineering checklist; the owner may override it. |
 | EXISTING | A verified fact about the current repository. |
 | RECOMMENDATION | A proposed solution that has not been approved. |
 | INFERENCE | A reasonable interpretation of approved decisions that still needs owner confirmation. |
@@ -25,7 +25,10 @@ An entry can carry more than one label. For example, "APPROVED; EXTERNAL REVIEW 
 
 ### Sources and precedence
 
-1. **Owner instructions** given during consolidation on 15 October 2026. These are cited as "Brief §A–G" (product consolidation brief) and "Git instruction" (Git and GitHub workflow and attribution rules).
+1. **Owner instructions and decisions** given in the working sessions:
+   - the 15 October 2026 product consolidation brief, cited as "Brief §A–G";
+   - the Git and GitHub workflow and attribution rules, cited as "Git instruction";
+   - the ledger-scope decision of 16 October 2026 (Option C), cited as "Owner decision, 16 October 2026".
 2. **The seed**, which is the primary record of discovery decisions.
 3. **Project instructions:** [`CLAUDE.md`](../../CLAUDE.md), [`docs/README.md`](../README.md) and the [engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 4. **The prior register.** Where it conflicts with the seed, the seed governs. Section 5 records the disposition of every prior entry.
@@ -58,6 +61,7 @@ Each decision records the following fields:
 | D-PRD-05 | MVP boundary: reconciliation, ledger, core accounting | APPROVED |
 | D-PRD-06 | No blanket scope expansion | APPROVED |
 | D-PRD-07 | No AI/LLM features by default | APPROVED (engineering rule) |
+| D-PRD-08 | Full-ledger vision with staged initial-release scope | APPROVED |
 | D-TEC-01 | Java and Spring Boot backend | APPROVED |
 | D-TEC-02 | PostgreSQL, shared database | APPROVED |
 | D-TEC-03 | Next.js, React and JavaScript frontend | APPROVED |
@@ -176,7 +180,7 @@ Each decision records the following fields:
 - **Constraints:** Anything beyond the MVP boundary needs owner approval (D-PRD-06).
 - **Tests:** Covered by the release-gate end-to-end workflow (D-REL-01).
 - **Source:** Seed §1, L20; Brief §A, §D.
-- **Open:** OQ-01.
+- **Open:** None for the ledger's scope direction: OQ-01 was resolved by D-PRD-08 on 16 October 2026. Supported manual-journal purposes remain open (OQ-56).
 
 #### D-PRD-02 — Launch customer: SMB finance and accounting teams
 - **Status:** APPROVED
@@ -221,10 +225,10 @@ Each decision records the following fields:
   - Chart of Accounts and journals with independent approval;
   - accounting periods, opening balances and cutover;
   - core accounting and operational reports.
-- **Constraints:** The ledger rules in checklist §3 apply: balanced double entry, immutable posted entries, and correction by reversal or adjustment.
+- **Constraints:** The ledger rules in checklist §3 apply: balanced double entry, immutable posted entries, and correction by reversal or adjustment. How far the ledger reaches in the initial release, and in the long term, is set by D-PRD-08.
 - **Tests:** Accounting invariants (D-ACC-04 to D-ACC-07) and the release gate (D-REL-01).
 - **Source:** Seed §1, L25 and §6, L150; Brief §D. Supersedes prior register Decision 4 and its "Product type" row. Answers checklist §13 question 2.
-- **Open:** OQ-01.
+- **Open:** OQ-01 was resolved for product direction by D-PRD-08 (16 October 2026). Supported manual-journal purposes are in OQ-56.
 
 #### D-PRD-06 — No blanket scope expansion
 - **Status:** APPROVED
@@ -235,6 +239,23 @@ Each decision records the following fields:
 - **Status:** APPROVED (engineering rule)
 - **Decision:** No AI/LLM functionality unless the owner later requests it. A proposal must come with a separate threat model and acceptance checklist.
 - **Source:** Checklist §7, L137 and §11, L350; prior register row "AI features" ("Current direction").
+
+#### D-PRD-08 — Full-ledger vision with staged initial-release scope
+- **Status:** APPROVED
+- **Decision:** ClearSettle's long-term product direction is a complete business ledger, introduced gradually. The initial release limits posting to approved, evidence-backed payment-related workflows and explicitly supported manual journals, until the relevant accounting policies have been approved.
+- **Rationale (source):** It keeps the approved long-term ambition while stopping the first release from overstating its accounting coverage or enabling unreviewed financial rules.
+- **Behaviour:**
+  - Automated journal generation and posting use only approved, evidence-backed workflows and authorized accounting rules (D-ACC-02, D-ACC-09, D-ACC-10).
+  - Manual journal drafts follow the same controls as every other journal: balance validation, review, independent approval, posting, accounting periods, immutability and audit (D-ACC-04 to D-ACC-07, D-ACC-13, D-DAT-01).
+  - Only explicitly supported manual-journal purposes and approved accounting treatments count as supported. The initial release does not include dedicated payroll, procurement, accounts-payable, accounts-receivable or expense-management modules.
+  - No invented default makes an unsupported or ambiguous accounting case automatically postable.
+  - Accounting reports and exports disclose their actual coverage, relevant source-data limitations, and incomplete or unposted activity. A balanced ledger is never presented as proof that the business's whole activity is recorded.
+- **Constraints:** Keeps double-entry validation, separation of duties, no self-approval, immutable posted entries, auditable reversals and adjustments, and the existing policy-approval requirements (OQ-23, OQ-24, OQ-27, OQ-32).
+- **Depends on:** D-ACC-01 to D-ACC-07, D-RPT-01 to D-RPT-04, D-REL-01, D-PRD-05, D-PRD-06.
+- **Tests:** No unapproved event rule produces a postable entry (AC-148). Manual journals are validated and independently approved (AC-149). Reports disclose incomplete coverage without misleading (AC-150). Unsupported activity is never silently treated as accounted for (AC-151). The release gate (D-REL-01) applies unchanged.
+- **Source:** Owner decision, 16 October 2026 (Option C: full ledger, introduced gradually), given in the working session; see §7.
+- **Does not decide:** accounting policies, which manual-journal purposes are supported (OQ-56), revenue-recognition triggers (OQ-24), event-to-journal rules (OQ-23), whether reports are management or statutory (OQ-32), or how records outside gateway flows are handled (OQ-02). It does not authorize implementation (D-PRC-01).
+- **Open:** OQ-56, OQ-23, OQ-24, OQ-32, OQ-02.
 
 ### 2.2 Technology and architecture
 
@@ -626,8 +647,9 @@ Each decision records the following fields:
 #### D-ACC-01 — Double-entry accrual ledger
 - **Status:** APPROVED
 - **Decision:** The MVP includes a double-entry accounting ledger on an accrual basis. Cash movements and accrual recognition are distinct.
+- **Scope:** Full-ledger direction with a staged initial scope (D-PRD-08). OQ-01 was resolved for product direction on 16 October 2026.
 - **Source:** Seed §6, L150–151; Brief §D.
-- **Open:** OQ-01, OQ-19.
+- **Open:** OQ-19, OQ-56.
 
 #### D-ACC-02 — Journal drafts from business events
 - **Status:** APPROVED (approach); UNRESOLVED (event-to-journal rules)
@@ -737,8 +759,9 @@ Each decision records the following fields:
   - The trial balance, profit and loss, balance sheet, general ledger and journal-entry reports are generated from posted entries.
   - Drafts are distinguished from finalized reports.
   - Reports never imply that incomplete or unreconciled information has been fully verified.
-- **Source:** Seed §6, L168; Brief §D.
-- **Open:** OQ-01, OQ-32.
+  - Under D-PRD-08, accounting reports and exports also disclose what activity they cover and what they do not. A balanced ledger is never presented as the business's whole activity.
+- **Source:** Seed §6, L168; Brief §D; owner decision, 16 October 2026 (coverage disclosure, D-PRD-08).
+- **Open:** OQ-32 (management or statutory), OQ-56 (supported manual-journal purposes).
 
 #### D-RPT-02 — Operational reports and exports
 - **Status:** APPROVED
@@ -1035,11 +1058,12 @@ Every "Recommended default" is a RECOMMENDATION, not a decision.
 
 | ID | Question | Why it matters | Recommended default | Type | Approval | Blocks |
 |---|---|---|---|---|---|---|
-| OQ-01 | Is ClearSettle's ledger meant to be the business's complete general ledger, recording all activity including expenses, payroll and other income through manual journals? Or are its statements limited to payment-flow activity? | A profit and loss or balance sheet built only from payment events would be economically incomplete and could mislead (AF-40). | Keep the approved full double-entry ledger. Support general manual journal drafts (prepared and approved like any other journal). Show statement completeness and coverage indicators. Make no claim that ClearSettle replaces full bookkeeping until that scope is approved. | (a)(d) | Owner; accountant | M6 |
-| OQ-02 | How are records outside gateway flows handled: orders paid by cash on delivery or direct bank transfer, and bank transactions unrelated to gateway payouts? | Without a rule they either flood the exception queue or vanish unexplained (AF-25). | Mark them "Outside gateway reconciliation" through a template rule or a user classification with a reason. They are not exceptions and not "reconciled". Bank movements become journal drafts only through explicit templates or manual drafts. | (a) | Owner | M4 |
+| OQ-02 | How are records outside gateway flows handled: orders paid by cash on delivery or direct bank transfer, and bank transactions unrelated to gateway payouts? D-PRD-08 does not settle this. | Without a rule they either flood the exception queue or vanish unexplained (AF-25). | Mark them "Outside gateway reconciliation" through a template rule or a user classification with a reason. They are not exceptions and not "reconciled". Bank movements become journal drafts only through approved templates, or through manual drafts for a supported purpose (OQ-56). Reports list them as not covered until they are recorded (FR-RPT-015). | (a) | Owner | M4 |
 | OQ-03 | Does one workspace equal one accounting entity (one Chart of Accounts, one ledger, one financial year)? Can a user belong to several workspaces, and how do they switch? | The tenant boundary, ledger boundary and session design all depend on this (AF-69). | One workspace = one accounting entity. A user may belong to several workspaces and switches explicitly; the active workspace is carried in every request and checked server-side. No cross-workspace views in the MVP. | (a) | Owner | M1 |
 | OQ-04 | Are billing and subscriptions, terms of service, privacy policy and data-processing terms in scope before onboarding real customers? | A production SaaS needs them, but none is mentioned in the approved decisions (AF-70). | Keep billing out of the MVP build. Treat legal terms as a release prerequisite prepared by qualified counsel. | (a)(d) | Owner; legal | M10 |
 | OQ-05 | How may ClearSettle staff (platform operators) access tenant data for support or incidents? | Uncontrolled operator access defeats tenant isolation (AF-60). | No standing access. A time-bound break-glass procedure requiring customer consent (except in a documented emergency), MFA, reason capture and audit events visible to the workspace. | (a)(d) | Owner; security | M1 (design), M10 |
+
+OQ-01 (ledger completeness) was resolved for product direction on 16 October 2026 by D-PRD-08. It is kept in §3.5 for traceability and is no longer counted as open.
 
 ### 3.2 Imports and reconciliation
 
@@ -1077,6 +1101,7 @@ Every "Recommended default" is a RECOMMENDATION, not a decision.
 | OQ-31 | Who may change accounting templates and the Chart of Accounts structure, and what approval does activation need? | Template changes alter future postings; these are sensitive financial settings that require MFA (D-SEC-08). | Preparers draft template versions. A different Controller activates them. Accounts referenced by posted entries cannot be deleted, only deactivated. | (a) | Owner | M6 |
 | OQ-32 | Are the generated financial statements management reports or statutory financial statements? | Statutory presentation and compliance claims would need specialist review. | Label them as management reports. Make no claim of statutory format or compliance. | (d) | Accountant; legal | M8 |
 | OQ-33 | Which tax fields are preserved from each source, and how do they map to tax ledger accounts? | D-ACC-16 is approved but its treatment is not defined. | Preserve every tax field the source reports. Map them to accounts through accountant-reviewed templates. | (d) | Tax adviser | M7 |
+| OQ-56 | Which manual-journal purposes does the initial release support, and which accounts and accounting treatment are approved for each? | D-PRD-08 allows posting only for explicitly supported manual-journal purposes, and none has been approved. Opening balances (D-ACC-11) and corrections of posted entries (D-ACC-07) are approved workflows in their own right; treating them as supported without OQ-56 is an INFERENCE that needs confirming. | No purpose list is proposed here; it must not be invented. The owner and a qualified accountant approve an explicit list, each purpose with its permitted accounts and treatment. Until then, a manual draft for any other purpose can be prepared and validated but stays `Blocked` from posting with the reason "purpose not supported" (FR-ACC-034). | (a)(d) | Owner; external accountant | M6 (posting manual journals beyond opening balances and corrections) |
 
 ### 3.4 Security, data and operations
 
@@ -1107,6 +1132,14 @@ Every "Recommended default" is a RECOMMENDATION, not a decision.
 
 OQ-30 was merged into OQ-17 during consolidation. The number is retired so existing references stay stable.
 
+### 3.5 Resolved open questions
+
+Kept for traceability. Resolved questions are not counted as open.
+
+| ID | Original question | Resolution | Date and source | What remains open |
+|---|---|---|---|---|
+| OQ-01 | Is ClearSettle's ledger meant to be the business's complete general ledger, recording all activity including expenses, payroll and other income through manual journals? Or are its statements limited to payment-flow activity? *(Originally recommended: keep the full ledger, support general manual journals, show coverage indicators, and make no claim of replacing full bookkeeping until that scope is approved. Type (a)(d); approval owner and accountant; blocked M6.)* | Product direction resolved by D-PRD-08: a complete business ledger is the long-term direction, introduced gradually. The initial release posts only approved, evidence-backed payment-related workflows and explicitly supported manual journals. Reports disclose their coverage. | 16 October 2026; owner decision (Option C) | Supported manual-journal purposes (OQ-56); event-to-journal rules (OQ-23); revenue-recognition triggers (OQ-24); management or statutory classification of reports (OQ-32); records outside gateway flows (OQ-02). The resolution does not settle any accounting policy. |
+
 ---
 
 ## 4. Engineering checklist items affected by approved decisions
@@ -1118,7 +1151,7 @@ The checklist's 110-concept table (§10) is unchanged. These approved decisions 
 | §1 baseline ("React + JavaScript"; "confirm expansion beyond reconciliation") | Working baseline | Frontend is Next.js + React + JavaScript (D-TEC-03). Scope expanded to include a ledger (D-PRD-05). |
 | §3 "Ledger scope decision" | Open | Ledger in scope: balanced double entry, immutable posted entries, correction by reversal or adjustment are now mandatory (D-ACC-01, D-ACC-07). |
 | §13 Q1 Data ingestion | Open | CSV/XLSX uploads; gateway APIs and webhooks deferred (D-IMP-02, D-DEF-02). |
-| §13 Q2 Ledger boundary | Open | Answered by D-PRD-05; completeness still open (OQ-01). |
+| §13 Q2 Ledger boundary | Open | Answered by D-PRD-05. The scope direction is a full ledger with a staged initial scope (D-PRD-08; OQ-01 resolved 16 October 2026). Supported manual-journal purposes are in OQ-56. |
 | §13 Q3 Tenant model | Open | Multi-tenant SaaS, shared PostgreSQL with layered isolation (D-SEC-10); entity model OQ-03. |
 | §13 Q4 Background processing | Open | Limits approved as targets (D-IMP-09); mechanism OQ-49; performance target OQ-44. |
 | §13 Q5 Authentication | Open | Managed OIDC (D-SEC-06); provider OQ-34; session design OQ-35. |
@@ -1162,7 +1195,7 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | §2 Decision 1 (workflow shape) | Agreed | Carried forward as D-REC-01 and D-REC-02; link terminology in OQ-06. |
 | §2 Decision 2 (matching shapes and policy) | Approved | Carried forward as D-REC-04 to D-REC-12. "Tolerances" superseded by D-REC-07. |
 | §2 Decision 3 (financial edge cases) | Open | Partly answered by D-FIN-01 to D-FIN-06 and D-REC-07; remainder in OQ-12, OQ-19, OQ-23. |
-| §2 Decision 4 (reconciliation vs ledger) | Open | Answered by D-PRD-05 and D-ACC-01; completeness in OQ-01. |
+| §2 Decision 4 (reconciliation vs ledger) | Open | Answered by D-PRD-05 and D-ACC-01. The completeness question (OQ-01) was resolved for product direction by D-PRD-08 on 16 October 2026. |
 | §2 Decision 5 (users and tenants) | Open | Answered by D-PRD-02, D-SEC-01, D-SEC-07, D-SEC-10; entity model in OQ-03. |
 | §2 Decision 6 (import contracts) | Open | Answered by D-IMP-02 to D-IMP-09 and D-DAT-05; remainder in OQ-07 to OQ-10, OQ-39, OQ-41. |
 | §2 Decision 7 (exception lifecycle) | Open | Answered by D-REC-13 to D-REC-16; remainder in OQ-14 to OQ-17, OQ-21. |
@@ -1183,15 +1216,17 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 |---|---|
 | 15 October 2026 | Register rebuilt from the seed and the owner's consolidation brief. Prior register archived verbatim. Prior entries mapped in §5. Open questions consolidated into OQ-01 to OQ-50. |
 | 16 October 2026 | Independent-review changes: label definition clarified for engineering rules; index statuses aligned with entries; OQ-14, OQ-19, OQ-21 to OQ-26, OQ-29, OQ-34, OQ-37 to OQ-39 and OQ-41 to OQ-43 extended; OQ-51 to OQ-55 added; §7 lists decisions that depend on owner instructions not stored in the repository. |
+| 16 October 2026 | Owner decision recorded as D-PRD-08 (Option C: full ledger, introduced gradually). OQ-01 resolved for product direction and moved to §3.5. OQ-56 added (supported manual-journal purposes). D-PRD-01, D-PRD-05, D-ACC-01, D-RPT-01, OQ-02, §4 and §5 updated to match. No other approved decision changed. |
 
 ---
 
 ## 7. Decisions whose only source is an owner instruction outside the repository
 
-The owner gave the 15 October 2026 consolidation brief and the Git and GitHub workflow instruction during the working session. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
+The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workflow instruction and the 16 October 2026 ledger-scope decision during working sessions. They are not stored in the repository, because the owner's repository rules exclude prompts and tool-specific files. The decisions below rest only on those instructions, so they cannot be verified from repository files alone (AF-143). Once the owner confirms them during review, the confirmation becomes their recorded source.
 
 | Decision | What depends only on the owner instruction | Owner confirmation |
 |---|---|---|
 | D-REC-19 | Reconciliation outcomes kept separate from accounting postings, with traceable links (Brief §D). The seed is consistent with this (L102, L116, L120) but does not state it directly. | Pending |
 | D-SEC-04 | Extending tenant scope to reports and notifications (Brief §E). The seed lists queries, file actions, jobs, endpoints and exports (L189). | Pending |
 | D-PRC-04 | The Git and GitHub workflow and the no-AI-attribution rule (Git instruction). | Pending |
+| D-PRD-08 | Full-ledger direction with staged initial scope (owner decision, 16 October 2026, Option C). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
