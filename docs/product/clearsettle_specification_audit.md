@@ -1,7 +1,7 @@
 # ClearSettle — Specification Audit: Contradictions and Gaps
 
 **Document status:** Audit for owner review.
-**Audit date:** 15 October 2026; independent review incorporated 16 October 2026; AF-40 revised 16 October 2026 for D-PRD-08
+**Audit date:** 15 October 2026; independent review incorporated 16 October 2026; AF-40 revised 16 October 2026 for D-PRD-08; AF-69 revised 16 October 2026 for D-PRD-09
 **Scope:** Every file present in the repository on 15 October 2026, namely:
 - `CLAUDE.md`
 - `docs/README.md`
@@ -23,6 +23,7 @@ The audit also covers the documents produced from those files:
 - The resulting specification was then reviewed as if by a separate team preparing to build it. That review looked for ways the product could silently misstate money, leak data across tenants, lose evidence or pass its tests while still being wrong.
 - Two independent reviews, each with no access to the drafting conversation, were run on these documents on 15–16 October 2026. Their 60 findings, and what was done about each, are under "Independent review results" at the end of this document (AF-100 to AF-145).
 - On 16 October 2026 the owner approved D-PRD-08 (full-ledger direction, staged initial scope). AF-40 was revised to match. Its severity stays High because of the residual reporting risk. No other finding's severity changed.
+- On 16 October 2026 the owner also approved D-PRD-09 (one workspace is one accounting entity; multi-workspace membership with explicit switching). AF-69 was revised to match and stays Medium, because the isolation controls still need implementation and test evidence. The tenant-isolation, database-constraint, job, report, export and file findings (AF-60, AF-63, AF-65, AF-120, AF-121, AF-132 and others) are unchanged.
 - **Limitations:**
   - No real gateway or bank report formats were available (AF-90). Matching and import findings are therefore based on reasoning, not on sample data.
   - No accounting, legal, tax or security professional has reviewed these documents.
@@ -569,13 +570,20 @@ The rest are missing requirements, potential risks or unanswered questions.
 - **Approval required?** Confirm.
 
 ### AF-69 — Multi-workspace users and context mixing
-- **Severity:** Medium
-- **Type:** Unanswered question
-- **Evidence:** D-SEC-07 lets a user create workspaces, but membership of several workspaces is not addressed.
-- **Consequence:** Cached data or tokens from one workspace could leak into another in the UI or in jobs.
-- **Resolution:** An explicit active workspace on every request, checked server-side, and no screens that mix workspaces.
-- **Disposition:** Logged as OQ-03; FR-WSP-008.
-- **Approval required?** Yes.
+- **Severity:** Medium (unchanged)
+- **Type:** Question answered; residual implementation risk.
+- **Evidence:**
+  - D-SEC-07 lets a user create workspaces.
+  - On 16 October 2026 the owner approved D-PRD-09: one workspace is one accounting entity; users may belong to several workspaces and switch explicitly; the active workspace is validated server-side; no cross-workspace financial views in the MVP.
+- **Consequence:** The model is settled. Until it is implemented and tested, cached data, client state, tokens or a tampered workspace identifier could still leak one workspace's data into another, through the UI, jobs, reports, exports, files or notifications.
+- **Resolution:**
+  - An explicit active workspace on every request, checked server-side.
+  - Clean switching.
+  - No screens that mix workspaces.
+  - Workspace-owned accounting records.
+  - The layered isolation already approved (D-SEC-10) is unchanged.
+- **Disposition:** The model was resolved by owner decision D-PRD-09 (16 October 2026); OQ-03 is closed and kept in register §3.5. The controls are specified in FR-WSP-008 and FR-WSP-015 to FR-WSP-018, with NFR-SEC-007, NFR-SEC-008 and NFR-SEC-016, and verified by AC-070 and AC-152 to AC-156. Implementation and test evidence are still required (M1, M2, M6, M8).
+- **Approval required?** No further owner approval for the model. Implementation needs the owner's explicit authorization (D-PRC-01).
 
 ### AF-70 — Billing and legal terms are absent
 - **Severity:** Medium
@@ -779,7 +787,7 @@ The rest are missing requirements, potential risks or unanswered questions.
 | Does restoring a backup include files, metadata and audit history? | Required by D-OPS-05. Post-restore consistency checks specified, including re-applying revocations, holds and deletions made after the restore point. Drills use production backups in an isolated environment. | AF-82, AF-118, AF-122 |
 | Are the recovery objectives and import limits achievable and measurable? | Unknown until providers are chosen and load tests run. Both now have measurement criteria. | AF-83, AF-84 |
 | Do failure and disaster-recovery procedures have concrete tests? | Yes, after this audit (AC-090 to AC-092; plan M9). | AF-89, AF-92 |
-| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-151 were added, 122 of 177 Mandatory requirements are named by an acceptance criterion (as of 16 October 2026, after D-PRD-08). The remaining 55 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
+| Does every approved high-risk requirement have an acceptance test? | Not all. An earlier version of this answer said "most do", which independent review showed was inaccurate. After AC-100 to AC-156 were added, 131 of 183 Mandatory requirements are named by an acceptance criterion (as of 16 October 2026, after D-PRD-08 and D-PRD-09). The remaining 52 are listed in AF-117 and must be mapped to named tests, reviews or exercises before their milestones exit. Accounting scenarios and risk criteria also depend on unresolved policies. | AF-91, AF-94, AF-117 |
 | Could a green test suite leave important risks untested? | Yes: economic correctness (AF-91), real formats (AF-90) and operational readiness (AF-92). | AF-90 to AF-92 |
 
 ## Independent review results
@@ -1003,10 +1011,11 @@ Each finding gives its severity and type, then the evidence and consequence, the
 - **Evidence / consequence:** Many high-risk Mandatory requirements had no acceptance criterion, and the audit's own answer ("most do") was inaccurate.
 - **Resolution / disposition:**
   - Added AC-100 to AC-147 and named four requirements already exercised by existing criteria. That brought coverage to 117 of 173 Mandatory requirements.
-  - After D-PRD-08 (16 October 2026) added FR-ACC-034 and FR-RPT-015, made FR-ACC-009 and part of FR-RPT-013 Mandatory, and added AC-148 to AC-151, coverage is 122 of 177. FR-ACC-004 is now covered by AC-148.
-  - The remaining 55 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
+  - After D-PRD-08 (16 October 2026) added FR-ACC-034 and FR-RPT-015, made FR-ACC-009 and part of FR-RPT-013 Mandatory, and added AC-148 to AC-151, coverage was 122 of 177. FR-ACC-004 became covered by AC-148.
+  - After D-PRD-09 (16 October 2026) added FR-WSP-015 to FR-WSP-018, made FR-WSP-008 Mandatory, and added AC-152 to AC-156, coverage is 131 of 183. FR-ACC-002, FR-ACC-022 and FR-WSP-001 are now covered by AC-155 and AC-156.
+  - The remaining 52 must each be mapped to a named test, configuration review or operational exercise before their milestone exits (specification §12.3):
 
-    FR-ACC-002, FR-ACC-022, FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-001, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
+    FR-ACC-023, FR-ACC-029, FR-EXC-001, FR-EXC-002, FR-EXC-008, FR-EXC-009, FR-FIN-001, FR-FIN-002, FR-FIN-008, FR-FIN-009, FR-IMP-010, FR-IMP-021, FR-IMP-023, FR-IMP-027, FR-IMP-029, FR-NTF-001, FR-NTF-003, FR-REC-001, FR-REC-010, FR-REC-012, FR-REC-025, FR-REC-043, FR-REC-060, FR-RPT-002, FR-RPT-005 to FR-RPT-008, FR-WSP-003, FR-WSP-007, NFR-DAT-007, NFR-DAT-008, NFR-DAT-012, NFR-OPS-001, NFR-OPS-003 to NFR-OPS-006, NFR-PERF-001, NFR-PERF-003, NFR-PERF-004, NFR-REL-005, NFR-REL-008, NFR-REL-009, NFR-SEC-009, NFR-SEC-011, NFR-SEC-014, NFR-UX-002 to NFR-UX-006.
 
   - The answers table below is corrected.
   - **Approval:** No.

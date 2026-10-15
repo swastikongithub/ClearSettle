@@ -1,7 +1,7 @@
 # ClearSettle — Phased Implementation Plan
 
 **Document status:** Proposal for owner review. **This plan does not authorize implementation.** Application development starts only when the owner explicitly authorizes it (D-PRC-01). After that, each milestone starts only when its entry conditions are met.
-**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08 and the workspace-model decision D-PRD-09
 **Inputs:** [Decision register](clearsettle_decision_register.md), [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [`CLAUDE.md`](../../CLAUDE.md).
 
 ## 1. Planning principles
@@ -50,7 +50,7 @@ Each open question must be answered before the work it gates begins. Answering e
 
 | Gate | Open questions to resolve | Needed by |
 |---|---|---|
-| G0 — Foundation | OQ-03 (workspace = entity; multi-workspace), OQ-05 (operator access principle), OQ-34 (identity provider, or a development provider plus selection criteria), OQ-35 (session architecture), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions), OQ-43 (partial: the secrets approach and the development and CI environments), OQ-55 (MFA for export roles) | M1 |
+| G0 — Foundation | Approved workspace model: D-PRD-09 (OQ-03 resolved 16 October 2026; no longer a blocker). Still to resolve: OQ-05 (operator access principle), OQ-34 (identity provider, or a development provider plus selection criteria), OQ-35 (session architecture), OQ-36 (Admin access), OQ-37 (audit and file access), OQ-38 (session defaults), OQ-45 (non-production data), OQ-46 (accessibility target), OQ-47 (UI direction proposal), OQ-48 (versions and tooling), OQ-50 (API conventions), OQ-43 (partial: the secrets approach and the development and CI environments), OQ-55 (MFA for export roles) | M1 |
 | G1 — Imports | OQ-07 (first gateways, samples), OQ-08 (schemas from samples), OQ-09 (conflicting observations), OQ-10 (identical file), OQ-39 (card and bank numbers), OQ-49 (job mechanism), OQ-53 (excess precision) | M2 |
 | G2 — First reconciliation | OQ-06 (link model), OQ-12 (partial settlements), OQ-13 (expected settlement period), OQ-19 (cross-currency policy: the safe default lets work proceed), OQ-21 (run scope) | M3 |
 | G3 — Full coverage | OQ-02 (records outside gateway flows), OQ-11 (split-payment evidence), OQ-20 (narration references), OQ-22 (parameter governance); bank samples (OQ-07) | M4 |
@@ -94,9 +94,16 @@ Each open question must be answered before the work it gates begins. Answering e
 
 ### M1 — Foundation: architecture, identity, workspaces, tenant security, audit core
 
-- **Objective:** A running, deployable skeleton in which a user can sign in, create a workspace, invite teammates and assign roles. Tenant isolation, authorization and audit are enforced and proven by tests from the very first feature.
+- **Objective:** A running, deployable skeleton in which a user can:
+  - sign in;
+  - create a workspace, which is one accounting entity (D-PRD-09);
+  - belong to several workspaces and switch between them explicitly;
+  - invite teammates and assign roles.
+
+  Tenant isolation, server-side active-workspace validation, authorization and audit are enforced and proven by tests from the very first feature. Resolving OQ-03 does not authorize M1: D-PRC-01 still requires the owner's explicit authorization.
 - **Included requirements:**
-  - Workspace: FR-WSP-001 to FR-WSP-008, FR-WSP-010 (framework), FR-WSP-014.
+  - Workspace: FR-WSP-001 to FR-WSP-008, FR-WSP-010 (framework), FR-WSP-014, FR-WSP-016 to FR-WSP-018, and FR-WSP-015 for the workspace-owned settings and the ownership pattern.
+    - FR-WSP-015's Chart of Accounts, ledger and period tables are built in M6, using the ownership pattern set here.
     - The functional-currency setting in FR-WSP-007 waits for OQ-19 and is delivered in M6.
     - The notification part of FR-WSP-005 waits for the notification work in M5 and M8. Its audit part is in M1.
   - Security: NFR-SEC-001 to NFR-SEC-012, NFR-SEC-014, NFR-SEC-016, NFR-SEC-018, NFR-SEC-019 (if OQ-55 is approved).
@@ -114,18 +121,21 @@ Each open question must be answered before the work it gates begins. Answering e
   - **CI** running build, lint, unit tests, integration tests against real PostgreSQL, a dependency vulnerability scan and the permission-matrix test harness.
   - **Health endpoints, structured logging and correlation IDs.**
 - **Database:**
-  - Workspace, membership, role assignment and invitation tables.
+  - Workspace, membership, role assignment and invitation tables. One user can hold memberships in several workspaces.
+  - Workspace-owned accounting settings (financial-year start, cutover date) stored on the workspace, the accounting entity (D-PRD-09).
   - An append-only audit table: the application role can only insert and read it, and a guard trigger blocks updates and deletes.
-  - A non-null workspace ID on every tenant table, plus composite keys that stop records in different workspaces from referencing each other.
+  - A non-null workspace ID on every tenant table, plus composite keys that stop records in different workspaces from referencing each other. Every workspace-owned record is tied to its workspace at both the database and the service layer; this is the pattern later milestones follow (FR-WSP-015).
   - Forced row-level security with a fail-closed tenant context. The application database role neither owns the tables nor can bypass row-level security.
 - **API:**
   - The `/api/v1` conventions (OQ-50).
   - Authentication and session endpoints per OQ-35.
   - Workspace creation, invitation, membership and role endpoints.
+  - An explicit active-workspace context on every relevant request. The service layer validates membership, permission and record ownership for that workspace on each request (FR-WSP-016).
+  - An endpoint listing the user's own memberships for the workspace switcher. It is the only cross-workspace response (FR-WSP-018).
   - Deny-by-default authorization middleware in the service layer.
 - **Frontend:**
   - Before any screen is built, a design proposal produced with the `frontend-design` skill: information architecture, a token system for colour, type and layout, and design principles. It takes the approved references into account (D-UI-02, D-UI-03) and the owner must approve it (D-UI-05, NFR-UX-003).
-  - Then the sign-in handoff, workspace creation, workspace switching (OQ-03), and member and role management screens.
+  - Then the sign-in handoff, workspace creation, explicit workspace switching that clears the previous workspace's client state (D-PRD-09, FR-WSP-017), and member and role management screens.
 - **Tests:**
   - Unit tests: the permission evaluator and the separation-of-duties checker.
   - Integration tests against real PostgreSQL: cross-workspace constraints, row-level security failing closed (AC-072), audit append-only behaviour (AC-081), audit written atomically with its change (AC-080), migrations on both a fresh and an upgraded database.
@@ -140,16 +150,21 @@ Each open question must be answered before the work it gates begins. Answering e
     - rate limits on workspace creation and invitations (AC-145);
     - CSRF and CORS behaviour;
     - mass-assignment attempts.
+  - Workspace-model tests (D-PRD-09):
+    - a tampered active-workspace identifier is rejected (AC-152);
+    - switching does not leak the previous workspace's data (AC-153);
+    - no cross-workspace financial views, and workspace creation is audited (AC-156).
   - Audit tests: role-change audit (AC-129) and audit coverage per action type for the actions that exist in M1 (AC-130, extended in later milestones).
   - Database role tests: each role in NFR-SEC-018 can perform only its listed operations.
   - End-to-end tests: J1 onboarding.
-- **Acceptance criteria:** AC-070 (except its export and download-link parts, which move to M2 and M8), AC-072 to AC-076, AC-080, AC-081, AC-129 to AC-133, AC-136 and AC-145 pass in CI. J1 works end-to-end on synthetic users.
+- **Acceptance criteria:** AC-070 (except its export and download-link parts, which move to M2 and M8), AC-072 to AC-076, AC-080, AC-081, AC-129 to AC-133, AC-136, AC-145, AC-152, AC-153 and AC-156 pass in CI. J1 works end-to-end on synthetic users, including a user who belongs to two workspaces and switches between them.
 - **Risks and mitigations:**
   - The identity provider cannot assert MFA. *Mitigation:* make MFA assertion a selection criterion; refuse privileged actions if it cannot be asserted (NFR-SEC-003).
   - Row-level security is misconfigured. *Mitigation:* fail-closed tests and a non-owner database role.
   - Design scope creep. *Mitigation:* build only the screens the owner approved.
+- **Entry conditions:** G0 is satisfied, and the owner has explicitly authorized implementation (D-PRC-01). The workspace model is already approved (D-PRD-09).
 - **Exit conditions:**
-  - All M1 tests pass.
+  - All M1 tests pass, including the workspace-model criteria AC-152, AC-153 and AC-156.
   - The implementation status document records the evidence.
   - The owner has reviewed the running skeleton and the approved design proposal.
 
@@ -198,8 +213,9 @@ Each open question must be answered before the work it gates begins. Answering e
   - Reliability tests: lease fencing with a stalled worker (AC-138); temporary-artifact cleanup that keeps quarantined rows (AC-141).
   - Job tenant-isolation test: a job given another workspace's record IDs fails without reading or writing them (AC-071).
   - Cross-tenant export and download-link attempts (the M2 part of AC-070); expired and cross-workspace links (AC-077).
+  - Workspace boundaries for jobs and file downloads (the job and file parts of AC-154).
   - A memory-bound test at the row limit (NFR-PERF-002), and baseline throughput measurements on a synthetic 250,000-row file. These results are recorded, not treated as targets.
-- **Acceptance criteria:** AC-001 to AC-012, AC-014, AC-071, AC-077, AC-100, AC-102 to AC-106, AC-108 to AC-110, AC-137, AC-138, AC-141 and AC-144 pass, plus the M2 parts of AC-070, AC-135 and AC-143. J2 works end-to-end.
+- **Acceptance criteria:** AC-001 to AC-012, AC-014, AC-071, AC-077, AC-100, AC-102 to AC-106, AC-108 to AC-110, AC-137, AC-138, AC-141 and AC-144 pass, plus the M2 parts of AC-070, AC-135, AC-143 and AC-154. J2 works end-to-end.
 - **Risks and mitigations:**
   - Real formats differ from the minimum fields in the specification. *Mitigation:* derive fields from the samples and update the specification first.
   - XLSX memory exhaustion. *Mitigation:* streaming parsing and expansion limits.
@@ -302,7 +318,7 @@ Can start after M1, in parallel with M2 to M5.
   - No account mappings, posting rules or broad business-transaction workflows are invented to make the ledger look complete.
   - Manual journals can be drafted, validated and approved for any purpose, but are postable only for purposes on the OQ-56 approved list. The approved opening-balance and correction workflows are postable now; counting them as supported is an INFERENCE pending OQ-56.
   - Every other manual-journal purpose needs owner and external-accountant approval under OQ-56 before it is treated as supported. Until then, those drafts stay `Blocked` with "purpose not supported" (FR-ACC-034).
-- **Included requirements:** FR-ACC-034 (manual-journal purposes and the opening-balance and correction workflows); FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022, FR-ACC-028, FR-ACC-029 (as defined under OQ-51), FR-ACC-031; FR-WSP-007 (functional currency, per OQ-19); FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level). FR-ACC-033 (historical ledger migration) is conditional and not scheduled.
+- **Included requirements:** FR-WSP-015 (workspace-scoped Chart of Accounts, ledger, periods, opening balances and cutover, D-PRD-09); FR-ACC-034 (manual-journal purposes and the opening-balance and correction workflows); FR-ACC-001 to FR-ACC-003, FR-ACC-009 to FR-ACC-016, FR-ACC-018 to FR-ACC-022, FR-ACC-028, FR-ACC-029 (as defined under OQ-51), FR-ACC-031; FR-WSP-007 (functional currency, per OQ-19); FR-WSP-010, FR-WSP-013; NFR-SEC-003 and NFR-SEC-004 for approvals; FR-RPT-001 and FR-RPT-002 (trial balance, general ledger, journal report at a basic level). FR-ACC-033 (historical ledger migration) is conditional and not scheduled.
 - **Dependencies:** M1; gate G5. OQ-01 no longer blocks M6: the product direction was resolved by D-PRD-08 on 16 October 2026. Posting manual journals beyond opening balances and corrections depends on OQ-56. The form-based opening-balance workflow is separate from the opening-balance *template upload*: only the upload depends on the M2 upload pipeline and its file controls (NFR-SEC-017). The default Chart of Accounts content waits for OQ-27. Until it is approved, accounts are created manually, and no unreviewed default is presented as recommended.
 - **Deliverables:**
   - The Chart of Accounts with protected accounts.
@@ -325,6 +341,7 @@ Can start after M1, in parallel with M2 to M5.
   - Close racing a posting (AC-127).
   - One-person workspace (AC-128).
   - Manual-journal validation, supported-purpose blocking and independent approval (AC-149).
+  - Two workspaces with different Charts of Accounts and financial years that never cross-reference (AC-155; FR-WSP-015 accounting tables).
   - Concurrency tests on approvals (AC-052).
   - Database immutability (AC-053).
   - Separation-of-duties matrix tests.
@@ -389,6 +406,7 @@ Can start after M1, in parallel with M2 to M5.
   - CSV and XLSX formula neutralization in exports (AC-143).
   - Coverage disclosures on reports and exports, with partial data, unsupported categories and unposted journals (AC-150).
   - Unsupported activity shown as not accounted for in reports (AC-151, reporting part).
+  - Reports, exports and notifications stay inside their workspace (the report, export and notification parts of AC-154).
   - The export part of AC-070 and other export permission and tenant tests.
   - Email content inspection tests.
 - **Acceptance criteria:** Every report reconciles to its underlying records; exports change nothing (AC-095).
@@ -486,7 +504,7 @@ Per D-PRC-04 and the owner's Git instruction:
 
 ## 10. What this plan does not do
 
-- It does not authorize implementation, scaffolding, dependency installation or UI work. The ledger-scope decision D-PRD-08 (16 October 2026) does not change this; D-PRC-01 still applies.
+- It does not authorize implementation, scaffolding, dependency installation or UI work. Neither the ledger-scope decision D-PRD-08 nor the workspace-model decision D-PRD-09 (both 16 October 2026) changes this; D-PRC-01 still applies.
 - It does not estimate dates or effort.
 - It does not resolve any open question. Every recommended default stays a recommendation until the owner approves it.
 - It does not claim that following it will make ClearSettle secure, compliant or financially correct. Only the evidence required at M10 can support such statements.
