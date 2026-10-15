@@ -1,7 +1,11 @@
 ## Engineering Standards
 
 Before implementing features or making architectural decisions, consult
-`docs/engineering/clearsettle-master-engineering-checklist.md`.
+`docs/engineering/clearsettle_master_engineering_checklist.md`.
+
+Product decisions and requirements live in `docs/product/`. The decision register
+(`docs/product/clearsettle_decision_register.md`) is the authoritative record of what is
+approved, open, or deferred; the product specification and implementation plan build on it.
 
 Requirements:
 - Evaluate every relevant checklist item before implementation.
