@@ -23,7 +23,7 @@ ClearSettle is in product discovery and specification. Do not begin application 
 - Product scope and user roles — now covered by the product specification §1–§2 (pending owner review)
 - Reconciliation workflows and financial rules — specification §5–§8; detailed accounting policy still open
 - Supported file formats and import validation — specification §4; provider formats still open (OQ-07, OQ-08)
-- Architecture decisions and data model
+- Architecture decisions and data model — authentication session architecture approved as D-SEC-11 (decision register); other architecture decisions and the data model still to develop
 - API contracts
 - UI specification (marketing site, authentication, and application separately)
 - Test and verification plan — outline in specification §12.3

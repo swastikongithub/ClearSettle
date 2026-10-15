@@ -136,6 +136,8 @@ This is a quality/reliability checklist only. It deliberately does **not** decid
 - [ ] Define account recovery, session invalidation, secret rotation, privileged action checks, and audit access before real users are onboarded.
 - [ ] Do not add AI/LLM functionality by default. If added later, separately review prompt injection, tool permissions, structured output validation, input/token budgets, cost limits and sensitive-data leakage.
 
+> **Status update (16 October 2026):** The authentication and session model is chosen: D-SEC-11 in `docs/product/clearsettle_decision_register.md`. Spring Boot is the OIDC client and keeps server-side sessions in PostgreSQL; the client-rendered frontend is served from the same origin. The controls it requires are specified in product specification §10.1 (NFR-SEC-001 to NFR-SEC-005 and NFR-SEC-020 to NFR-SEC-026). They are planned controls, not implemented or verified, so the items above stay unchecked. Because the session uses a cookie, CSRF defenses apply, and CORS is not one of them (NFR-SEC-022). Still open: the cookie's `SameSite` value (OQ-57), session limits (OQ-38), the identity provider (OQ-34) and MFA scope (OQ-55).
+
 ## 8. Testing and acceptance evidence
 
 - [ ] Unit tests for matching rules, fees/tolerances, rounding, duplicate detection and state transitions.
@@ -285,6 +287,14 @@ The status below is a decision for the **current ClearSettle scope**, not a clai
 | 78 | XSS | P0 | Safe rendering, no unsafe HTML injection by default, and validation/sanitization for any intentional rich-text case. |
 | 79 | SSRF | P1 if URL import exists; otherwise P2 | Protect any server-side URL fetch; omit arbitrary URL import unless needed. |
 
+> **Status update (16 October 2026):** For #69, #70, #75 and #76, see D-SEC-11 and §4 of the decision register:
+> - OIDC is used through a managed provider (D-SEC-06).
+> - JWTs are not the application session.
+> - No cross-origin application access is configured.
+> - CSRF protection applies.
+>
+> These are planned controls; none is implemented or verified.
+
 ### Reliability, cloud operations, and performance
 
 | # | Concept | Decision | ClearSettle handling / trigger |
@@ -373,6 +383,8 @@ A feature is not done until the applicable items below are checked:
 These are genuine product/architecture questions, not assumptions to silently make:
 
 > **Status update (15 October 2026):** Questions 1–3 are answered by approved decisions and questions 4–6 are partly answered. Their current status and the remaining open questions are tracked in `docs/product/clearsettle_decision_register.md` §3–§4.
+>
+> **Status update (16 October 2026):** Question 5 is answered for the architecture by D-SEC-11: managed OIDC, with server-side sessions held by Spring Boot. The identity provider, the cookie's `SameSite` value and the session limits remain open in the register.
 
 1. **Data ingestion sources:** uploaded CSVs only initially, or specific payment-provider APIs/webhooks as well?
 2. **Ledger boundary:** will ClearSettle create accounting journal entries, or only reconcile imported payment/settlement/bank records?
