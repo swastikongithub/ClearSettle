@@ -1,7 +1,7 @@
 # ClearSettle — Product Specification
 
 **Document status:** Draft for owner review. Specification phase only. This document does not authorize implementation (D-PRC-01).
-**Prepared:** 15 October 2026; revised 16 October 2026 after independent review
+**Prepared:** 15 October 2026; revised 16 October 2026 after independent review, and again on 16 October 2026 for the ledger-scope decision D-PRD-08
 **Decision source:** [Decision register](clearsettle_decision_register.md). Decision IDs (`D-…`) and open questions (`OQ-…`) refer to it. Audit findings (`AF-…`) refer to the [specification audit](clearsettle_specification_audit.md).
 **Engineering baseline:** [Master engineering checklist](../engineering/clearsettle_master_engineering_checklist.md).
 
@@ -52,6 +52,8 @@ The chain it makes traceable is:
 
 Every difference is either explained by explicit, evidenced rules or remains visibly open (D-PRD-01, D-PRD-05, D-REC-07, D-REC-17).
 
+In the long term ClearSettle is meant to become a complete business ledger, introduced gradually (D-PRD-08). The initial release records only what its approved workflows and explicitly supported manual journals cover, and its reports say so.
+
 The product is production-oriented (D-PRD-04). Its value depends on being trustworthy, which leads to three principles:
 - original source values are never overwritten (D-IMP-12);
 - nothing is matched on coincidence (D-REC-06);
@@ -99,14 +101,21 @@ These personas are an **INFERENCE** derived from the five approved roles (D-SEC-
 |---|---|---|
 | CSV and XLSX uploads for the four source categories | Direct payment-gateway integrations (D-DEF-02) | Billing and subscriptions (OQ-04) |
 | Guided mapping, templates, validation, quarantine, revisions | Public customer-facing API (D-DEF-03) | Platform operator and support access (OQ-05) |
-| Two-stage reconciliation with 1:1, 1:N and N:1 matches | General many-to-many matching (D-DEF-05) | Ledger completeness: full general ledger or payment-flow ledger (OQ-01) |
+| Two-stage reconciliation with 1:1, 1:N and N:1 matches | General many-to-many matching (D-DEF-05) | Which manual-journal purposes the initial release supports (OQ-56) |
 | Exceptions, manual match and unmatch, risk-based approval | FX conversion reconciliation and FX accounting (D-DEF-06) | Records outside gateway flows (OQ-02) |
-| Double-entry accrual ledger, Chart of Accounts, templates, journals with independent approval, periods, opening balances, cutover | Full GST calculation, returns and filing (D-DEF-04) | Integration with external accounting software (none approved; treat as out of scope unless approved) |
-| Core accounting and operational reports; CSV and XLSX exports | Cash-flow statements, budgeting, forecasting, analytics (D-DEF-07) | — |
+| The accounting foundation: double-entry accrual ledger, Chart of Accounts, templates, journals with independent approval, periods, opening balances, cutover. Posting is limited to approved, evidence-backed payment-related workflows and explicitly supported manual-journal purposes (D-PRD-08). | Full GST calculation, returns and filing (D-DEF-04) | Integration with external accounting software (none approved; treat as out of scope unless approved) |
+| Core accounting and operational reports with coverage disclosures; CSV and XLSX exports | Cash-flow statements, budgeting, forecasting, analytics (D-DEF-07) | — |
 | Five roles, managed OIDC, MFA for privileged users, tenant isolation, audit trail | Marketing landing page until the core application works end-to-end (D-DEF-01) | — |
 | Background jobs, in-app and email notifications, backups, monitoring, three environments | — | — |
 
 AI/LLM features are excluded by the engineering rule D-PRD-07. They are not one of the seed's deferred items.
+
+**Staged ledger scope (D-PRD-08, owner decision of 16 October 2026).**
+- The long-term direction is a complete business ledger. That direction does not mean the initial release supports every category of business transaction.
+- The initial release includes the approved accounting foundation and only explicitly supported posting purposes (FR-ACC-034).
+- It has no dedicated payroll, procurement, accounts-payable, accounts-receivable or expense-management modules, and no new source-ingestion modules beyond the four approved source categories (D-IMP-01). Adding any of them needs a separate approved decision (D-PRD-06).
+- The decision does not settle how cash-on-delivery orders, direct transfers or bank movements unrelated to gateways are imported, classified or reconciled; OQ-02 stays open.
+- Accounting reports disclose what they cover (FR-RPT-015).
 
 ---
 
@@ -150,6 +159,10 @@ These terms are binding for APIs, data models, UI copy and tests (checklist §2,
 | **Adjustment** | Context-dependent: a *source adjustment* (a gateway-reported component) or an *adjusting journal entry* (an accounting correction). Always qualify the word. | Mandatory (checklist §2, L27) |
 | **Journal entry** | A balanced double-entry record with a header and two or more lines. States are in §8.5. | Mandatory (D-ACC-04) |
 | **Accounting template** | A versioned rule that turns an eligible event into journal draft lines. | Mandatory (D-ACC-09) |
+| **Manual journal** | A journal draft written by a Preparer rather than generated from an event. It goes through the same validation, review, independent approval, posting, period, immutability and audit controls as every other journal. | Mandatory (D-PRD-08) |
+| **Journal purpose** | What a journal records: an event-generated purpose tied to an accounting template, a manual-journal purpose, the opening entry, or a correction. Every draft states its purpose. | Mandatory (D-PRD-08) |
+| **Supported posting purpose** | A journal purpose that may be posted: an event purpose whose template is active under an approved policy, or a manual-journal purpose on the approved list (OQ-56). Nothing else is postable. | Mandatory (D-PRD-08); the lists are Unresolved (OQ-23, OQ-24, OQ-56) |
+| **Coverage disclosure** | The part of an accounting report or export that states which period, sources and activity it covers, and which it does not. | Mandatory (D-PRD-08) |
 | **Accounting period** | A calendar month within the financial year, either Open or Closed. | Mandatory (D-ACC-13) |
 | **Cutover date** | The date the workspace's ledger starts. Opening balances represent the position at this date. | Mandatory (D-ACC-12) |
 | **Functional currency** | The single currency in which the workspace's ledger is kept. | Unresolved (OQ-19) |
@@ -309,7 +322,7 @@ Each journey names the requirements that govern it. The release-gate workflow (D
 1. Eligible events with active, approved templates produce journal drafts (FR-ACC-004, FR-ACC-007).
 2. Drafts that depend on unresolved evidence are `Blocked` (FR-ACC-008).
 3. The preparer reviews drafts, edits them if needed, and submits them for review (FR-ACC-010).
-4. The preparer can also write manual journal drafts (FR-ACC-009).
+4. The preparer can also write manual journal drafts, stating each draft's purpose (FR-ACC-009). Only drafts whose purpose is supported can be submitted for posting (FR-ACC-034).
 
 ### J8 — Approve and post (UC-07)
 1. A Controller who is not the preparer reviews each submitted draft alongside its source evidence (FR-ACC-025).
@@ -321,7 +334,7 @@ Each journey names the requirements that govern it. The release-gate workflow (D
 2. A different authorized approver posts the dedicated opening entry.
 
 ### J10 — Verify the ledger and reports; close the period (UC-09, UC-10)
-1. The Controller reviews the trial balance, P&L, balance sheet and general ledger. Each report shows its provisional or closed status (FR-RPT-001 to FR-RPT-003).
+1. The Controller reviews the trial balance, P&L, balance sheet and general ledger. Each report shows its provisional or closed status and a coverage disclosure (FR-RPT-001 to FR-RPT-003, FR-RPT-015).
 2. They run the close checklist (FR-ACC-019) and close the period (FR-ACC-020).
 3. A justified reopen requires a reason, MFA and an audit event.
 
@@ -573,6 +586,13 @@ Settlement lines belong to a payout through the settlement report's own payout r
 
 No posting rules are approved. This section specifies the mechanism and its controls only. It does **not** specify which accounts are debited or credited for any business event. Those rules need an approved accounting policy and qualified review (D-ACC-02, OQ-23, EXTERNAL REVIEW REQUIRED).
 
+**Staged scope (D-PRD-08).** The long-term direction is a complete business ledger, introduced gradually. In the initial release, only these may be posted:
+- event-generated journals under approved, evidence-backed templates;
+- explicitly supported manual journals;
+- the approved opening-balance and correction workflows (FR-ACC-034).
+
+Having manual journal entry does not make an unresolved accounting treatment supported or postable.
+
 ### 8.1 Ledger entity and currency
 
 | ID | Requirement | Label | Decisions |
@@ -591,7 +611,7 @@ No posting rules are approved. This section specifies the mechanism and its cont
 
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
-| FR-ACC-004 | An accounting template maps one eligible event type to journal-line patterns (account, debit or credit side, amount source field, description). Templates are versioned, and activation is recorded. Each draft references the template version that produced it. No template is active until its content is approved (OQ-23). | Mandatory (mechanism); Unresolved (content) | D-ACC-09, D-ACC-10, OQ-23 |
+| FR-ACC-004 | An accounting template maps one eligible event type to journal-line patterns (account, debit or credit side, amount source field, description). Templates are versioned, and activation is recorded. Each draft references the template version that produced it. No template is active until its content is approved (OQ-23). The long-term full-ledger direction (D-PRD-08) does not relax this: an event type with no active, approved template produces no postable draft. | Mandatory (mechanism); Unresolved (content) | D-ACC-09, D-ACC-10, D-PRD-08, OQ-23 |
 | FR-ACC-005 | Activating a template fails unless validation shows that it produces balanced lines for every valid event of its type and uses only active, postable accounts. Events that are ambiguous or not covered by an active template go to review. | Mandatory | D-ACC-10 |
 | FR-ACC-027 | Drafting, activating and retiring templates are treated as sensitive financial settings, so MFA is required; approval follows OQ-31. | INFERENCE (templates are "sensitive financial settings" under D-SEC-08); Unresolved (approval, OQ-31) | D-SEC-08, OQ-31 |
 
@@ -606,11 +626,12 @@ No posting rules are approved. This section specifies the mechanism and its cont
 | ID | Requirement | Label | Decisions |
 |---|---|---|---|
 | FR-ACC-007 | Drafting from events is idempotent: each event has at most one active draft per template purpose. Regeneration replaces only drafts that are still in `Draft` state and that no person has edited; their history is kept. A submitted or edited draft is never replaced; it is flagged "Needs re-review" instead. | Mandatory (idempotency, derived from D-IMP-07); Recommended (regeneration rule) | D-IMP-07, D-ACC-02, D-REC-18, AF-113 |
-| FR-ACC-008 | A draft that depends on an open exception, an incomplete settlement group, a conflicting observation, a `Pending approval` item or a cross-currency item is `Blocked`. It cannot be submitted or posted until the dependency clears. | Mandatory | D-ACC-06 |
-| FR-ACC-009 | Preparers can create manual journal drafts that are not generated from events. These drafts follow the same review, approval and posting controls. | INFERENCE (from "prepares journal drafts", D-SEC-01); Unresolved (scope, OQ-01) | D-SEC-01, OQ-01 |
+| FR-ACC-008 | A draft is `Blocked` if it depends on an open exception, an incomplete settlement group, a conflicting observation, a `Pending approval` item or a cross-currency item, or if its purpose is not supported (FR-ACC-034). It cannot be submitted or posted until the dependency clears. | Mandatory | D-ACC-06, D-PRD-08 |
+| FR-ACC-009 | **Manual journals.** Preparers can create manual journal drafts that are not generated from events, and must state each draft's purpose. Manual drafts go through the same controls as every other journal: balance validation (FR-ACC-011, FR-ACC-012), review and independent approval (FR-ACC-010, FR-WSP-010), atomic posting (FR-ACC-014), accounting periods (FR-ACC-018), immutability and correction (FR-ACC-013), and audit (NFR-DAT-004). A manual draft can be posted only when its purpose is supported (FR-ACC-034). Having manual journal entry never makes an unresolved accounting treatment supported or postable. | Mandatory (D-PRD-08); Unresolved (supported purposes, OQ-56) | D-PRD-08, D-ACC-04 to D-ACC-07, D-SEC-01, OQ-56 |
+| FR-ACC-034 | **Supported posting purposes.** A draft can be submitted for posting only when its purpose is one of:<br>(a) an event-generated purpose whose template version is active under an approved policy (FR-ACC-004; OQ-23, OQ-24);<br>(b) a manual-journal purpose on the approved list (OQ-56);<br>(c) the approved opening-balance workflow (FR-ACC-016) or a correction of a posted entry (FR-ACC-013). Counting (c) as supported is an INFERENCE pending OQ-56.<br>No default or catch-all purpose (such as "other" or a suspense purpose) makes an unsupported or ambiguous case postable. A draft with an unsupported purpose stays `Blocked`, shows the reason "purpose not supported", and is listed as unaccounted activity (FR-ACC-030, FR-RPT-015). | Mandatory (D-PRD-08); INFERENCE (item c); Unresolved (lists, OQ-23, OQ-24, OQ-56) | D-PRD-08, D-ACC-06, D-ACC-10, OQ-56 |
 | FR-ACC-010 | Journal states:<br>• `Draft` → `Submitted` (in review) → `Posted`;<br>• `Submitted` → `Draft` (returned with a reason);<br>• `Draft` → `Discarded` (kept for history, never posted);<br>• `Blocked` overlays `Draft`.<br>Recommended: approving and posting happen in one atomic action. Recommended: discarding a draft generated from an event requires a reason and approval by a different user, because discarding removes that event from the ledger. | Mandatory (draft → review → authorized posting); Recommended (state names, atomic approve-and-post, discard control) | D-ACC-04, AF-103 |
 | FR-ACC-030 | Ledger completeness: the close checklist lists every eligible event in the period that has neither a posted journal nor an approved exclusion, and treats such events as a critical item. | Recommended (supports D-ACC-14 and D-REL-01 item 2) | D-ACC-14, AF-103 |
-| FR-ACC-011 | Posting succeeds only if **all** of these hold:<br>• total debits equal total credits exactly;<br>• there are at least two lines;<br>• each line has one positive amount on exactly one side;<br>• every line records its currency; whether all lines must use the functional currency is Unresolved (OQ-19, FR-ACC-001);<br>• all accounts are active and postable;<br>• the accounting date is in an open period;<br>• the date, description and supporting links are present;<br>• the entry is not `Blocked`;<br>• the approver holds Controller/Approver, is not the preparer (FR-WSP-010) and meets MFA and freshness requirements (NFR-SEC-003, NFR-SEC-004). | Mandatory | D-ACC-05, D-ACC-06, D-SEC-08 |
+| FR-ACC-011 | Posting succeeds only if **all** of these hold:<br>• total debits equal total credits exactly;<br>• there are at least two lines;<br>• each line has one positive amount on exactly one side;<br>• every line records its currency; whether all lines must use the functional currency is Unresolved (OQ-19, FR-ACC-001);<br>• all accounts are active and postable;<br>• the accounting date is in an open period;<br>• the date, description and supporting links are present;<br>• the entry is not `Blocked`;<br>• the entry's purpose is supported (FR-ACC-034);<br>• the approver holds Controller/Approver, is not the preparer (FR-WSP-010) and meets MFA and freshness requirements (NFR-SEC-003, NFR-SEC-004). | Mandatory | D-ACC-05, D-ACC-06, D-SEC-08, D-PRD-08 |
 | FR-ACC-012 | The system never adds a balancing or suspense line automatically to make an entry balance. | Mandatory | D-ACC-06 |
 | FR-ACC-014 | Posting is atomic and idempotent. Repeated or concurrent approval requests post an entry exactly once. | Mandatory (derived from D-IMP-07 and checklist §3, L47) | D-IMP-07 |
 | FR-ACC-015 | Posted entries receive a sequence number per workspace and financial year. Whether it must be gap-free is pending OQ-28. | Unresolved | OQ-28 |
@@ -665,7 +686,8 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | Chargeback, chargeback reversal, dispute outcome | Which accounts while the dispute is open, won or lost? | OQ-23 |
 | Reserves or holds reported by gateways (if present in samples) | Recognition and release | OQ-07, OQ-23 |
 | Accepted differences (write-offs) | Which account, and what approval? | OQ-15 |
-| Bank movements unrelated to gateways | Recorded in ClearSettle at all? | OQ-01, OQ-02 |
+| Bank movements unrelated to gateways | Whether and how they are imported, classified and recorded. Any manual-journal purpose for them needs approval. | OQ-02, OQ-56 |
+| Manual-journal purposes in the initial release | Which purposes are supported, with which permitted accounts and treatment? | OQ-56 |
 | Transactions straddling the cutover | Treatment against opening balances | OQ-25 |
 | Cross-currency settlements | Treatment until FX accounting is approved | OQ-19 |
 | Corrections to closed periods; late events dated in closed periods | Prior-period or current-period treatment | OQ-26 |
@@ -682,7 +704,7 @@ Each scenario below needs an explicit accounting policy before templates can be 
 |---|---|---|---|
 | FR-RPT-001 | The trial balance (as of a date) is computed from posted entries only and shows that total debits equal total credits. | Mandatory | D-RPT-01 |
 | FR-RPT-002 | The profit and loss (for a period), balance sheet (as of a date), general ledger (by account and period) and journal-entry report (filterable, with links to evidence) are computed from posted entries only. | Mandatory | D-RPT-01 |
-| FR-RPT-003 | Every accounting report shows the status of the periods it covers (`Open` or `Closed`), the number of unposted drafts and open high-risk exceptions in range, and any `Partially imported` inputs. A report that covers an open period, or that has open critical close items, is labelled "Provisional" and never presented as final or verified. A closed period's reports also show any "Correction required" item raised against that period after it closed, and any reopening of an earlier period (FR-ACC-031). | Mandatory (distinguish draft from final; no implied verification); Recommended (wording, post-close flags) | D-RPT-01, AF-107 |
+| FR-RPT-003 | Every accounting report shows the status of the periods it covers (`Open` or `Closed`), the number of unposted drafts and open high-risk exceptions in range, and any `Partially imported` inputs. A report that covers an open period, or that has open critical close items, is labelled "Provisional" and never presented as final or verified. A closed period's reports also show any "Correction required" item raised against that period after it closed, and any reopening of an earlier period (FR-ACC-031). Every accounting statement carries the coverage disclosure in FR-RPT-015. A statement is never presented as complete for the business's whole activity just because the ledger balances. | Mandatory (distinguish draft from final; no implied verification; coverage disclosure, D-PRD-08); Recommended (wording, post-close flags) | D-RPT-01, D-PRD-08, AF-107 |
 | FR-RPT-004 | Financial statements are labelled as management reports, with no claim of statutory format or compliance. | Unresolved (OQ-32); recommended default | OQ-32 |
 | FR-RPT-005 | The reconciliation summary for each run and stage shows counts and amounts per outcome (matched, candidate, discrepancy, awaiting settlement, unmatched, outside scope). Amounts are kept separate by currency. | Mandatory | D-RPT-02, D-FIN-05 |
 | FR-RPT-006 | The unmatched-transaction report can be filtered by link, age, amount and currency. | Mandatory | D-RPT-02 |
@@ -692,7 +714,8 @@ Each scenario below needs an explicit accounting policy before templates can be 
 | FR-RPT-010 | Exports come in CSV and XLSX, use the same filters, permissions and underlying data as the on-screen report, and run as background jobs when large. Export files are stored privately, downloaded through short-lived links and expire. Exporting financial data is audited (Recommended). | Mandatory (formats, permissions, same data); Recommended (audit, expiry) | D-RPT-02, D-RPT-03, D-SEC-04 |
 | FR-RPT-011 | Generating a report or export never modifies any record. | Mandatory | D-RPT-04 |
 | FR-RPT-012 | In CSV and XLSX exports and error reports, every text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is neutralized so a spreadsheet cannot run it as a formula. Amount fields are typed as amounts in the export schema and written from their exact decimal value, without a prefix: in XLSX as numeric cells, in CSV as plain decimal text such as `-250.00`. | Recommended (security control; promotion to Mandatory recommended) | AF-66, AF-130 |
-| FR-RPT-013 | Every report and export header states the workspace, parameters, generation time (UTC and workspace time zone), data cut-off, relevant run IDs and warnings about incomplete data. | Recommended (derived from reproducibility, checklist §3, L53) | Checklist §3 |
+| FR-RPT-013 | Every report and export header states the workspace, parameters, generation time (UTC and workspace time zone), data cut-off, relevant run IDs and warnings about incomplete data. Exports of accounting statements and ledger reports also carry the FR-RPT-015 coverage disclosure, so it travels with the data. In CSV it is a clearly marked header block; in XLSX, a header block or a dedicated sheet. | Mandatory (coverage disclosure on accounting exports, D-PRD-08); Recommended (other header fields, derived from reproducibility, checklist §3, L53; export layout) | D-PRD-08, D-RPT-01, checklist §3 |
+| FR-RPT-015 | **Coverage disclosure.** Every accounting statement (trial balance, profit and loss, balance sheet, general ledger, journal-entry report) and its export states, as applicable:<br>• the covered period or as-of date;<br>• which source categories and source accounts have data in that range, which have none, and the data cut-off for each;<br>• any `Partially imported` inputs;<br>• which posting purposes were supported in the period (FR-ACC-034);<br>• known exclusions, meaning activity not recorded under a supported purpose: events awaiting an approved rule, drafts blocked as "purpose not supported", records classified outside gateway reconciliation (OQ-02), cross-currency items without journals;<br>• counts of unposted, submitted and blocked drafts in range;<br>• open critical close items, high-risk exceptions and "Correction required" items.<br>A statement is described as complete for the business's whole activity only when that activity has been captured, recorded under approved policies and validated. The criteria for that are not yet defined (OQ-56, OQ-32), so the initial release makes no such claim. Whether the statements count as management or statutory reports stays unresolved (OQ-32) and still needs professional review. | Mandatory (D-PRD-08); Mandatory (derived: no completeness claim in the initial release); Unresolved (OQ-32, OQ-56) | D-PRD-08, D-RPT-01, OQ-02, OQ-32, OQ-56 |
 | FR-RPT-014 | No total adds amounts in different currencies. | Mandatory (derived from D-FIN-05 and D-FIN-06) | D-FIN-05, D-FIN-06 |
 
 ---
@@ -973,6 +996,15 @@ These cover high-risk requirements that previously had no acceptance criterion (
 | AC-144 | An XLSX file contains a document type declaration with an external entity. | The file is rejected or parsed without resolving the entity; nothing is fetched. | FR-IMP-030 |
 | AC-145 | A user exceeds the rate limit for workspace creation, or for sending invitations. | Requests over the limit are rejected. | NFR-SEC-010 |
 
+*Staged ledger scope (D-PRD-08, added 16 October 2026)*
+
+| ID | Given / when | Then | Covers |
+|---|---|---|---|
+| AC-148 | Eligible settlement events arrive for an event type with no active, approved template version. Separately, a user tries to submit or post a draft for that event type. | No postable draft is generated. The events appear in the completeness list as awaiting an approved rule. Any draft for that event type is `Blocked` with reason "purpose not supported", and submitting or posting it is rejected for every role, Controllers included. | FR-ACC-004, FR-ACC-034, FR-ACC-030 |
+| AC-149 | A Preparer writes a manual journal draft. (U: OQ-56 for which purposes are supported) | Unbalanced: it cannot be submitted. Purpose not on the supported list: it stays `Blocked` and cannot be posted by anyone. Supported purpose and balanced: the Preparer cannot approve it through the UI, the API or a replayed request; a different Controller who meets the MFA requirement approves it and it posts exactly once into an open period. After posting it cannot be edited, only reversed through the approved correction workflow, and each step appears in the audit history. | FR-ACC-009, FR-ACC-034, FR-ACC-011, FR-WSP-010, FR-ACC-013 |
+| AC-150 | For one period, gateway transactions and settlement reports are imported but no bank statement; one import is `Partially imported`; two manual drafts are unposted; no manual-journal purpose beyond corrections is supported. The trial balance, profit and loss and balance sheet are generated and exported to CSV and XLSX. | Each report and each export shows: the covered period; the source categories and accounts present and absent, with data cut-offs; the partial import; the supported posting purposes; the count of unposted drafts; the known exclusions; open critical items. No report or export states or implies that it covers the business's whole activity. | FR-RPT-003, FR-RPT-013, FR-RPT-015 |
+| AC-151 | A period contains bank transactions classified outside gateway reconciliation, drafts blocked as "purpose not supported" and cross-currency items without journals. The period-close checklist and accounting reports are produced. (U: OQ-02 classification; criticality per FR-ACC-019) | These items are listed as not accounted for, with counts and amounts per currency. None is shown as reconciled or recorded. Closing the period requires them to be cleared or acknowledged with a rationale. | FR-ACC-030, FR-ACC-034, FR-ACC-019, FR-RPT-015 |
+
 ### 12.2 Nonfunctional requirements without a section above
 
 | ID | Requirement | Label | Decisions |
@@ -1007,7 +1039,7 @@ These cover high-risk requirements that previously had no acceptance criterion (
 
 **Traceability rule:** every Mandatory requirement maps to at least one acceptance criterion or test, and every test names the requirement it covers.
 
-**Coverage status (16 October 2026):** 117 of the 173 requirements with a Mandatory part are named by at least one acceptance criterion in §12.1. The other 56 are mostly operational, UX, structural and reporting requirements: environments, CI, migrations, health checks, observability, formatting and UI states, report contents, and exception record fields. Each of them must be mapped to a named test, configuration review or operational exercise in the implementation status document before its milestone exits. The list is in audit finding AF-117. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
+**Coverage status (16 October 2026, after D-PRD-08):** 122 of the 177 requirements with a Mandatory part are named by at least one acceptance criterion in §12.1. The other 55 are mostly operational, UX, structural and reporting requirements: environments, CI, migrations, health checks, observability, formatting and UI states, report contents, and exception record fields. Each of them must be mapped to a named test, configuration review or operational exercise in the implementation status document before its milestone exits. The list is in audit finding AF-117. The implementation status document (implementation plan §6) records the evidence for each one. A requirement is "verified" only with recorded test or exercise evidence, never because code exists (checklist §1, L22).
 
 ---
 
@@ -1028,11 +1060,11 @@ No requirement in this specification implements any of them. Adding one needs th
 
 ### 13.2 Unresolved questions
 
-All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions) (OQ-01 to OQ-55; OQ-30 is retired). These most change what gets built:
+All open questions are in [register §3](clearsettle_decision_register.md#3-open-decisions): 54 are open (OQ-02 to OQ-56; OQ-30 is retired). OQ-01, about ledger completeness, was resolved for product direction on 16 October 2026 by D-PRD-08 and is kept in register §3.5 for traceability. These open questions most change what gets built:
 
 | OQ | Topic | Needed before |
 |---|---|---|
-| OQ-01 | Ledger completeness: full general ledger or payment-flow ledger | Accounting milestone (M6) |
+| OQ-56 | Which manual-journal purposes the initial release supports, and their approved treatment | Posting manual journals beyond opening balances and corrections (M6) |
 | OQ-03 | One workspace = one accounting entity; multi-workspace users | Foundation (M1) |
 | OQ-05 | Platform operator access | Foundation design (M1) |
 | OQ-07, OQ-08 | First gateways and banks; sample files; schemas | Imports (M2) |
@@ -1048,7 +1080,7 @@ All open questions are in [register §3](clearsettle_decision_register.md#3-open
 
 | Area | What needs review | Reviewer |
 |---|---|---|
-| Accounting policy | Default Chart of Accounts; event-to-journal templates; revenue-recognition triggers; cutover, opening-balance and closed-period correction treatment; write-off policy; numbering; whether statements are management or statutory reports (OQ-15, OQ-23 to OQ-28, OQ-32) | Qualified accountant familiar with the reporting framework the target businesses use in India |
+| Accounting policy | Default Chart of Accounts; event-to-journal templates; revenue-recognition triggers; supported manual-journal purposes and their treatment; cutover, opening-balance and closed-period correction treatment; write-off policy; numbering; whether statements are management or statutory reports (OQ-15, OQ-23 to OQ-28, OQ-32, OQ-56) | Qualified accountant familiar with the reporting framework the target businesses use in India |
 | Tax | Preserving tax fields; tax ledger accounts; treatment of tax on gateway fees (OQ-33). GST compliance itself is deferred. | Qualified tax adviser |
 | Legal and privacy | Retention periods per category and jurisdiction; legal holds; offboarding and deletion, including backups; applicable data-protection law (for example India's Digital Personal Data Protection Act, 2023) and its rules; customer terms, privacy policy and data-processing terms; data-residency expectations; whether any payment-sector regulation applies to a reporting-only product (OQ-04, OQ-41, OQ-42) | Qualified Indian legal counsel |
 | Security | Session architecture; MFA enforcement; tenant isolation design; operator access; handling of card numbers if uploaded (PCI DSS questions); key management; penetration test before production (OQ-05, OQ-34, OQ-35, OQ-39, OQ-40) | Independent security reviewer |
@@ -1059,7 +1091,7 @@ This specification does not provide professional advice and makes no compliance 
 
 This specification and the documents behind it do **not** establish or claim that:
 1. ClearSettle complies with any law, regulation, accounting standard, tax rule or security standard;
-2. its financial statements are statutory financial statements, or are complete for a business's whole activity (OQ-01);
+2. its financial statements are statutory financial statements (OQ-32), or are complete for a business's whole activity. The full-ledger direction is staged (D-PRD-08), and in the initial release the statements disclose their coverage (FR-RPT-015) rather than claim completeness;
 3. a 50 MB or 250,000-row file will be processed within any particular time, or at all, on a particular deployment, before load testing (D-IMP-09);
 4. recovery within RPO ≤ 1 hour and RTO ≤ 4 hours is guaranteed to customers; these are internal engineering targets (D-OPS-06);
 5. the audit trail is tamper-proof or immutable beyond the application-level controls described (D-DAT-02);
