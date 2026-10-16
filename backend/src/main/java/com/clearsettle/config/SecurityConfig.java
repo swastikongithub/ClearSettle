@@ -71,6 +71,8 @@ public class SecurityConfig {
 				.requestMatchers("/actuator/health", "/error").permitAll()
 				.anyRequest().authenticated())
 			.oauth2Login(o -> o
+				// F-3: retain no access/refresh tokens (the app never calls resource servers with them).
+				.authorizedClientRepository(authorizedClientRepository())
 				.authorizationEndpoint(e -> e.authorizationRequestResolver(resolver)
 						.authorizationRequestRepository(loginState))
 				.successHandler(new LoginHandlers.Success(props, users, events, oidc.appBaseUrl()))
@@ -83,6 +85,15 @@ public class SecurityConfig {
 			.addFilterAfter(new RequiredHeaderFilter(props), CsrfFilter.class)
 			.addFilterAfter(new CurrentUserFilter(users, events), AuthorizationFilter.class);
 		return http.build();
+	}
+
+	/**
+	 * F-3: no OAuth2 authorized clients (access/refresh tokens) are retained. Replaces Spring's
+	 * default, which keeps them in an unbounded in-memory map that logout does not clear.
+	 */
+	@Bean
+	org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository authorizedClientRepository() {
+		return new com.clearsettle.security.NonRetainingAuthorizedClientRepository();
 	}
 
 	/** Session cookie: __Host- prefixed, HttpOnly, Secure, host-only, Path=/, SameSite per policy (Strict). */

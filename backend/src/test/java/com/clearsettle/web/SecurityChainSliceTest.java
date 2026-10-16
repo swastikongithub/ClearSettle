@@ -99,6 +99,20 @@ class SecurityChainSliceTest {
 				.isInstanceOf(org.springframework.session.jdbc.JdbcIndexedSessionRepository.class);
 	}
 
+	@Autowired
+	org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository authorizedClients;
+
+	/**
+	 * Regression (M1 integration finding, F-3): Spring's default kept every user's access and refresh
+	 * tokens in an in-memory map (AuthenticatedPrincipalOAuth2AuthorizedClientRepository ->
+	 * InMemoryOAuth2AuthorizedClientService) that logout does not clear. ClearSettle must retain none.
+	 */
+	@Test
+	void noAccessOrRefreshTokensAreRetained() {
+		org.assertj.core.api.Assertions.assertThat(authorizedClients)
+				.isInstanceOf(com.clearsettle.security.NonRetainingAuthorizedClientRepository.class);
+	}
+
 	@Test
 	void unauthenticatedApiIsRejected() throws Exception {
 		mvc.perform(get("/api/me"))
