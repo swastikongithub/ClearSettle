@@ -16,8 +16,9 @@ spring:
     url: ${DB_URL:}
     username: ${DB_USER:}
     password: ${DB_PASSWORD:}
+  # Spring Session JDBC (spring-boot-starter-session-jdbc) stores sessions in PostgreSQL (D-SEC-11).
+  # The idle timeout is the approved 15 minutes (D-SEC-13); the absolute lifetime is enforced separately.
   session:
-    store-type: jdbc
     timeout: ${clearsettle.auth.idle-timeout-seconds:900}s
     jdbc:
       initialize-schema: never

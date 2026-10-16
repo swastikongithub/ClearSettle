@@ -31,12 +31,11 @@ spring:
     url: jdbc:h2:mem:cstest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
     username: sa
     password: ""
-  # The slice test verifies the SecurityConfig chain (CSRF, custom header, authorization), not session
-  # persistence: the distributed JDBC session store and its FindByIndexNameSessionRepository are
-  # exercised in the dev/integration stack (deploy/). Here the servlet's in-memory HttpSession is used,
-  # and a stub FindByIndexNameSessionRepository is supplied by the test.
+  # The REAL Spring Session JDBC repository is used (on H2), so a missing session-store auto-configuration
+  # fails this test. (A stub here previously masked exactly that defect; see implementation status.)
   session:
-    store-type: none
+    jdbc:
+      initialize-schema: embedded
   sql:
     init:
       mode: always

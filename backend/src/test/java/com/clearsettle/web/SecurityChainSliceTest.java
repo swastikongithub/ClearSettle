@@ -47,42 +47,6 @@ class SecurityChainSliceTest {
 		ClientRegistrationRepository clientRegistrationRepository() {
 			return new InMemoryClientRegistrationRepository(keycloakRegistration());
 		}
-
-		/** In-memory session repository so the chain wires without the JDBC session store (see profile). */
-		@Bean
-		org.springframework.session.FindByIndexNameSessionRepository<org.springframework.session.MapSession> sessions() {
-			return new StubSessions();
-		}
-	}
-
-	/** Minimal in-memory FindByIndexNameSessionRepository for the slice test only. */
-	static class StubSessions implements org.springframework.session.FindByIndexNameSessionRepository<org.springframework.session.MapSession> {
-		private final java.util.Map<String, org.springframework.session.MapSession> store = new java.util.concurrent.ConcurrentHashMap<>();
-
-		@Override
-		public org.springframework.session.MapSession createSession() {
-			return new org.springframework.session.MapSession();
-		}
-
-		@Override
-		public void save(org.springframework.session.MapSession session) {
-			store.put(session.getId(), session);
-		}
-
-		@Override
-		public org.springframework.session.MapSession findById(String id) {
-			return store.get(id);
-		}
-
-		@Override
-		public void deleteById(String id) {
-			store.remove(id);
-		}
-
-		@Override
-		public java.util.Map<String, org.springframework.session.MapSession> findByIndexNameAndIndexValue(String indexName, String indexValue) {
-			return java.util.Collections.emptyMap();
-		}
 	}
 
 	static ClientRegistration keycloakRegistration() {
@@ -119,6 +83,20 @@ class SecurityChainSliceTest {
 		return oidcLogin()
 				.clientRegistration(keycloakRegistration())
 				.idToken(t -> t.subject(SUB).issuer(ISS).claim("acr", "mfa"));
+	}
+
+	@Autowired
+	org.springframework.session.FindByIndexNameSessionRepository<?> sessionRepository;
+
+	/**
+	 * Regression (M1 integration defect): with a raw spring-session-jdbc dependency, Boot 4 created no
+	 * session repository and sessions silently fell back to in-memory servlet sessions. The server-side
+	 * session store must be the JDBC repository (D-SEC-11).
+	 */
+	@Test
+	void sessionStoreIsTheJdbcRepository() {
+		org.assertj.core.api.Assertions.assertThat(sessionRepository)
+				.isInstanceOf(org.springframework.session.jdbc.JdbcIndexedSessionRepository.class);
 	}
 
 	@Test
