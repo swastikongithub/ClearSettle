@@ -1,0 +1,45 @@
+# Slice-test profile: H2 in place of PostgreSQL, Keycloak client gated off (a stub repository is supplied
+# by the test). This exercises the REAL SecurityConfig (CSRF, cookies, filters, authorization) without
+# any external service. It does not relax the production cookie/security policy.
+clearsettle:
+  oidc:
+    enabled: false
+    app-base-url: https://app.example.test
+    login-state-secret: test-login-state-secret-value
+    keycloak:
+      issuer-uri: https://unused.example/realms/test
+      client-id: test
+      client-secret: test
+  auth:
+    idle-timeout-seconds: 900
+    absolute-lifetime-seconds: 28800
+    step-up-freshness-seconds: 300
+    clock-skew-seconds: 30
+    session-cookie-same-site: Strict
+    session-cookie-name: __Host-CSSESSION
+    csrf-cookie-name: __Host-XSRF-TOKEN
+    custom-header-name: X-CS-Request
+    require-custom-header: true
+    strong-acr-by-registration:
+      keycloak:
+        - mfa
+    step-up-acr-values:
+      keycloak: mfa
+    mfa-amr-any-of-by-registration:
+      keycloak:
+        - otp
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:cstest;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    username: sa
+    password: ""
+  # The REAL Spring Session JDBC repository is used (on H2), so a missing session-store auto-configuration
+  # fails this test. (A stub here previously masked exactly that defect; see implementation status.)
+  session:
+    jdbc:
+      initialize-schema: embedded
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:test-schema.sql
