@@ -2,7 +2,9 @@
 
 ## Current state
 
-ClearSettle is in product discovery and specification. Do not begin application implementation until the user explicitly approves it.
+ClearSettle is in product discovery and specification. **Authentication (M1) implementation is authorized** as of 16 October 2026, after the M0 authentication spike and the owner's approval of D-SEC-12 to D-SEC-15 (identity provider, session policy, MFA, SameSite). Implementation of other areas is not yet authorized; do not begin them until the owner explicitly approves each.
+
+The authentication implementation lives under `backend/` (Spring Boot OIDC + sessions), `frontend/` (Next.js, client-rendered, same origin), and `deploy/` (local development stack). Its architecture decisions are recorded as ADRs in `product/adr/` and in the decision register. Progress is tracked in `product/clearsettle_implementation_status.md`.
 
 ## Product sources
 
@@ -23,7 +25,7 @@ ClearSettle is in product discovery and specification. Do not begin application 
 - Product scope and user roles — now covered by the product specification §1–§2 (pending owner review)
 - Reconciliation workflows and financial rules — specification §5–§8; detailed accounting policy still open
 - Supported file formats and import validation — specification §4; provider formats still open (OQ-07, OQ-08)
-- Architecture decisions and data model — authentication session architecture approved as D-SEC-11 (decision register); other architecture decisions and the data model still to develop
+- Architecture decisions and data model — authentication session architecture approved as D-SEC-11, with the identity provider (D-SEC-12), session policy (D-SEC-13), MFA (D-SEC-14) and SameSite strategy (D-SEC-15) approved 16 October 2026 and captured as ADRs in `product/adr/`; other architecture decisions and the data model still to develop
 - API contracts
 - UI specification (marketing site, authentication, and application separately)
 - Test and verification plan — outline in specification §12.3
