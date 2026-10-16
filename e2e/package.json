@@ -1,0 +1,12 @@
+{
+  "name": "clearsettle-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end authentication/security validation against the local dev stack (deploy/). Synthetic identities only.",
+  "scripts": {
+    "e2e": "node run.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.64.1"
+  }
+}
