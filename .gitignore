@@ -13,6 +13,13 @@ frontend/out/
 *.env
 !*.env.example
 deploy/.env
+# Raw e2e run output (sanitized summaries are recorded in docs/product/clearsettle_implementation_status.md)
+e2e/results/
+
+# Locally generated dev TLS material (private keys must never be committed)
+deploy/nginx/certs/
+*.key
+*.pem
 
 # Local tooling
 .idea/
