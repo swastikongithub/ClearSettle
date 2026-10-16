@@ -8,37 +8,43 @@ status changes in the same commit as the work it describes.
 
 **Last updated:** 2026-10-16.
 
+## Backend test suite (executed 2026-10-16 — 34 tests, all passing)
+
+Run in the Maven docker image (`mvn test`): `AuthPropertiesTest` (4), `FreshAuthEvaluatorTest` (9),
+`CookieSerializerTest` (1), `AbsoluteTimeoutFilterTest` (4), `RequiredHeaderFilterTest` (4),
+`LoginStateCookieRepositoryTest` (5), `LoginSuccessMfaGateTest` (2), `SecurityChainSliceTest` (5). The
+slice test loads the real `SecurityConfig` against H2 (no Keycloak/PostgreSQL needed).
+
 ## M1 authentication requirements
 
-| Requirement | Milestone | Status | Evidence | Decision deps | Notes (last updated 2026-10-16) |
+Status values per the plan §6. `Verified` = recorded automated test evidence here; `Implemented` = code
+present, verification requires the live stack (integration, see `deploy/`); `Outstanding` = not yet built.
+
+| Requirement | Milestone | Status | Evidence | Decision deps | Notes (2026-10-16) |
 |---|---|---|---|---|---|
-| AC-157 (OIDC/PKCE, state, token validation) | M1 | Not started | — (M0 spike O-01, O-02…O-16, C-PKCE-* demonstrated the design, not product code) | D-SEC-12 | To implement in backend OIDC config + tests |
-| AC-158 (exact redirect URI; manipulation rejected) | M1 | Not started | — (M0 C-REDIR-01/02) | D-SEC-12 | Keycloak client config + negative test |
-| AC-159 (session+CSRF cookie attributes; no token in storage) | M1 | Not started | — (M0 S-01/S-02) | D-SEC-15 | V3 cookies + storage assertion |
-| AC-160 (CSRF missing/forged/cross-session/no-header; safe methods) | M1 | Not started | — (M0 X-01…X-08) | D-SEC-15 | CSRF filter + custom header + tests |
-| AC-161 (cross-site form + fetch CSRF) | M1 | Not started | — (M0 X-06/X-07) | D-SEC-15 | Negative tests |
-| AC-162 (session id rotation; logout; idle+absolute expiry) | M1 | Not started | — (M0 L-02, T-01, T-02) | D-SEC-13 | Session config + absolute filter + tests |
-| AC-163 (sign-out everywhere; removal from workspaces) | M1 | Not started | — (M0 L-03, L-06) | D-SEC-13 | Shared store + global logout |
-| AC-164 (step-up; different person; single-use) | M1 | Not started | — (M0 U-01/U-02/U-03) | D-SEC-14 | Step-up flow + tests |
-| AC-165 (weak/old/missing claims fail closed) | M1 | Not started | — (M0 U-04) | D-SEC-14 | Fail-closed evidence check |
-| AC-166 (same-origin client-rendered frontend; no secrets in bundle) | M1 | Not started | — (M0 N-01/N-02) | D-SEC-11 | Next.js static export + proxy |
-| AC-168 (security events w/ correlation id; no secrets in logs) | M1 | Not started | — (M0 G-01/G-02) | D-SEC-11 | Security events + F-1 log redaction |
-| NFR-SEC-001 (provider token validation) | M1 | Not started | — | D-SEC-12 | Spring Security OIDC |
-| NFR-SEC-020 (same-origin; no tokens in browser) | M1 | Not started | — | D-SEC-11 | |
-| NFR-SEC-021 (session lifecycle) | M1 | Not started | — | D-SEC-13 | |
-| NFR-SEC-022 (CSRF tokens + custom header; no state change via GET) | M1 | Not started | — | D-SEC-15 | |
-| NFR-SEC-024 (fresh-auth evidence) | M1 | Not started | — | D-SEC-14 | |
-| NFR-SEC-025 / NFR-SEC-026 (security events; no secrets in logs) | M1 | Not started | — | D-SEC-11 | F-1 mitigation across all intermediaries |
+| AC-157 (OIDC/PKCE, state, token validation) | M1 | Implemented | code: `ClientRegistrationConfig` (PKCE requireProofKey), Spring Security OIDC validation | D-SEC-12 | End-to-end verification against live Keycloak is Outstanding (deploy/ step 1–2) |
+| AC-158 (exact redirect URI) | M1 | Implemented | code: fixed exact `redirectUri` in `ClientRegistrationConfig`; dev realm exact `redirectUris` | D-SEC-12 | Live rejection test Outstanding (deploy/ step 3) |
+| AC-159 (cookie attributes; no token in storage) | M1 | **Verified** (cookie attrs) / Implemented (storage) | `CookieSerializerTest`, `LoginStateCookieRepositoryTest`; frontend `lib/api.js` reads no token | D-SEC-15 | Runtime no-secrets-in-storage check Outstanding |
+| AC-160 (CSRF missing/forged/no-header; safe methods) | M1 | **Verified** | `SecurityChainSliceTest`, `RequiredHeaderFilterTest` (missing token → CSRF-layer reject; token+no-header → 403 custom_header_missing; GET safe) | D-SEC-15 | Forged/cross-session token variants via integration Outstanding |
+| AC-161 (cross-site form + fetch CSRF) | M1 | Implemented | CSRF controls in place | D-SEC-15 | Browser-level verification Outstanding (deploy/ step 8) |
+| AC-162 (session rotation; logout; idle+absolute) | M1 | **Verified** (absolute) / Implemented | `AbsoluteTimeoutFilterTest` (absolute, not extended by activity); `changeSessionId`, logout handler in `SecurityConfig` | D-SEC-13 | Idle at 15 min + logout e2e Outstanding (deploy/ step 6–7) |
+| AC-163 (sign-out everywhere; removal) | M1 | Implemented | `AuthController.logoutEverywhere`, `CurrentUserFilter` (per-request DB re-check) | D-SEC-13 | Cross-instance + removal e2e Outstanding |
+| AC-164 (step-up; different person; single-use) | M1 | Implemented | `StepUpService` (single-use claim), resolver, `LoginHandlers.Success` same-user binding | D-SEC-14 | e2e against Keycloak Outstanding (deploy/ step 5) |
+| AC-165 (weak/old/missing claims fail closed) | M1 | **Verified** (logic) | `FreshAuthEvaluatorTest` (9 cases) | D-SEC-14 | e2e with mock/real IdP Outstanding |
+| AC-166 (same-origin client-rendered frontend; no secrets) | M1 | Implemented | `frontend/` static export (`output: export`); `deploy/nginx` single origin | D-SEC-11 | Build + bundle secret-scan Outstanding |
+| AC-168 (security events; no secrets in logs; F-1) | M1 | Implemented | `SecurityEvents` + correlation-id filter; `deploy/nginx` callback redaction | D-SEC-11 | F-1 regression run Outstanding (deploy/ step 9) |
+| NFR-SEC-022 (CSRF token + custom header; no state via GET) | M1 | **Verified** | `SecurityChainSliceTest`, `RequiredHeaderFilterTest` | D-SEC-15 | |
+| D-SEC-14 universal MFA gate at login | M1 | **Verified** (gate) | `LoginSuccessMfaGateTest` (non-MFA login refused, no provisioning; MFA login proceeds), `AuthPropertiesTest` | D-SEC-14 | e2e with MFA-requiring Keycloak Outstanding |
 
 ## Finding → control mapping (from the M0 spike)
 
 | Finding | Control in M1 | Status |
 |---|---|---|
-| F-1 authorization-code log leakage | Query-redacted logging on the callback across every logging intermediary; synthetic-marker regression test | Not started |
-| F-2 SameSite × callback | V3: Lax `__Host-CSLOGIN` login-state cookie (ADR-0004) | Not started |
-| F-3 ID-token at rest | Examine real Spring Security session contents; avoid access/refresh at rest; minimize claims; document retention | Not started |
-| F-4 CSRF / cookie-tossing | `__Host-` CSRF cookie + required custom header + token; negative tests on JSON and no-body endpoints proving the CSRF layer rejects | Not started |
-| F-5 cross-browser | Firefox + Chromium tests retained; Safari/WebKit + mobile = explicit gap | Not started |
+| F-1 authorization-code log leakage | Callback query-redacted logging (`deploy/nginx/nginx.conf` `auth_redacted`); regression script `deploy/f1-logging-regression.sh` | Implemented; regression run Outstanding (needs stack) |
+| F-2 SameSite × callback | V3 Lax `__Host-CSLOGIN` login cookie (`LoginStateCookieRepository`) | **Verified** (cookie round-trip/attrs: `LoginStateCookieRepositoryTest`); Strict-callback e2e Outstanding |
+| F-3 ID-token at rest | No access/refresh token requested; only the ID token is in the principal; retention bounded by idle+absolute | Implemented; real session-store inspection Outstanding |
+| F-4 CSRF / cookie-tossing | `__Host-` CSRF cookie + required custom header + token (both mandatory) | **Verified** (CSRF-layer rejection, not content-type: `SecurityChainSliceTest`); same-site cookie-toss e2e Outstanding |
+| F-5 cross-browser | Server-side controls do not depend on SameSite | Firefox+Chromium + Safari/mobile e2e Outstanding |
 
 ## Decision formalization (increment 1)
 

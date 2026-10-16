@@ -1,0 +1,21 @@
+# Build output
+backend/target/
+**/target/
+*.class
+
+# Node / frontend
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Secrets and local environment — never commit real secrets (D-PRC-04, NFR-SEC-025)
+.env
+*.env
+!*.env.example
+deploy/.env
+
+# Local tooling
+.idea/
+*.iml
+.vscode/
+*.log

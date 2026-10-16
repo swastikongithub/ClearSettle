@@ -1,0 +1,16 @@
+{
+  "name": "clearsettle-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClearSettle client-rendered frontend (same-origin with the Spring Boot backend, D-SEC-11).",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "16.4.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  }
+}

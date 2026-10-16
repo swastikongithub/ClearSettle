@@ -1,0 +1,75 @@
+{
+  "realm": "clearsettle",
+  "enabled": true,
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "comment": "LOCAL DEVELOPMENT realm. Requires MFA for every user (universal MFA, D-SEC-14). Not a production realm. Requires live validation against Keycloak as part of M1 integration testing. The client secret is substituted from the CS_CLIENT_SECRET environment variable; if your Keycloak build does not substitute it, set the secret in the admin console after import.",
+  "attributes": { "acr.loa.map": "{\"pwd\":1,\"mfa\":2}" },
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "requiredActions": [
+    { "alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": true, "priority": 10 }
+  ],
+  "browserFlow": "clearsettle-browser",
+  "authenticationFlows": [
+    {
+      "alias": "clearsettle-browser",
+      "description": "Dev browser flow: username/password then required OTP, with LoA assignment so acr=mfa.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticator": "auth-cookie", "requirement": "ALTERNATIVE", "priority": 10, "authenticatorFlow": false, "userSetupAllowed": false },
+        { "flowAlias": "clearsettle-forms", "requirement": "ALTERNATIVE", "priority": 20, "authenticatorFlow": true, "userSetupAllowed": false }
+      ]
+    },
+    {
+      "alias": "clearsettle-forms",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "flowAlias": "clearsettle-mfa", "requirement": "CONDITIONAL", "priority": 10, "authenticatorFlow": true, "userSetupAllowed": false }
+      ]
+    },
+    {
+      "alias": "clearsettle-mfa",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        { "authenticatorConfig": "cs-loa2", "authenticator": "conditional-level-of-authentication", "requirement": "REQUIRED", "priority": 10, "authenticatorFlow": false, "userSetupAllowed": false },
+        { "authenticator": "auth-username-password-form", "requirement": "REQUIRED", "priority": 20, "authenticatorFlow": false, "userSetupAllowed": false },
+        { "authenticator": "auth-otp-form", "requirement": "REQUIRED", "priority": 30, "authenticatorFlow": false, "userSetupAllowed": false }
+      ]
+    }
+  ],
+  "authenticatorConfig": [
+    { "alias": "cs-loa2", "config": { "loa-condition-level": "2", "loa-max-age": "0" } }
+  ],
+  "clients": [
+    {
+      "clientId": "clearsettle-web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CS_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "redirectUris": ["https://localhost:8443/login/oauth2/code/keycloak"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://localhost:8443/",
+        "backchannel.logout.session.required": "true"
+      }
+    }
+  ]
+}

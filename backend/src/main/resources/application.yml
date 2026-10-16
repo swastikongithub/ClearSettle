@@ -1,0 +1,51 @@
+# ClearSettle backend — base configuration.
+# Secrets and environment-specific values come from the environment, never from source control.
+# Local development configuration is in application-dev.yml and the deploy/ stack; it must not weaken
+# the production cookie/security defaults encoded here and in AuthProperties.
+server:
+  port: 8080
+  forward-headers-strategy: native
+  error:
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: clearsettle-backend
+  datasource:
+    url: ${DB_URL:}
+    username: ${DB_USER:}
+    password: ${DB_PASSWORD:}
+  session:
+    store-type: jdbc
+    timeout: ${clearsettle.auth.idle-timeout-seconds:900}s
+    jdbc:
+      initialize-schema: never
+  sql:
+    init:
+      mode: never
+
+# Owner-approved authentication policy (D-SEC-12..15). Values are overridable via the environment but
+# production must not weaken them. Idle 15 min; absolute 8 h; step-up freshness 5 min (proposed default).
+clearsettle:
+  auth:
+    idle-timeout-seconds: 900
+    absolute-lifetime-seconds: 28800
+    step-up-freshness-seconds: 300
+    clock-skew-seconds: 30
+    session-cookie-same-site: Strict
+    session-cookie-name: __Host-CSSESSION
+    csrf-cookie-name: __Host-XSRF-TOKEN
+    custom-header-name: X-CS-Request
+    require-custom-header: true
+    strong-acr-by-registration:
+      keycloak:
+        - mfa
+    step-up-acr-values:
+      keycloak: mfa
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
