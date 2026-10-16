@@ -58,10 +58,41 @@ including same-site cookie-tossing rejected by the CSRF layer, not by content-ty
 ## Outstanding acceptance criteria (mandatory)
 
 - Re-verify V3 cookie attributes, callback completion, and CSRF (incl. cookie-tossing on a no-body
-  endpoint) in the product.
+  endpoint) in the product. **Verified in M1** (C-01…C-05, E-01…E-10, K-01; Chromium and Firefox; CSRF and
+  callback also in Playwright WebKit).
 - **Safari/WebKit and mobile browsers remain unverified** (spike tested Firefox + Chromium only). This is
-  an explicit validation gap until tested; do not claim those environments pass.
-- Decide and implement the external-deep-link re-entry UX under `SameSite=Strict`.
+  an explicit validation gap until tested; do not claim those environments pass. **M1:** Playwright's
+  WebKit engine was tested (see the notes below); real Safari and iOS/Android browsers remain
+  **unverified**.
+- Decide and implement the external-deep-link re-entry UX under `SameSite=Strict`. **OUTSTANDING.**
+
+## Implementation notes from M1 integration testing (2026-10-16)
+
+- **Step-up under `SameSite=Strict` (new finding, not covered by the M0 spike).** The step-up callback is
+  also a cross-site navigation, so the Strict session cookie is not sent and the callback runs in a new
+  session. Without handling, a step-up (a) reset the 8-hour absolute anchor, (b) left the originating
+  session alive, and (c) on a different-person mismatch failed to end the victim's session. Fix: the
+  step-up resolver writes a random nonce into the originating session and the encrypted `__Host-CSLOGIN`
+  state; the callback finds the originating session by user + nonce, carries over its absolute anchor,
+  and retires it (mismatch: ends it). A missing originating session fails closed (`session_expired`).
+- **Browsers that do not enforce SameSite (new finding).** Playwright's WebKit build on Windows implements
+  no SameSite at all: it stores a server-set `Strict` cookie as `None` and sends it on every cross-site
+  navigation (link, 302, POST→302, form POST), while Chromium and Firefox withhold it on all of them
+  (reproducible: `e2e/engine-samesite-probe.mjs`). In such a browser the step-up callback runs *inside*
+  the originating session, whose id Spring has already rotated while its stored record still carries the
+  old id. Two defects followed and are fixed with regression tests: an id-based guard deleted the live
+  session on a successful step-up, and on a refused step-up the invalidation addressed the rotated id so
+  the stored session survived. The originating session is now always addressed by the id its stored
+  record was found under (user + nonce), and **every refused step-up ends the originating session** (the
+  refusal response clears the browser's session cookie in either path, so nothing may linger server-side).
+- CSRF holds without SameSite: in that engine every forged/cross-site/cookie-tossing request (E-01…E-10)
+  is still rejected by the CSRF layer, with the victim's cookies attached. This is the live evidence that
+  SameSite is defense-in-depth here, not the CSRF control.
+- A cross-site rejected request can cause the CSRF cookie to be re-issued (harmless: the value is never
+  readable cross-site, and the SPA reads the current cookie at request time).
+- **Still unverified:** real Safari (macOS) and iOS/Android browsers. Playwright WebKit is an engine proxy,
+  not Safari: Safari's SameSite and ITP behaviour are not reproduced by it, and device emulation only
+  changes viewport, user agent and touch.
 
 ## Assumptions / limitations
 

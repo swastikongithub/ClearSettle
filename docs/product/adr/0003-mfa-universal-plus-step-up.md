@@ -60,10 +60,32 @@ is therefore an **outstanding** implementation-and-test obligation, not an estab
 ## Outstanding acceptance criteria (mandatory)
 
 - Test that a user **without** satisfied MFA **cannot** obtain an application session (universal
-  enforcement). **OUTSTANDING.**
+  enforcement). **Verified in M1** (live: B-01, B-04, B-05, B-06; unit: `LoginSuccessMfaGateTest`).
 - Test enrolment (first-factor-less user is guided to enrol and cannot perform sensitive actions until
-  enrolled) and the documented recovery behaviour. **OUTSTANDING.**
+  enrolled) and the documented recovery behaviour. **Enrolment verified in M1** (B-01: TOTP enrolment is
+  mandatory and no session exists until an enrolled factor is verified). **Recovery: OUTSTANDING** (policy
+  FLAG below).
 - Re-verify step-up (U-01…U-04 equivalents) in the product against the configured Keycloak flow.
+  **Verified in M1** (H-01…H-05), except the `step_up_required` response and the single-use confirmation
+  of a real sensitive action: no sensitive action exists yet (the set is a FLAG). **OUTSTANDING.**
+
+## Implementation notes from M1 integration testing (2026-10-16)
+
+- **`acr` alone is not sufficient MFA evidence with Keycloak.** Live inspection of the issued ID tokens
+  showed that Keycloak reports `acr=mfa` on the **enrolment** login (password + first-time TOTP setup)
+  with an empty `amr`, because no previously enrolled factor was verified; a normal login reports
+  `acr=mfa` with `amr=["otp"]`. The implementation therefore requires `acr=mfa` **and** an `amr` value from
+  a configured second-factor set (Keycloak: `otp`; realm has the AMR mapper and authentication references).
+  Missing, empty or malformed `amr` fails closed. This applies to the login gate and to step-up.
+- **Consequence (FLAG for owner review):** the enrolment login does not create an application session;
+  the user signs in once more with the enrolled code (SSO covers the password). This is the strict reading
+  of "insufficient or contradictory evidence fails"; it can be revisited if first-login UX matters more.
+- A password-only token (simulated IdP misconfiguration, `acr=pwd`) is refused live.
+- **Refused step-up ends the originating session.** When a step-up callback is refused (different person,
+  insufficient MFA evidence, account disabled meanwhile) the originating session is ended as well as the
+  callback session; the user signs in again. Under `SameSite=Strict` the refusal response already clears
+  the browser's session cookie, so this removes an orphaned server-side session rather than changing what
+  the user sees. Verified live (H-04, H-05) and by unit tests.
 
 ## Assumptions / limitations & flags
 
