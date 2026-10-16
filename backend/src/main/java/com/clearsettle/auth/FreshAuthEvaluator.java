@@ -49,6 +49,18 @@ public class FreshAuthEvaluator {
 			reasons.add("acr_insufficient");
 		}
 
+		// Method evidence: where the provider issues amr, a strong acr must be backed by a second-factor
+		// method actually executed in this authentication (contradictory/insufficient evidence fails closed).
+		if (props.requiresAmr(registrationId)) {
+			Object amr = claims.get("amr");
+			if (amr == null) {
+				reasons.add("amr_missing");
+			}
+			else if (!props.hasRequiredAmr(registrationId, amr)) {
+				reasons.add("amr_insufficient");
+			}
+		}
+
 		Object authTime = claims.get("auth_time");
 		Long authEpoch = toEpochSeconds(authTime);
 		if (authTime == null) {

@@ -90,6 +90,34 @@ class FreshAuthEvaluatorTest {
 		assertThat(d.reasons()).contains("auth_time_in_future");
 	}
 
+	// ---- method evidence (amr) where the provider issues it ----
+	private final FreshAuthEvaluator amrEvaluator = new FreshAuthEvaluator(new AuthProperties(
+			900, 28800, 300, 30, "Strict", "__Host-CSSESSION", "__Host-XSRF-TOKEN", "X-CS-Request", true,
+			Map.of("keycloak", List.of("mfa")), Map.of("keycloak", "mfa"), Map.of("keycloak", List.of("otp"))));
+
+	@Test
+	void strongAcrFreshAndOtpAmrPasses() {
+		Map<String, Object> c = claims("mfa", now.getEpochSecond());
+		c.put("amr", List.of("otp"));
+		assertThat(amrEvaluator.evaluate("keycloak", c, now).ok()).isTrue();
+	}
+
+	@Test
+	void strongAcrWithMissingAmrFailsClosed() {
+		var d = amrEvaluator.evaluate("keycloak", claims("mfa", now.getEpochSecond()), now);
+		assertThat(d.ok()).isFalse();
+		assertThat(d.reasons()).contains("amr_missing");
+	}
+
+	@Test
+	void strongAcrWithEmptyAmrFailsClosed() {
+		Map<String, Object> c = claims("mfa", now.getEpochSecond());
+		c.put("amr", List.of());
+		var d = amrEvaluator.evaluate("keycloak", c, now);
+		assertThat(d.ok()).isFalse();
+		assertThat(d.reasons()).contains("amr_insufficient");
+	}
+
 	@Test
 	void instantAuthTimeAlsoAccepted() {
 		var d = evaluator.evaluate("keycloak", claims("mfa", now), now);

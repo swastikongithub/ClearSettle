@@ -60,12 +60,30 @@ public final class LoginHandlers {
 		private final AppUserService users;
 		private final SecurityEvents events;
 		private final String appBaseUrl;
+		private final FindByIndexNameSessionRepository<? extends org.springframework.session.Session> sessions;
 
-		public Success(AuthProperties props, AppUserService users, SecurityEvents events, String appBaseUrl) {
+		public Success(AuthProperties props, AppUserService users, SecurityEvents events, String appBaseUrl,
+				FindByIndexNameSessionRepository<? extends org.springframework.session.Session> sessions) {
 			this.props = props;
 			this.users = users;
 			this.events = events;
 			this.appBaseUrl = appBaseUrl;
+			this.sessions = sessions;
+		}
+
+		/**
+		 * Finds the session that started the step-up. Under SameSite=Strict the IdP callback arrives without
+		 * the session cookie, so the originating session is located by the user's principal index and the
+		 * nonce carried in the encrypted login-state cookie.
+		 */
+		private java.util.Optional<org.springframework.session.Session> originatingSession(UUID userId, String nonce) {
+			if (userId == null || nonce == null) {
+				return java.util.Optional.empty();
+			}
+			return sessions.findByPrincipalName(userId.toString()).values().stream()
+					.map(s -> (org.springframework.session.Session) s)
+					.filter(s -> nonce.equals(s.getAttribute(SessionAttributes.STEP_UP_NONCE)))
+					.findFirst();
 		}
 
 		@Override
@@ -82,33 +100,65 @@ public final class LoginHandlers {
 			String expIss = consumed == null ? null : consumed.getAttribute(StepUpAuthorizationRequestResolver.ATTR_ISS);
 			HttpSession session = req.getSession();
 
-			// Step-up: the re-authenticated identity must match the user who started the action.
+			// Step-up: locate the originating session's STORED record (by user + nonce) and require the
+			// re-authenticated identity to be the user who started the action. Normally (SameSite=Strict) the
+			// callback runs in a NEW session. If the session cookie did reach the callback (a browser without
+			// SameSite enforcement, or a Lax deployment) the callback runs INSIDE the originating session; Spring
+			// has then already rotated its in-memory id while the record is still stored under the old one, so
+			// the record is always addressed by the id it was found under, never by the current session's id.
+			org.springframework.session.Session origin = null;
+			boolean callbackInOrigin = false;
 			if (expIss != null) {
 				String expSub = consumed.getAttribute(StepUpAuthorizationRequestResolver.ATTR_SUB);
+				String nonce = consumed.getAttribute(StepUpAuthorizationRequestResolver.ATTR_SESSION_NONCE);
+				UUID expected = users.find(expIss, expSub).map(AppUser::id).orElse(null);
+				origin = originatingSession(expected, nonce).orElse(null);
+				callbackInOrigin = nonce != null && nonce.equals(session.getAttribute(SessionAttributes.STEP_UP_NONCE));
 				if (!expIss.equals(iss) || !expSub.equals(sub)) {
-					UUID expected = users.find(expIss, expSub).map(AppUser::id).orElse(null);
-					events.record("reauth_user_mismatch", expected, "registration=" + reg);
-					abort(req, res, session, "reauth_user_mismatch");
+					// A different person completed the step-up: the victim's originating session is ended too.
+					events.record("reauth_user_mismatch", expected,
+							"registration=" + reg + " originating_session_ended=" + (origin != null));
+					abort(req, res, session, origin, "reauth_user_mismatch");
+					return;
+				}
+				if (origin == null) {
+					// The originating session expired or was revoked meanwhile: do not resurrect it.
+					events.record("step_up_origin_session_missing", expected, "registration=" + reg);
+					abort(req, res, session, null, "session_expired");
 					return;
 				}
 			}
 
-			// Universal MFA gate (D-SEC-14): the authentication itself must carry MFA assurance,
-			// read provider-aware from the acr claim. A login without it never obtains a session.
-			if (!props.isStrongAcr(reg, acr)) {
-				events.record("login_refused_mfa_required", null, "registration=" + reg + " acr=" + safeClaim(u, "acr"));
-				abort(req, res, session, "mfa_required");
+			// Universal MFA gate (D-SEC-14): the authentication itself must carry MFA assurance, read
+			// provider-aware from acr AND (where configured) amr. Keycloak reports acr=mfa on the enrolment
+			// login with an empty amr, so acr alone is insufficient evidence. No assurance -> no session.
+			if (!props.isStrongAcr(reg, acr) || !props.hasRequiredAmr(reg, u.getIdToken().getClaims().get("amr"))) {
+				String why = !props.isStrongAcr(reg, acr) ? "acr_insufficient" : "amr_insufficient";
+				events.record("login_refused_mfa_required", null,
+						"registration=" + reg + " reason=" + why + " acr=" + safeClaim(u, "acr") + " amr=" + safeClaim(u, "amr"));
+				abort(req, res, session, origin, "mfa_required");
 				return;
 			}
 
 			AppUser user = users.findOrCreate(iss, sub, u.getEmail());
 			if (user.disabled()) {
 				events.record("login_refused_disabled", user.id(), "registration=" + reg);
-				abort(req, res, session, "account_disabled");
+				abort(req, res, session, origin, "account_disabled");
 				return;
 			}
 
-			// Absolute lifetime anchor: set once at initial login; a step-up re-auth must NOT reset it.
+			// Absolute lifetime anchor (D-SEC-13): a step-up carries over the ORIGINATING session's anchor so
+			// re-authentication can never extend the 8-hour lifetime, and exactly one session remains.
+			if (origin != null && !callbackInOrigin) {
+				// Callback in a new session: carry the anchor over and retire the originating session.
+				Object anchor = origin.getAttribute(SessionAttributes.AUTHENTICATED_AT);
+				if (anchor != null) {
+					session.setAttribute(SessionAttributes.AUTHENTICATED_AT, anchor);
+				}
+				sessions.deleteById(origin.getId());
+			}
+			// Callback inside the originating session: it continues (under its rotated id) with its anchor unchanged.
+			session.removeAttribute(SessionAttributes.STEP_UP_NONCE);
 			if (session.getAttribute(SessionAttributes.AUTHENTICATED_AT) == null) {
 				session.setAttribute(SessionAttributes.AUTHENTICATED_AT, Instant.now().getEpochSecond());
 			}
@@ -122,7 +172,15 @@ public final class LoginHandlers {
 			res.sendRedirect(appBaseUrl + (action != null ? "/review?action=" + action : "/"));
 		}
 
-		private void abort(HttpServletRequest req, HttpServletResponse res, HttpSession session, String code) throws IOException {
+		/**
+		 * Refuses the authentication. A step-up's originating session is ended with it: the abort response
+		 * clears the browser's session cookie, so the originating session must not linger server-side.
+		 */
+		private void abort(HttpServletRequest req, HttpServletResponse res, HttpSession session,
+				org.springframework.session.Session origin, String code) throws IOException {
+			if (origin != null) {
+				sessions.deleteById(origin.getId()); // the stored id, valid even if the current id was rotated
+			}
 			session.invalidate();
 			SecurityContextHolder.clearContext();
 			req.setAttribute(ApiJson.REJECT_ATTR, code);

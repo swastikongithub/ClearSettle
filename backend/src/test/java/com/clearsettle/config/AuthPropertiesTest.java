@@ -54,6 +54,19 @@ class AuthPropertiesTest {
 	}
 
 	@Test
+	void amrRequirementIsAnyOfAndFailsClosed() {
+		AuthProperties p = new AuthProperties(900, 28800, 300, 30, "Strict", "__Host-CSSESSION", "__Host-XSRF-TOKEN",
+				"X-CS-Request", true, Map.of("keycloak", List.of("mfa")), Map.of(), Map.of("keycloak", List.of("otp", "hwk")));
+		assertThat(p.hasRequiredAmr("keycloak", List.of("pwd", "otp"))).isTrue();
+		assertThat(p.hasRequiredAmr("keycloak", List.of("hwk"))).isTrue();
+		assertThat(p.hasRequiredAmr("keycloak", List.of("pwd"))).isFalse();
+		assertThat(p.hasRequiredAmr("keycloak", List.of())).isFalse();
+		assertThat(p.hasRequiredAmr("keycloak", null)).isFalse();
+		assertThat(p.hasRequiredAmr("keycloak", "otp")).as("malformed (not a list)").isFalse();
+		assertThat(p.hasRequiredAmr("other", null)).as("no requirement configured").isTrue();
+	}
+
+	@Test
 	void approvedDefaultsArePresent() {
 		AuthProperties p = props();
 		assertThat(p.getIdleTimeoutSeconds()).isEqualTo(900);        // 15 minutes

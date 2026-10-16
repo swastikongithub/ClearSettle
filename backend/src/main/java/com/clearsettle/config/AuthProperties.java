@@ -45,7 +45,25 @@ public class AuthProperties {
 	private final Map<String, List<String>> strongAcrByRegistration;
 	/** acr_values to request per registration when stepping up. */
 	private final Map<String, String> stepUpAcrValues;
+	/**
+	 * Per-registration AMR values, at least one of which must be present for MFA assurance (D-SEC-14).
+	 * Keycloak's {@code acr} level alone does not prove a previously enrolled factor was verified (on the
+	 * enrolment login it reports level 2 with an empty {@code amr}); requiring e.g. {@code otp} in
+	 * {@code amr} makes contradictory or insufficient evidence fail closed. No entry = no AMR requirement.
+	 */
+	private final Map<String, List<String>> mfaAmrAnyOfByRegistration;
 
+	/** Convenience constructor without an AMR requirement (used by unit tests). */
+	public AuthProperties(long idleTimeoutSeconds, long absoluteLifetimeSeconds, long stepUpFreshnessSeconds,
+			long clockSkewSeconds, String sessionCookieSameSite, String sessionCookieName, String csrfCookieName,
+			String customHeaderName, boolean requireCustomHeader, Map<String, List<String>> strongAcrByRegistration,
+			Map<String, String> stepUpAcrValues) {
+		this(idleTimeoutSeconds, absoluteLifetimeSeconds, stepUpFreshnessSeconds, clockSkewSeconds, sessionCookieSameSite,
+				sessionCookieName, csrfCookieName, customHeaderName, requireCustomHeader, strongAcrByRegistration,
+				stepUpAcrValues, Map.of());
+	}
+
+	@org.springframework.boot.context.properties.bind.ConstructorBinding
 	public AuthProperties(
 			@DefaultValue("900") long idleTimeoutSeconds,
 			@DefaultValue("28800") long absoluteLifetimeSeconds,
@@ -57,7 +75,8 @@ public class AuthProperties {
 			@DefaultValue("X-CS-Request") String customHeaderName,
 			@DefaultValue("true") boolean requireCustomHeader,
 			Map<String, List<String>> strongAcrByRegistration,
-			Map<String, String> stepUpAcrValues) {
+			Map<String, String> stepUpAcrValues,
+			Map<String, List<String>> mfaAmrAnyOfByRegistration) {
 		this.idleTimeoutSeconds = idleTimeoutSeconds;
 		this.absoluteLifetimeSeconds = absoluteLifetimeSeconds;
 		this.stepUpFreshnessSeconds = stepUpFreshnessSeconds;
@@ -69,6 +88,28 @@ public class AuthProperties {
 		this.requireCustomHeader = requireCustomHeader;
 		this.strongAcrByRegistration = strongAcrByRegistration == null ? Map.of() : strongAcrByRegistration;
 		this.stepUpAcrValues = stepUpAcrValues == null ? Map.of() : stepUpAcrValues;
+		this.mfaAmrAnyOfByRegistration = mfaAmrAnyOfByRegistration == null ? Map.of() : mfaAmrAnyOfByRegistration;
+	}
+
+	/**
+	 * Whether the ID token's {@code amr} claim satisfies the registration's AMR requirement. With no
+	 * requirement configured this is true; otherwise {@code amr} must be a list containing at least one of
+	 * the required values (a missing or malformed claim fails closed).
+	 */
+	public boolean hasRequiredAmr(String registrationId, Object amrClaim) {
+		List<String> required = mfaAmrAnyOfByRegistration.getOrDefault(registrationId, List.of());
+		if (required.isEmpty()) {
+			return true;
+		}
+		if (!(amrClaim instanceof java.util.Collection<?> values)) {
+			return false;
+		}
+		return values.stream().anyMatch(v -> v instanceof String s && required.contains(s));
+	}
+
+	/** True when the registration has an AMR requirement configured. */
+	public boolean requiresAmr(String registrationId) {
+		return !mfaAmrAnyOfByRegistration.getOrDefault(registrationId, List.of()).isEmpty();
 	}
 
 	/**

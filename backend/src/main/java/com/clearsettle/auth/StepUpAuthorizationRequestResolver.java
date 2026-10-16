@@ -29,6 +29,8 @@ public class StepUpAuthorizationRequestResolver implements OAuth2AuthorizationRe
 	public static final String ATTR_ISS = "cs_step_up_iss";
 	public static final String ATTR_SUB = "cs_step_up_sub";
 	public static final String ATTR_ACTION = "cs_step_up_action";
+	/** Links the step-up to its originating session (see {@code SessionAttributes.STEP_UP_NONCE}). */
+	public static final String ATTR_SESSION_NONCE = "cs_step_up_session_nonce";
 
 	private final DefaultOAuth2AuthorizationRequestResolver delegate;
 	private final AppUserService users;
@@ -36,8 +38,10 @@ public class StepUpAuthorizationRequestResolver implements OAuth2AuthorizationRe
 	private final AuthProperties props;
 	private final ThreadLocal<StepUp> current = new ThreadLocal<>();
 
-	private record StepUp(String registrationId, String iss, String sub, String actionId) {
+	private record StepUp(String registrationId, String iss, String sub, String actionId, String sessionNonce) {
 	}
+
+	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
 	public StepUpAuthorizationRequestResolver(ClientRegistrationRepository repo, AppUserService users,
 			StepUpService stepUp, AuthProperties props) {
@@ -62,6 +66,7 @@ public class StepUpAuthorizationRequestResolver implements OAuth2AuthorizationRe
 				a.put(ATTR_ISS, s.iss());
 				a.put(ATTR_SUB, s.sub());
 				a.put(ATTR_ACTION, s.actionId());
+				a.put(ATTR_SESSION_NONCE, s.sessionNonce());
 			});
 		});
 	}
@@ -103,8 +108,18 @@ public class StepUpAuthorizationRequestResolver implements OAuth2AuthorizationRe
 		}
 		String iss = user.getIssuer().toString();
 		String sub = user.getSubject();
+		jakarta.servlet.http.HttpSession session = request.getSession(false);
+		if (session == null) {
+			return Optional.empty();
+		}
 		return users.find(iss, sub)
 				.filter(u -> stepUp.isPendingForUser(actionId, u.id()))
-				.map(u -> new StepUp(token.getAuthorizedClientRegistrationId(), iss, sub, actionId.toString()));
+				.map(u -> {
+					byte[] b = new byte[24];
+					RANDOM.nextBytes(b);
+					String nonce = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(b);
+					session.setAttribute(com.clearsettle.security.SessionAttributes.STEP_UP_NONCE, nonce);
+					return new StepUp(token.getAuthorizedClientRegistrationId(), iss, sub, actionId.toString(), nonce);
+				});
 	}
 }

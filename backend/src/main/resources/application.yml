@@ -44,6 +44,12 @@ clearsettle:
         - mfa
     step-up-acr-values:
       keycloak: mfa
+    # MFA assurance also requires a second-factor method in amr (Keycloak: "otp", set via the realm's
+    # AMR mapper + authentication references). acr=mfa alone is insufficient: Keycloak reports it on the
+    # enrolment login with an empty amr (verified in M1 integration testing).
+    mfa-amr-any-of-by-registration:
+      keycloak:
+        - otp
 
 management:
   endpoints:

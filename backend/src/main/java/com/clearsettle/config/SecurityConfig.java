@@ -53,7 +53,9 @@ public class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, AuthProperties props,
 			ClientRegistrationProperties oidc, ClientRegistrationRepository repo, AppUserService users,
-			StepUpService stepUp, SecurityEvents events, Clock clock) throws Exception {
+			StepUpService stepUp, SecurityEvents events, Clock clock,
+			org.springframework.session.FindByIndexNameSessionRepository<? extends org.springframework.session.Session> sessions)
+			throws Exception {
 
 		AuthorizationRequestRepository<OAuth2AuthorizationRequest> store =
 				new LoginStateCookieRepository(oidc.loginStateSecret());
@@ -75,7 +77,7 @@ public class SecurityConfig {
 				.authorizedClientRepository(authorizedClientRepository())
 				.authorizationEndpoint(e -> e.authorizationRequestResolver(resolver)
 						.authorizationRequestRepository(loginState))
-				.successHandler(new LoginHandlers.Success(props, users, events, oidc.appBaseUrl()))
+				.successHandler(new LoginHandlers.Success(props, users, events, oidc.appBaseUrl(), sessions))
 				.failureHandler(new LoginHandlers.Failure(events, oidc.appBaseUrl())))
 			.logout(l -> l.logoutUrl("/logout")
 					.logoutSuccessHandler(new LoginHandlers.Logout(repo, users, events, oidc.appBaseUrl())))
