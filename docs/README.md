@@ -4,7 +4,7 @@
 
 ClearSettle is in product discovery and specification. **Authentication (M1) implementation is authorized** as of 16 October 2026, after the M0 authentication spike and the owner's approval of D-SEC-12 to D-SEC-15 (identity provider, session policy, MFA, SameSite). Implementation of other areas is not yet authorized; do not begin them until the owner explicitly approves each.
 
-The authentication implementation lives under `backend/` (Spring Boot OIDC + sessions), `frontend/` (Next.js, client-rendered, same origin), and `deploy/` (local development stack). Its architecture decisions are recorded as ADRs in `product/adr/` and in the decision register. Progress is tracked in `product/clearsettle_implementation_status.md`.
+The authentication implementation lives under `backend/` (Spring Boot OIDC + sessions), `frontend/` (Next.js, client-rendered, same origin), and `deploy/` (local development stack). Its architecture decisions are recorded as ADRs in `product/adr/` and in the decision register; the owner's 17 October 2026 security-policy approvals are D-SEC-16 to D-SEC-19. Progress is tracked in `product/clearsettle_implementation_status.md`.
 
 ## Product sources
 

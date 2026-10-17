@@ -66,7 +66,16 @@ documentation-verified (report §6, accessed 2026-10-16).
 - Live validation against any **managed** provider (Cognito/Auth0) remains **outstanding** and must not
   be represented as complete; no billable external tests were run and none are authorized here.
 - Backchannel logout and MFA enrolment/recovery against the chosen provider are not yet exercised
-  end-to-end (see ADR-0003).
+  end-to-end (see ADR-0003). **M1 (17 October 2026):** enrolment is verified (B-01, B-07); the Keycloak
+  recovery controls that exist are verified (P-08, R-01, R-02; D-SEC-18). Back-channel logout is **not
+  implemented**: an IdP-side logout or MFA reset does not end ClearSettle sessions (R-02), which the recovery
+  procedure must cover until it is.
+- ID-token and callback validation (AC-157) — wrong signature, `alg=none`, HS256 with the client secret,
+  wrong issuer or audience, expired token, missing or mismatched `nonce`, wrong `state`, missing or tampered
+  login-state cookie, a code from another login (PKCE verifier mismatch), a replayed code — is **verified in
+  M1** against a controlled test provider driving the real client registration and Spring Security
+  (`OidcCallbackValidationTest`); Keycloak's own PKCE and redirect-URI enforcement is verified live (P-02,
+  P-03).
 
 ## Assumptions / limitations
 
