@@ -3,6 +3,7 @@ package com.clearsettle.security;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -28,10 +29,21 @@ public class AppUserService {
 				iss, sub).stream().findFirst();
 	}
 
-	/** Provisions on first login; identity is {@code (iss, sub)}. Email is set only on insert. */
+	/**
+	 * Provisions on first login; identity is {@code (iss, sub)}. Email is set only on insert. Two concurrent
+	 * first logins are resolved by the {@code (iss, sub)} unique constraint: the loser re-reads the winner's row.
+	 */
 	public AppUser findOrCreate(String iss, String sub, String email) {
-		jdbc.update("insert into app_user(iss, sub, email) values (?,?,?) on conflict (iss, sub) do nothing",
-				iss, sub, email);
+		Optional<AppUser> existing = find(iss, sub);
+		if (existing.isPresent()) {
+			return existing.get();
+		}
+		try {
+			jdbc.update("insert into app_user(id, iss, sub, email) values (?,?,?,?)", UUID.randomUUID(), iss, sub, email);
+		}
+		catch (DuplicateKeyException e) {
+			// Provisioned concurrently by another first login of the same identity.
+		}
 		return find(iss, sub).orElseThrow(() -> new IllegalStateException("user provisioning failed"));
 	}
 }
