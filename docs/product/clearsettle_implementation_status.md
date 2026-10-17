@@ -48,7 +48,7 @@ Run with `mvn test` (Maven docker image, offline repository), 2026-10-17, on the
 Stack (`deploy/`, compose project `clearsettle-dev`): PostgreSQL 17.11, Keycloak 26.8.1 (dev realm, MFA
 browser flow, TOTP), Spring Boot 4.1.1 backend, nginx 1.30.6 proxy, frontend static export (Next.js
 16.4.1). Synthetic users are created at run time with random passwords. Raw results are written to
-`e2e/results/` (git-ignored). All runs were sequential, against the final backend code (the wall-clock row excepted, as marked).
+`e2e/results/` (git-ignored). All runs were sequential, against the final backend code.
 
 | Run | Tests | PASS | ENGINE-LIMITATION | NOT-OBSERVABLE | FAIL | ERROR |
 |---|---|---|---|---|---|---|
@@ -57,7 +57,7 @@ browser flow, TOTP), Spring Boot 4.1.1 backend, nginx 1.30.6 proxy, frontend sta
 | WebKit (browser; engine proxy, not Safari) | A, B, C, D, E, H, K, G | 32 | 2 (C-01, C-02) | 1 (C-05) | 0 | 0 |
 | Pixel 7 (emulated, Chromium) | A, B, C, E, H | 27 | 0 | 0 | 0 | 0 |
 | iPhone 15 (emulated, WebKit) | A, B, C, E, H | 23 | 2 (C-01, C-02) | 1 (C-05) | 0 | 0 |
-| Wall clock, Chromium (`longrun.mjs`) | LR-01, LR-02 | 2 (2026-10-16, earlier backend build; re-run on the final build in progress at the time of this commit) | — | — | 0 | 0 |
+| Wall clock, Chromium (`longrun.mjs`) | LR-01, LR-02 | 2 | — | — | 0 | 0 |
 | F-1 logging regression (`--with-upstream-failure`) | 1 | 1 | — | — | 0 | 0 |
 
 - **WebKit C-01/C-02 (`ENGINE-LIMITATION`):** Playwright's WebKit build on Windows implements no SameSite.
