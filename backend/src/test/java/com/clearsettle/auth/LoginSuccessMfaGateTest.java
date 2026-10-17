@@ -127,7 +127,8 @@ class LoginSuccessMfaGateTest {
 
 	@Test
 	void strongAcrWithoutSecondFactorAmrIsRefused() throws Exception {
-		// Exactly what Keycloak issues on the enrolment login: acr=mfa, amr=[].
+		// Exactly what Keycloak issues on the enrolment login: acr=mfa, amr=[]. Refused with its own code so the
+		// UI can say "sign in once more with your authenticator code" (the approved extra step).
 		AppUserService users = users();
 		SecurityEvents events = Mockito.mock(SecurityEvents.class);
 		var handler = new LoginHandlers.Success(props, users, events, "https://app.example.test", new Sessions());
@@ -136,7 +137,7 @@ class LoginSuccessMfaGateTest {
 
 		handler.onAuthenticationSuccess(req, res, token(SUB, "mfa", List.of()));
 
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 		verify(users, never()).findOrCreate(Mockito.anyString(), Mockito.anyString(), Mockito.any());
 		verify(events).record(Mockito.eq("login_refused_mfa_required"), Mockito.isNull(), Mockito.contains("reason=amr_insufficient"));
 	}
@@ -147,7 +148,7 @@ class LoginSuccessMfaGateTest {
 		var handler = new LoginHandlers.Success(props, users(), events, "https://app.example.test", new Sessions());
 		MockHttpServletResponse res = new MockHttpServletResponse();
 		handler.onAuthenticationSuccess(new MockHttpServletRequest(), res, token(SUB, "mfa", null));
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 	}
 
 	@Test
@@ -256,7 +257,7 @@ class LoginSuccessMfaGateTest {
 
 		handler.onAuthenticationSuccess(req, res, token(SUB, "mfa", List.of()));
 
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 		assertThat(sessions.findById(origin.getId())).as("no orphaned originating session").isNull();
 		assertThat(req.getSession(false)).isNull();
 	}

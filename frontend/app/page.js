@@ -17,6 +17,13 @@ export default function Home() {
     <main>
       <h1>ClearSettle</h1>
       <p id="auth-error">{authError ? `auth_error=${authError}` : "no auth error"}</p>
+      {authError === "mfa_not_verified" && (
+        // The approved first-login behaviour (D-SEC-14): the sign-in that enrols the authenticator does not
+        // itself verify a factor, so no session is created; the next sign-in with a code does.
+        <p id="auth-help">
+          Your authenticator app is set up. For your security, sign in once more and enter a code from it.
+        </p>
+      )}
       <p id="me-status">session: {me.status === 200 ? "authenticated" : "not authenticated"}</p>
       <p>
         <a id="login" href="/oauth2/authorization/keycloak">Sign in</a>

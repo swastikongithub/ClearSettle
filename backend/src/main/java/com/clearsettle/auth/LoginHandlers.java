@@ -132,11 +132,15 @@ public final class LoginHandlers {
 			// Universal MFA gate (D-SEC-14): the authentication itself must carry MFA assurance, read
 			// provider-aware from acr AND (where configured) amr. Keycloak reports acr=mfa on the enrolment
 			// login with an empty amr, so acr alone is insufficient evidence. No assurance -> no session.
+			// The two refusals get distinct codes so the UI can explain them: mfa_not_verified is the expected
+			// first sign-in after enrolling an authenticator (sign in once more with a code from it, owner
+			// decision 17 October 2026); mfa_required means the provider did not perform MFA at all.
 			if (!props.isStrongAcr(reg, acr) || !props.hasRequiredAmr(reg, u.getIdToken().getClaims().get("amr"))) {
-				String why = !props.isStrongAcr(reg, acr) ? "acr_insufficient" : "amr_insufficient";
+				boolean strongAcr = props.isStrongAcr(reg, acr);
+				String why = strongAcr ? "amr_insufficient" : "acr_insufficient";
 				events.record("login_refused_mfa_required", null,
 						"registration=" + reg + " reason=" + why + " acr=" + safeClaim(u, "acr") + " amr=" + safeClaim(u, "amr"));
-				abort(req, res, session, origin, "mfa_required");
+				abort(req, res, session, origin, strongAcr ? "mfa_not_verified" : "mfa_required");
 				return;
 			}
 
