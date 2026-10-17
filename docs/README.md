@@ -15,6 +15,11 @@ The authentication implementation lives under `backend/` (Spring Boot OIDC + ses
 - `product/clearsettle_implementation_plan.md`: proposed milestone plan; does not authorize implementation.
 - `product/archive/`: superseded documents retained for traceability only.
 
+## Design sources
+
+- `design/clearsettle_frontend_design_proposal.md`: frontend design proposal (visual direction, information architecture, components, API mapping, sequence). **Proposal awaiting owner approval; not implemented.**
+- `design/concepts/`: static visual concepts for that proposal, with illustrative sample data only.
+
 ## Engineering sources
 
 - `engineering/clearsettle_master_engineering_checklist.md`: engineering checklist and ClearSettle-specific requirements.
@@ -27,6 +32,6 @@ The authentication implementation lives under `backend/` (Spring Boot OIDC + ses
 - Supported file formats and import validation — specification §4; provider formats still open (OQ-07, OQ-08)
 - Architecture decisions and data model — authentication session architecture approved as D-SEC-11, with the identity provider (D-SEC-12), session policy (D-SEC-13), MFA (D-SEC-14) and SameSite strategy (D-SEC-15) approved 16 October 2026 and captured as ADRs in `product/adr/`; other architecture decisions and the data model still to develop
 - API contracts
-- UI specification (marketing site, authentication, and application separately)
+- UI specification (marketing site, authentication, and application separately) — application and authentication proposal in `design/` (pending owner approval); marketing site deferred (D-DEF-01)
 - Test and verification plan — outline in specification §12.3
 - Deployment and operations runbook

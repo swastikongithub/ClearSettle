@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* The settlement chain: the one bold element of the workspace experience. */
+  .chain { padding: var(--s6) var(--s5) var(--s4); }
+  .chain-track { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); position: relative; }
+  .chain-track::before { content: ""; position: absolute; left: 16px; right: calc(100% / 6 - 16px); top: 15px; height: 2px; background: var(--petrol); opacity: 0.35; }
+  .node { position: relative; padding: 0 var(--s2); }
+  .node .dot { width: 32px; height: 32px; border-radius: 50%; background: var(--sheet); border: 2px solid var(--petrol); display: grid; place-items: center; position: relative; z-index: 1; color: var(--petrol); }
+  .node .dot .ico { width: 15px; height: 15px; }
+  .node h3 { margin: var(--s3) 0 2px; font-size: var(--t-sm); font-weight: 500; color: var(--ink-2); }
+  .node .count { font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+  .node .amt { font-size: var(--t-sm); color: var(--ink-2); margin-top: 2px; }
+  /* Each gap sits on the line, centred between this stage's circle and the next one's. */
+  .gap { position: absolute; left: calc(50% + 16px); top: 3px; transform: translateX(-50%); z-index: 2; }
+  .gap a { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-xs); font-weight: 600; color: var(--amber); background: var(--amber-wash); border: 1px solid #ecd2b4; border-radius: 999px; padding: 2px 8px; text-decoration: none; white-space: nowrap; }
+  .gap a.ok { color: var(--s-matched); background: var(--s-matched-wash); border-color: #c4e0cf; }
+  .gap .ico { width: 12px; height: 12px; }
+  .chain-foot { display: flex; gap: var(--s5); flex-wrap: wrap; margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--rule-2); font-size: var(--t-sm); color: var(--ink-2); }
+  .chain-foot b { color: var(--ink); font-weight: 600; }
+  .grid-2 { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--s5); }
+  .attn { list-style: none; margin: 0; padding: 0; }
+  .attn li { display: grid; grid-template-columns: 1fr auto; gap: var(--s1) var(--s4); padding: var(--s3) 0; border-top: 1px solid var(--rule-2); }
+  .attn li:first-child { border-top: 0; }
+  .attn .what { font-weight: 500; }
+  .attn .why { grid-column: 1; color: var(--ink-3); font-size: var(--t-xs); }
+  .attn .go { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+  .bars { display: grid; gap: var(--s3); margin-top: var(--s2); }
+  .bar-row { display: grid; grid-template-columns: 74px 1fr 92px; align-items: center; gap: var(--s3); font-size: var(--t-xs); }
+  .bar { height: 14px; display: flex; border-radius: 3px; overflow: hidden; background: var(--rule-2); }
+  .bar .hi { background: repeating-linear-gradient(135deg, var(--s-risk) 0 4px, #c4574a 4px 7px); }
+  .bar .lo { background: var(--amber); opacity: 0.75; }
+  .legend { display: flex; gap: var(--s4); font-size: var(--t-xs); color: var(--ink-2); margin-top: var(--s3); }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .feed { list-style: none; margin: 0; padding: 0; font-size: var(--t-sm); }
+  .feed li { display: grid; grid-template-columns: 64px 1fr; gap: var(--s3); padding: 7px 0; border-top: 1px solid var(--rule-2); }
+  .feed li:first-child { border-top: 0; }
+  .feed time { color: var(--ink-3); font-size: var(--t-xs); padding-top: 2px; }
+  @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+  @media (max-width: 960px) {
+    .chain { padding-top: var(--s4); }
+    .chain-track { grid-template-columns: 1fr; }
+    .chain-track::before { left: 15px; right: auto; top: 16px; bottom: 16px; width: 2px; height: auto; }
+    .node { display: grid; grid-template-columns: 32px 1fr; column-gap: var(--s3); padding: 0 0 var(--s4); }
+    .node .dot { grid-row: 1 / span 3; }
+    .node h3 { margin: 0; }
+    .node .count { font-size: var(--t-xl); }
+    .gap { position: static; transform: none; grid-column: 2; margin-top: var(--s2); justify-content: flex-start; display: flex; }
+    .panel-head { flex-wrap: wrap; }
+    .panel-head p { flex-basis: 100%; order: 3; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2 7.5 8 2.5l6 5V14H10v-4H6v4H2z"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 16 16"><path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M5 11.5 3.8 12.7a2 2 0 0 1-2.8-2.8L4.6 6.3M11 4.5l1.2-1.2a2 2 0 0 1 2.8 2.8l-3.6 3.6"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 16 16"><path d="M3 14V2.5M3 3h8.5l-2 3 2 3H3"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11"/></symbol>
+  <symbol id="i-book" viewBox="0 0 16 16"><path d="M3 2.5h7.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2zM3 11.5a2 2 0 0 1 2-2h7.5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2.5 13.5h11M4.5 11V7M8 11V4M11.5 11V8.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></symbol>
+  <symbol id="i-delta" viewBox="0 0 16 16"><path d="M8 2.5 14 13H2z"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 16 16"><path d="M1.5 2.5h2l1.6 7.5h7l1.4-5.5H4.3"/><circle cx="6" cy="13" r="1"/><circle cx="11.5" cy="13" r="1"/></symbol>
+  <symbol id="i-card" viewBox="0 0 16 16"><rect x="1.5" y="3.5" width="13" height="9" rx="1.5"/><path d="M1.5 6.5h13"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 1.5h5.5L12.5 4.5v10H4zM9.5 1.5v3h3M6 8h4.5M6 11h4.5"/></symbol>
+  <symbol id="i-out" viewBox="0 0 16 16"><path d="M8 2v9M4.5 7.5 8 11l3.5-3.5M2.5 14h11"/></symbol>
+  <symbol id="i-bank" viewBox="0 0 16 16"><path d="M2 6h12L8 2.5zM3.5 6v6M6.5 6v6M9.5 6v6M12.5 6v6M2 13.5h12"/></symbol>
+  <symbol id="i-ledger" viewBox="0 0 16 16"><path d="M3 2.5h10v11H3zM8 2.5v11M5 5.5h1.5M9.5 5.5H11M5 8h1.5M9.5 8H11"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></symbol>
+</svg>
+
+<div class="concept-banner" role="note">
+  <strong>Design concept, not the application.</strong>
+  <span>All names, amounts and counts are illustrative sample data. No backend exists for this screen yet.</span>
+  <a href="reconciliation.html">Reconciliation concept</a> <a href="flows.html">Sign-in and confirmation states</a>
+</div>
+
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <button class="ws-switch" aria-haspopup="listbox" aria-label="Active workspace: Example Workspace. Switch workspace">
+      <span class="ws-mark" aria-hidden="true">EW</span>
+      <span><span class="ws-name">Example Workspace</span><br><span class="ws-sub">INR, sample data</span></span>
+    </button>
+    <ul class="nav">
+      <li><a href="#" aria-current="page"><svg class="ico"><use href="#i-home"/></svg>Overview</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-upload"/></svg>Imports</a></li>
+      <li><a href="reconciliation.html"><svg class="ico"><use href="#i-link"/></svg>Reconciliation</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-flag"/></svg>Exceptions<span class="count num">37</span></a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-rows"/></svg>Records</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-book"/></svg>Ledger<span class="count num">6</span></a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-chart"/></svg>Reports</a></li>
+    </ul>
+    <div class="nav-group">Workspace</div>
+    <ul class="nav">
+      <li><a href="#"><svg class="ico"><use href="#i-gear"/></svg>Settings</a></li>
+    </ul>
+    <div class="rail-foot">Times in IST (Asia/Kolkata)</div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="select" role="button" aria-label="Period: April 2026">April 2026</span>
+      <span class="pill" style="color: var(--s-awaiting)">Open period</span>
+      <span class="muted" style="font-size: var(--t-xs)">Data to 30 Apr 2026, 23:59 IST</span>
+      <span class="spacer"></span>
+      <button class="btn btn-quiet">Jobs (1 running)</button>
+      <button class="btn" aria-haspopup="menu">Priya S.</button>
+    </header>
+
+    <main class="content">
+      <div class="page-head">
+        <h1 class="page-title">April 2026</h1>
+        <p>Provisional: the period is open, 6 journals are unposted and 4 high-risk exceptions are open.</p>
+      </div>
+
+      <section class="panel" aria-labelledby="chain-title">
+        <div class="panel-head">
+          <h2 id="chain-title">Where the money is</h2>
+          <p>Stage 1 run R-0412 and stage 2 run R-0413, both finished 30 Apr 2026, 22:10 IST</p>
+          <span class="spacer"></span>
+          <a class="btn btn-quiet" href="reconciliation.html">Open reconciliation</a>
+        </div>
+        <div class="chain">
+          <div class="chain-track">
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-cart"/></svg></div>
+              <h3>Merchant orders</h3>
+              <div class="count num">2,148</div>
+              <div class="amt num"><span class="cur">INR</span>63,42,180.00</div>
+              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>12 without payment</a></div>
+            </div>
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-card"/></svg></div>
+              <h3>Successful payments</h3>
+              <div class="count num">2,131</div>
+              <div class="amt num"><span class="cur">INR</span>62,97,440.00</div>
+              <div class="gap"><a href="#"><svg class="ico"><use href="#i-clock"/></svg>58 awaiting settlement</a></div>
+            </div>
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-doc"/></svg></div>
+              <h3>Settlement lines</h3>
+              <div class="count num">2,073</div>
+              <div class="amt num"><span class="cur">INR</span>61,20,915.40</div>
+              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>9 differences</a></div>
+            </div>
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-out"/></svg></div>
+              <h3>Payouts</h3>
+              <div class="count num">30</div>
+              <div class="amt num"><span class="cur">INR</span>59,86,204.12</div>
+              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>1 short credit</a></div>
+            </div>
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-bank"/></svg></div>
+              <h3>Bank credits</h3>
+              <div class="count num">30</div>
+              <div class="amt num"><span class="cur">INR</span>59,85,704.12</div>
+              <div class="gap"><a class="ok" href="#"><svg class="ico"><use href="#i-check"/></svg>24 journals ready</a></div>
+            </div>
+            <div class="node">
+              <div class="dot"><svg class="ico"><use href="#i-ledger"/></svg></div>
+              <h3>Posted to the ledger</h3>
+              <div class="count num">18</div>
+              <div class="amt num"><span class="cur">INR</span>44,10,322.60</div>
+            </div>
+          </div>
+          <div class="chain-foot">
+            <span>Gateway fees and taxes deducted <b class="num"><span class="cur">INR</span>1,76,524.60</b>, exactly as reported</span>
+            <span>Open differences <b class="num diff"><span class="cur">INR</span>&minus;14,880.25</b> across 37 exceptions</span>
+            <span>Bank continuity: no gaps in account ••4821</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid-2">
+        <section class="panel" aria-labelledby="attn-title">
+          <div class="panel-head"><h2 id="attn-title">Needs attention</h2><p>Ordered by risk, then age</p></div>
+          <div class="panel-body">
+            <ul class="attn">
+              <li><span class="what"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span> 4 exceptions awaiting approval</span>
+                <span class="why">A different Controller must approve. Oldest: 9 days.</span>
+                <a class="btn go" href="#">Review</a></li>
+              <li><span class="what"><span class="status st-candidate"><svg class="ico"><use href="#i-link"/></svg>Candidates</span> 21 suggested matches</span>
+                <span class="why">Never confirmed automatically. 3 involve split payments.</span>
+                <a class="btn go" href="#">Review</a></li>
+              <li><span class="what"><span class="status st-difference"><svg class="ico"><use href="#i-delta"/></svg>Difference</span> Payout P-0426-02 credited short</span>
+                <span class="why">Gateway reports <span class="num">INR 2,14,600.00</span>, bank shows <span class="num">INR 2,14,100.00</span>.</span>
+                <a class="btn go" href="reconciliation.html">Investigate</a></li>
+              <li><span class="what">6 journal drafts submitted for posting</span>
+                <span class="why">Posting needs a fresh sign-in and an explicit confirmation.</span>
+                <a class="btn go" href="flows.html#confirm">Review</a></li>
+              <li><span class="what">Settlement report for 28 Apr partially imported</span>
+                <span class="why">14 rows quarantined. Runs that use it carry a warning.</span>
+                <a class="btn go" href="#">Open import</a></li>
+            </ul>
+          </div>
+        </section>
+
+        <div style="display: grid; gap: var(--s5); align-content: start">
+          <section class="panel" aria-labelledby="age-title">
+            <div class="panel-head"><h2 id="age-title">Open differences by age</h2></div>
+            <div class="panel-body">
+              <div class="bars" role="img" aria-label="Open exceptions by age: 0 to 7 days 19 (1 high risk); 8 to 30 days 12 (2 high risk); 31 to 60 days 5 (1 high risk); over 60 days 1">
+                <div class="bar-row"><span>0–7 days</span><span class="bar"><span class="hi" style="width:5%"></span><span class="lo" style="width:90%"></span></span><span class="num">19</span></div>
+                <div class="bar-row"><span>8–30 days</span><span class="bar"><span class="hi" style="width:10%"></span><span class="lo" style="width:50%"></span></span><span class="num">12</span></div>
+                <div class="bar-row"><span>31–60 days</span><span class="bar"><span class="hi" style="width:5%"></span><span class="lo" style="width:20%"></span></span><span class="num">5</span></div>
+                <div class="bar-row"><span>Over 60 days</span><span class="bar"><span class="lo" style="width:5%"></span></span><span class="num">1</span></div>
+              </div>
+              <div class="legend"><span><span class="sw" style="background: var(--s-risk)"></span>High risk</span><span><span class="sw" style="background: var(--amber)"></span>Routine</span></div>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="feed-title">
+            <div class="panel-head"><h2 id="feed-title">Activity</h2><span class="spacer"></span><a class="btn btn-quiet" href="#">Audit history</a></div>
+            <div class="panel-body">
+              <ul class="feed">
+                <li><time>22:10</time><span>Stage 2 run R-0413 finished: 29 matched, 1 difference</span></li>
+                <li><time>21:48</time><span>Rahul M. imported a bank statement for ••4821 (31 rows)</span></li>
+                <li><time>19:02</time><span>Anita K. approved and posted 4 journals</span></li>
+                <li><time>18:40</time><span>Priya S. resolved EX-0391: explained by evidence</span></li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

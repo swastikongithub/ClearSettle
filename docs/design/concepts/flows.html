@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in and confirmation states</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .board { padding: var(--s6) var(--s4); display: grid; gap: var(--s7); max-width: 1320px; margin: 0 auto; }
+  .board > section > h2 { font-size: var(--t-lg); font-weight: 600; margin: 0 0 var(--s1); }
+  .board > section > p { margin: 0 0 var(--s4); color: var(--ink-2); font-size: var(--t-sm); max-width: 72ch; }
+  .frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--s5); }
+  .frame { border: 1px solid var(--rule); border-radius: var(--r-panel); overflow: hidden; background: var(--sheet); display: flex; flex-direction: column; }
+  .frame > :last-child { flex: 1; }
+  .frame-cap { font-size: var(--t-xs); color: var(--ink-2); padding: var(--s2) var(--s4); border-bottom: 1px solid var(--rule); background: var(--paper); }
+
+  /* Sign-in: the approved reference (D-UI-03) is a restrained form over a flowing multicolour field.
+     This is the one place the product spends visual boldness outside the settlement chain. */
+  .auth { position: relative; min-height: 420px; display: grid; place-items: center; overflow: hidden; isolation: isolate; }
+  .field { position: absolute; inset: -20%; z-index: -1; filter: blur(48px) saturate(1.1);
+    background:
+      radial-gradient(40% 45% at 22% 30%, #0b5563 0%, transparent 70%),
+      radial-gradient(35% 40% at 78% 26%, #c98a2c 0%, transparent 70%),
+      radial-gradient(45% 45% at 66% 78%, #2c56a8 0%, transparent 72%),
+      radial-gradient(38% 38% at 26% 80%, #1f6f47 0%, transparent 70%),
+      #dfe8e6;
+    animation: drift 28s ease-in-out infinite alternate; }
+  @keyframes drift { 0% { transform: translate3d(0,0,0) rotate(0deg) scale(1); } 100% { transform: translate3d(3%, -2%, 0) rotate(8deg) scale(1.06); } }
+  .auth-card { width: min(360px, 88%); background: rgba(255,255,255,0.94); border-radius: var(--r-panel); padding: var(--s6) var(--s5); box-shadow: var(--shadow-dialog); }
+  .brand { display: flex; align-items: center; gap: var(--s2); font-weight: 600; font-size: var(--t-lg); letter-spacing: -0.01em; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--petrol); position: relative; }
+  .brand-mark::after { content: ""; position: absolute; left: 6px; right: 6px; top: 12px; height: 2px; background: #fff; box-shadow: 0 -5px 0 #fff, 0 5px 0 rgba(255,255,255,.55); border-radius: 1px; }
+  .auth-card h3 { font-size: var(--t-xl); font-weight: 600; margin: var(--s5) 0 var(--s1); letter-spacing: -0.01em; }
+  .auth-card p { margin: 0 0 var(--s4); color: var(--ink-2); font-size: var(--t-sm); }
+  .lbl { display: block; font-size: var(--t-sm); font-weight: 500; margin: var(--s3) 0 var(--s1); }
+  .input { width: 100%; font: inherit; font-size: var(--t-md); padding: 9px 12px; border: 1px solid var(--rule); border-radius: var(--r-control); background: #fff; }
+  .otp { letter-spacing: 0.5em; font-variant-numeric: tabular-nums; text-align: center; font-size: var(--t-lg); }
+  .full { width: 100%; justify-content: center; padding: 10px 14px; margin-top: var(--s4); font-size: var(--t-md); }
+  .msg { display: flex; gap: var(--s3); padding: var(--s3) var(--s4); border-radius: var(--r-control); font-size: var(--t-sm); margin-bottom: var(--s4); }
+  .msg .ico { margin-top: 3px; }
+  .msg-info { background: var(--petrol-wash); color: var(--petrol-ink); }
+  .msg-warn { background: var(--amber-wash); color: #6d3a05; }
+  .msg-err { background: var(--s-risk-wash); color: #7a1d12; }
+
+  /* Sensitive-action confirmation */
+  .scrim { background: rgba(23, 35, 43, 0.45); padding: var(--s6) var(--s4); min-height: 420px; display: grid; place-items: center; }
+  .dialog { width: min(480px, 100%); background: var(--sheet); border-radius: var(--r-panel); box-shadow: var(--shadow-dialog); }
+  .dialog header { padding: var(--s5) var(--s5) 0; }
+  .dialog h3 { margin: 0; font-size: var(--t-lg); font-weight: 600; }
+  .dialog .body { padding: var(--s3) var(--s5) var(--s4); font-size: var(--t-sm); }
+  .dialog footer { display: flex; gap: var(--s2); justify-content: flex-end; padding: var(--s3) var(--s5) var(--s5); }
+  .facts { width: 100%; border-collapse: collapse; margin: var(--s3) 0; }
+  .facts th { text-align: left; font-weight: 400; color: var(--ink-2); padding: 6px 0; width: 42%; }
+  .facts td { padding: 6px 0; text-align: right; }
+  .facts tr + tr th, .facts tr + tr td { border-top: 1px solid var(--rule-2); }
+  .timer { font-size: var(--t-xs); color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+  .toast { display: flex; gap: var(--s3); align-items: center; background: var(--ink); color: #fff; border-radius: var(--r-control); padding: var(--s3) var(--s4); font-size: var(--t-sm); width: max-content; max-width: 100%; }
+  .toast .ico { color: #8fd3a9; }
+
+  /* Data states */
+  .state { padding: var(--s6) var(--s5); display: grid; justify-items: start; gap: var(--s2); font-size: var(--t-sm); }
+  .state h4 { margin: 0; font-size: var(--t-md); font-weight: 600; }
+  .state p { margin: 0; color: var(--ink-2); max-width: 46ch; }
+  .sk { height: 12px; border-radius: 4px; background: linear-gradient(90deg, var(--rule-2), #f4f7f6, var(--rule-2)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .sk-rows { padding: var(--s4); display: grid; gap: var(--s3); }
+  .sk-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--s4); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2V11M8 5v.2"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.5 14 13H2zM8 6.5v3M8 11.3v.2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 16 16"><path d="M8 1.8 13 4v4c0 3-2.2 5.2-5 6.2C5.2 13.2 3 11 3 8V4z"/><path d="M5.8 8.2 7.3 9.7 10.4 6.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></symbol>
+  <symbol id="i-retry" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></symbol>
+</svg>
+
+<div class="concept-banner" role="note">
+  <strong>Design concept, not the application.</strong>
+  <span>The sign-in form itself is served by Keycloak and needs a ClearSettle login theme; amounts are illustrative.</span>
+  <a href="overview.html">Overview concept</a> <a href="reconciliation.html">Reconciliation concept</a>
+</div>
+
+<div class="board">
+  <section>
+    <h2>Signing in</h2>
+    <p>Restrained form over a slowly drifting colour field (the approved reference, D-UI-03; the screenshot itself is still missing, OQ-47). The field stops moving when the user prefers reduced motion. The first sign-in after enrolling an authenticator ends with an explanation, not an error.</p>
+    <div class="frames">
+      <div class="frame"><div class="frame-cap">Keycloak login theme: one-time code</div>
+        <div class="auth"><div class="field" aria-hidden="true"></div>
+          <form class="auth-card" onsubmit="return false">
+            <div class="brand"><span class="brand-mark" aria-hidden="true"></span>ClearSettle</div>
+            <h3>Enter your code</h3>
+            <p>Open your authenticator app and enter the 6-digit code for ClearSettle.</p>
+            <label class="lbl" for="otp">One-time code</label>
+            <input id="otp" class="input otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" value="482 913">
+            <button class="btn btn-primary full">Verify</button>
+          </form>
+        </div></div>
+      <div class="frame"><div class="frame-cap">After enrolment: auth_error=mfa_not_verified (approved extra step, D-SEC-16)</div>
+        <div class="auth"><div class="field" aria-hidden="true"></div>
+          <div class="auth-card">
+            <div class="brand"><span class="brand-mark" aria-hidden="true"></span>ClearSettle</div>
+            <h3>Your authenticator is set up</h3>
+            <div class="msg msg-info"><svg class="ico"><use href="#i-shield"/></svg><span>For your security, sign in once more and enter a code from the app you just set up. You will not need your password again.</span></div>
+            <button class="btn btn-primary full">Sign in with your code</button>
+          </div>
+        </div></div>
+      <div class="frame"><div class="frame-cap">Session ended (idle 15 minutes or 8-hour limit)</div>
+        <div class="auth"><div class="field" aria-hidden="true"></div>
+          <div class="auth-card">
+            <div class="brand"><span class="brand-mark" aria-hidden="true"></span>ClearSettle</div>
+            <h3>You were signed out</h3>
+            <div class="msg msg-warn"><svg class="ico"><use href="#i-clock"/></svg><span>Your session ended after 15 minutes without activity. Nothing you had not saved was submitted.</span></div>
+            <button class="btn btn-primary full">Sign in again</button>
+          </div>
+        </div></div>
+    </div>
+  </section>
+
+  <section id="confirm">
+    <h2>Confirming a sensitive action</h2>
+    <p>Every sensitive operation is reviewed and confirmed explicitly. When the sign-in is older than five minutes the dialog asks the user to verify it is them first; returning from the identity provider brings them back to the same review, and nothing has run yet.</p>
+    <div class="frames">
+      <div class="frame"><div class="frame-cap">1. Sign-in older than 5 minutes: 401 step_up_required</div>
+        <div class="scrim"><div class="dialog" role="dialog" aria-labelledby="d1">
+          <header><h3 id="d1">Confirm it is you</h3></header>
+          <div class="body">
+            <p style="margin:0">Posting journals needs a sign-in from the last 5 minutes. You will enter your password and a code, then come back here to review the journals. Nothing is posted until you confirm.</p>
+          </div>
+          <footer><button class="btn">Cancel</button><button class="btn btn-primary">Verify it is you</button></footer>
+        </div></div></div>
+      <div class="frame"><div class="frame-cap">2. Review and confirm (single use)</div>
+        <div class="scrim"><div class="dialog" role="dialog" aria-labelledby="d2">
+          <header><h3 id="d2">Approve and post 3 journals</h3></header>
+          <div class="body">
+            <table class="facts">
+              <tr><th>Period</th><td>April 2026 (open)</td></tr>
+              <tr><th>Journals</th><td>JE-2604-031 to JE-2604-033</td></tr>
+              <tr><th>Total debits</th><td class="num"><span class="cur">INR</span>2,14,600.00</td></tr>
+              <tr><th>Total credits</th><td class="num"><span class="cur">INR</span>2,14,600.00</td></tr>
+              <tr><th>Prepared by</th><td>Rahul M. (you are not the preparer)</td></tr>
+            </table>
+            <div class="timer"><svg class="ico"><use href="#i-clock"/></svg>This confirmation expires at 14:37 IST</div>
+          </div>
+          <footer><button class="btn">Cancel</button><button class="btn btn-primary">Approve and post</button></footer>
+        </div></div></div>
+      <div class="frame"><div class="frame-cap">3. Result, and a refused confirmation</div>
+        <div style="padding: var(--s5); display: grid; gap: var(--s4)">
+          <div class="toast" role="status"><svg class="ico"><use href="#i-check"/></svg>Posted 3 journals to April 2026</div>
+          <div class="msg msg-err" role="alert"><svg class="ico"><use href="#i-warn"/></svg><span>This confirmation has already been used, so nothing was posted again. Reload the journal list to see its current state.</span></div>
+          <div class="msg msg-warn" role="alert"><svg class="ico"><use href="#i-clock"/></svg><span>This confirmation expired after 5 minutes. Start the action again to review the current figures.</span></div>
+        </div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Every data view: loading, empty, error, partial</h2>
+    <p>A failed request is never shown as zero or as an empty list (NFR-UX-005), and financial actions are never applied optimistically (NFR-UX-006).</p>
+    <div class="frames">
+      <div class="frame"><div class="frame-cap">Loading</div>
+        <div class="sk-rows" aria-busy="true" aria-label="Loading exceptions">
+          <div class="sk-row"><span class="sk"></span><span class="sk"></span><span class="sk"></span><span class="sk"></span></div>
+          <div class="sk-row"><span class="sk"></span><span class="sk"></span><span class="sk"></span><span class="sk"></span></div>
+          <div class="sk-row"><span class="sk"></span><span class="sk"></span><span class="sk"></span><span class="sk"></span></div>
+        </div></div>
+      <div class="frame"><div class="frame-cap">Empty</div>
+        <div class="state"><h4>No open exceptions in April 2026</h4><p>Every payment in the latest stage 1 run is matched or awaiting settlement.</p><a class="btn" href="#">View the run</a></div></div>
+      <div class="frame"><div class="frame-cap">Error</div>
+        <div class="state"><h4>Exceptions could not be loaded</h4><p>The server did not respond. Nothing has changed. Counts on this page are hidden until the list loads.</p><button class="btn"><svg class="ico"><use href="#i-retry"/></svg>Try again</button></div></div>
+      <div class="frame"><div class="frame-cap">Partial data</div>
+        <div class="state"><h4>Results may be incomplete for 28 Apr</h4><p>The settlement report for that day was partially imported: 14 rows are quarantined.</p><a class="btn" href="#">Review quarantined rows</a></div></div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
