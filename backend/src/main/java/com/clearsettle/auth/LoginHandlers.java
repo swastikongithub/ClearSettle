@@ -80,8 +80,13 @@ public final class LoginHandlers {
 			if (userId == null || nonce == null) {
 				return java.util.Optional.empty();
 			}
-			return sessions.findByPrincipalName(userId.toString()).values().stream()
-					.map(s -> (org.springframework.session.Session) s)
+			// Only the ids are taken from the principal index; each session is then read by its id. Spring
+			// Session JDBC's principal query has no ORDER BY and its row extractor assumes each session's
+			// attribute rows are adjacent: on PostgreSQL they interleave once a user's sessions have been
+			// updated, and a session can come back without some attributes (here, the nonce).
+			return sessions.findByPrincipalName(userId.toString()).keySet().stream()
+					.map(id -> (org.springframework.session.Session) sessions.findById(id))
+					.filter(java.util.Objects::nonNull)
 					.filter(s -> nonce.equals(s.getAttribute(SessionAttributes.STEP_UP_NONCE)))
 					.findFirst();
 		}
