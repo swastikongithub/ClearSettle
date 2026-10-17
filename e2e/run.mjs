@@ -325,7 +325,7 @@ async function groupB() {
       status: ok ? "PASS" : "FAIL" };
   });
 
-  await test("B-08", "TOTP brute-force protection: repeated wrong one-time codes lock the account temporarily at the IdP; during the lockout even the correct password and a valid code get no session", "D-SEC-14, NFR-SEC-010", async () => {
+  await test("B-08", "TOTP brute-force protection: repeated wrong one-time codes lock the account temporarily at the IdP; during the lockout a sign-in with the correct password (and a valid code, if one is asked for) gets no session", "D-SEC-14, NFR-SEC-010", async () => {
     const u = createUser("lockout");
     const ready = await loginReady(u); await ready.context.close();
     const id = kcUserId(u);
@@ -349,7 +349,7 @@ async function groupB() {
     const lockEvents = JSON.parse(L.kcadm(`get events -r clearsettle -q type=USER_DISABLED_BY_TEMPORARY_LOCKOUT -q user=${id}`)).length;
     L.kcadm(`delete attack-detection/brute-force/users/${id} -r clearsettle`); // clear the lockout (dev user)
     const ok = locked && retry.onIdp && retry.me === 401 && during.disabled === true && lockEvents >= 1;
-    return { layer: "browser", expected: "locked after repeated wrong codes; correct password + valid code during the lockout -> no session; the lockout is a Keycloak event",
+    return { layer: "browser", expected: "locked after repeated wrong codes; during the lockout the correct password (and a valid code if asked) -> no session; the lockout is a Keycloak event",
       actual: { wrong_codes_until_locked: attempts, locked, retry_during_lockout: retry, idp_state: { disabled: during.disabled, numFailures: during.numFailures }, lockout_events: lockEvents },
       status: ok ? "PASS" : "FAIL" };
   });
