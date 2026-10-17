@@ -27,12 +27,14 @@ spring:
       mode: never
 
 # Owner-approved authentication policy (D-SEC-12..15). Values are overridable via the environment but
-# production must not weaken them. Idle 15 min; absolute 8 h; step-up freshness 5 min (proposed default).
+# production must not weaken them. Idle 15 min; absolute 8 h; sensitive-action freshness 5 min (approved
+# 17 October 2026); a requested sensitive action must be confirmed within 5 min of the request.
 clearsettle:
   auth:
     idle-timeout-seconds: 900
     absolute-lifetime-seconds: 28800
     step-up-freshness-seconds: 300
+    pending-action-ttl-seconds: 300
     clock-skew-seconds: 30
     session-cookie-same-site: Strict
     session-cookie-name: __Host-CSSESSION

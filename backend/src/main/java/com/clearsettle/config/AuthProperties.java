@@ -13,8 +13,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * <ul>
  *   <li>D-SEC-13: 15-minute idle, 8-hour absolute lifetime (absolute anchored to authentication time,
  *       never extended by activity).</li>
- *   <li>D-SEC-14: universal MFA; a short fresh-authentication window for sensitive actions
- *       (proposed default 5 minutes, pending the owner fixing the exact window).</li>
+ *   <li>D-SEC-14: universal MFA; a 5-minute fresh-authentication window for sensitive actions (owner
+ *       approval, 17 October 2026), and a pending sensitive action that must be confirmed within 5 minutes
+ *       of being requested.</li>
  *   <li>D-SEC-15: V3 cookies — Strict {@code __Host-} session cookie, Lax {@code __Host-CSLOGIN}.</li>
  * </ul>
  * The pure predicates here ({@link #absoluteExpired}, {@link #freshEnough}) are unit-tested with a
@@ -27,7 +28,7 @@ public class AuthProperties {
 	private final long idleTimeoutSeconds;
 	/** Absolute session lifetime in seconds, anchored to authentication time. D-SEC-13: 8 hours. */
 	private final long absoluteLifetimeSeconds;
-	/** Fresh-authentication window for sensitive actions, in seconds. D-SEC-14 proposed default: 5 minutes. */
+	/** Fresh-authentication window for sensitive actions, in seconds. D-SEC-14 (approved): 5 minutes. */
 	private final long stepUpFreshnessSeconds;
 	/** Clock-skew tolerance for future-dated auth_time, in seconds. */
 	private final long clockSkewSeconds;
@@ -52,6 +53,12 @@ public class AuthProperties {
 	 * {@code amr} makes contradictory or insufficient evidence fail closed. No entry = no AMR requirement.
 	 */
 	private final Map<String, List<String>> mfaAmrAnyOfByRegistration;
+	/**
+	 * How long a requested sensitive action stays confirmable, in seconds, counted from the request. An
+	 * engineering default equal to the freshness window: the user steps up (if needed), reviews and confirms
+	 * within 5 minutes, or requests the action again.
+	 */
+	private final long pendingActionTtlSeconds;
 
 	/** Convenience constructor without an AMR requirement (used by unit tests). */
 	public AuthProperties(long idleTimeoutSeconds, long absoluteLifetimeSeconds, long stepUpFreshnessSeconds,
@@ -61,6 +68,16 @@ public class AuthProperties {
 		this(idleTimeoutSeconds, absoluteLifetimeSeconds, stepUpFreshnessSeconds, clockSkewSeconds, sessionCookieSameSite,
 				sessionCookieName, csrfCookieName, customHeaderName, requireCustomHeader, strongAcrByRegistration,
 				stepUpAcrValues, Map.of());
+	}
+
+	/** Convenience constructor with the default pending-action lifetime (used by unit tests). */
+	public AuthProperties(long idleTimeoutSeconds, long absoluteLifetimeSeconds, long stepUpFreshnessSeconds,
+			long clockSkewSeconds, String sessionCookieSameSite, String sessionCookieName, String csrfCookieName,
+			String customHeaderName, boolean requireCustomHeader, Map<String, List<String>> strongAcrByRegistration,
+			Map<String, String> stepUpAcrValues, Map<String, List<String>> mfaAmrAnyOfByRegistration) {
+		this(idleTimeoutSeconds, absoluteLifetimeSeconds, stepUpFreshnessSeconds, clockSkewSeconds, sessionCookieSameSite,
+				sessionCookieName, csrfCookieName, customHeaderName, requireCustomHeader, strongAcrByRegistration,
+				stepUpAcrValues, mfaAmrAnyOfByRegistration, 300);
 	}
 
 	@org.springframework.boot.context.properties.bind.ConstructorBinding
@@ -76,7 +93,8 @@ public class AuthProperties {
 			@DefaultValue("true") boolean requireCustomHeader,
 			Map<String, List<String>> strongAcrByRegistration,
 			Map<String, String> stepUpAcrValues,
-			Map<String, List<String>> mfaAmrAnyOfByRegistration) {
+			Map<String, List<String>> mfaAmrAnyOfByRegistration,
+			@DefaultValue("300") long pendingActionTtlSeconds) {
 		this.idleTimeoutSeconds = idleTimeoutSeconds;
 		this.absoluteLifetimeSeconds = absoluteLifetimeSeconds;
 		this.stepUpFreshnessSeconds = stepUpFreshnessSeconds;
@@ -89,6 +107,7 @@ public class AuthProperties {
 		this.strongAcrByRegistration = strongAcrByRegistration == null ? Map.of() : strongAcrByRegistration;
 		this.stepUpAcrValues = stepUpAcrValues == null ? Map.of() : stepUpAcrValues;
 		this.mfaAmrAnyOfByRegistration = mfaAmrAnyOfByRegistration == null ? Map.of() : mfaAmrAnyOfByRegistration;
+		this.pendingActionTtlSeconds = pendingActionTtlSeconds;
 	}
 
 	/**
@@ -151,6 +170,10 @@ public class AuthProperties {
 
 	public long getStepUpFreshnessSeconds() {
 		return stepUpFreshnessSeconds;
+	}
+
+	public long getPendingActionTtlSeconds() {
+		return pendingActionTtlSeconds;
 	}
 
 	public long getClockSkewSeconds() {

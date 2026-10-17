@@ -14,6 +14,7 @@ clearsettle:
     idle-timeout-seconds: 900
     absolute-lifetime-seconds: 28800
     step-up-freshness-seconds: 300
+    pending-action-ttl-seconds: 300
     clock-skew-seconds: 30
     session-cookie-same-site: Strict
     session-cookie-name: __Host-CSSESSION
