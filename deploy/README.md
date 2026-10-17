@@ -135,7 +135,8 @@ Every run starts with the preflight `A-01`: the proxy serves the app shell, its 
 API, and anonymous visits create no server-side session. `B-08` locks a dedicated test user at the IdP and
 clears the lockout afterwards.
 
-The backend's PostgreSQL tests (single-use confirmation under concurrency) run only against a disposable
+The backend's PostgreSQL tests (single-use confirmation under concurrency; the step-up's session lookup on the
+real Spring Session repository) run only against a disposable
 database named by `CS_TEST_PG_URL`, `CS_TEST_PG_USER` and `CS_TEST_PG_PASSWORD` (the production schema is
 applied to it); without them `mvn test` reports them as skipped. Never point them at this stack's database.
 

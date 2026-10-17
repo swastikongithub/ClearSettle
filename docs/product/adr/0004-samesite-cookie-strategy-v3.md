@@ -85,6 +85,11 @@ including same-site cookie-tossing rejected by the CSRF layer, not by content-ty
   the stored session survived. The originating session is now always addressed by the id its stored
   record was found under (user + nonce), and **every refused step-up ends the originating session** (the
   refusal response clears the browser's session cookie in either path, so nothing may linger server-side).
+- **Finding the originating session needs a by-id read (17 October 2026).** With several sessions per user,
+  Spring Session JDBC's principal-name query (no `ORDER BY`, an extractor that assumes adjacent rows) can
+  return a session without some of its attributes on PostgreSQL, so a step-up minutes after sign-in was
+  refused as `session_expired` (wall-clock test LR-03). The callback now takes only ids from the principal
+  index and reads each session by id; regression tests on H2 and PostgreSQL.
 - CSRF holds without SameSite: in that engine every forged/cross-site/cookie-tossing request (E-01…E-10)
   is still rejected by the CSRF layer, with the victim's cookies attached. This is the live evidence that
   SameSite is defense-in-depth here, not the CSRF control.
