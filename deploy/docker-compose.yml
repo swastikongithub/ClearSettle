@@ -21,7 +21,9 @@ x-backend-environment: &backend-environment
   CLEARSETTLE_OIDC_KEYCLOAK_CLIENTID: clearsettle-web
   CLEARSETTLE_OIDC_KEYCLOAK_CLIENTSECRET: ${KC_CLIENT_SECRET}
   # LOCAL DEVELOPMENT ONLY: registers a no-op sensitive operation so the step-up and single-use
-  # confirmation can be exercised end to end (no real sensitive operation exists yet). Never set elsewhere.
+  # confirmation can be exercised end to end (no real sensitive operation exists yet). It needs BOTH the
+  # local-dev profile and the property, and the backend refuses to start with it on a non-loopback origin.
+  SPRING_PROFILES_ACTIVE: local-dev
   CLEARSETTLE_DEVFIXTURES_ENABLED: "true"
 
 services:
