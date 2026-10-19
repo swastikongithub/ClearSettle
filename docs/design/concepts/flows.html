@@ -41,8 +41,8 @@
   .msg { display: flex; gap: var(--s3); padding: var(--s3) var(--s4); border-radius: var(--r-control); font-size: var(--t-sm); margin-bottom: var(--s4); }
   .msg .ico { margin-top: 3px; }
   .msg-info { background: var(--petrol-wash); color: var(--petrol-ink); }
-  .msg-warn { background: var(--amber-wash); color: #6d3a05; }
-  .msg-err { background: var(--s-risk-wash); color: #7a1d12; }
+  /* Session and confirmation notices are information: amber stays reserved for differences and data gaps,
+     vermilion for high risk and destructive actions. */
 
   /* Sensitive-action confirmation */
   .scrim { background: rgba(23, 35, 43, 0.45); padding: var(--s6) var(--s4); min-height: 420px; display: grid; place-items: center; }
@@ -82,7 +82,7 @@
 <div class="concept-banner" role="note">
   <strong>Design concept, not the application.</strong>
   <span>The sign-in form itself is served by Keycloak and needs a ClearSettle login theme; amounts are illustrative.</span>
-  <a href="overview.html">Overview concept</a> <a href="reconciliation.html">Reconciliation concept</a>
+  <a href="index.html">All concepts</a> <a href="overview.html">Overview concept</a> <a href="reconciliation.html">Reconciliation concept</a>
 </div>
 
 <div class="board">
@@ -115,7 +115,7 @@
           <div class="auth-card">
             <div class="brand"><span class="brand-mark" aria-hidden="true"></span>ClearSettle</div>
             <h3>You were signed out</h3>
-            <div class="msg msg-warn"><svg class="ico"><use href="#i-clock"/></svg><span>Your session ended after 15 minutes without activity. Nothing you had not saved was submitted.</span></div>
+            <div class="msg msg-info"><svg class="ico"><use href="#i-clock"/></svg><span>Your session ended after 15 minutes without activity. Nothing you had not saved was submitted.</span></div>
             <button class="btn btn-primary full">Sign in again</button>
           </div>
         </div></div>
@@ -150,10 +150,10 @@
           <footer><button class="btn">Cancel</button><button class="btn btn-primary">Approve and post</button></footer>
         </div></div></div>
       <div class="frame"><div class="frame-cap">3. Result, and a refused confirmation</div>
-        <div style="padding: var(--s5); display: grid; gap: var(--s4)">
+        <div style="padding: var(--s5); display: grid; gap: var(--s4); align-content: start">
           <div class="toast" role="status"><svg class="ico"><use href="#i-check"/></svg>Posted 3 journals to April 2026</div>
-          <div class="msg msg-err" role="alert"><svg class="ico"><use href="#i-warn"/></svg><span>This confirmation has already been used, so nothing was posted again. Reload the journal list to see its current state.</span></div>
-          <div class="msg msg-warn" role="alert"><svg class="ico"><use href="#i-clock"/></svg><span>This confirmation expired after 5 minutes. Start the action again to review the current figures.</span></div>
+          <div class="msg msg-info" role="status"><svg class="ico"><use href="#i-info"/></svg><span>This confirmation has already been used, so nothing was posted again. Reload the journal list to see its current state.</span></div>
+          <div class="msg msg-info" role="status"><svg class="ico"><use href="#i-clock"/></svg><span>This confirmation expired after 5 minutes. Start the action again to review the current figures.</span></div>
         </div></div>
     </div>
   </section>

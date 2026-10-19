@@ -9,19 +9,22 @@
 <link rel="stylesheet" href="tokens.css">
 <style>
   /* The settlement chain: the one bold element of the workspace experience. */
-  .chain { padding: var(--s6) var(--s5) var(--s4); }
-  .chain-track { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); position: relative; }
-  .chain-track::before { content: ""; position: absolute; left: 16px; right: calc(100% / 6 - 16px); top: 15px; height: 2px; background: var(--petrol); opacity: 0.35; }
+  .chain { padding: var(--s4) var(--s5) var(--s4); }
+  .chain-track { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); position: relative; padding-top: 64px; }
+  .chain-track::before { content: ""; position: absolute; left: 16px; right: calc(100% / 6 - 16px); top: 79px; height: 2px; background: var(--petrol); opacity: 0.35; }
   .node { position: relative; padding: 0 var(--s2); }
   .node .dot { width: 32px; height: 32px; border-radius: 50%; background: var(--sheet); border: 2px solid var(--petrol); display: grid; place-items: center; position: relative; z-index: 1; color: var(--petrol); }
   .node .dot .ico { width: 15px; height: 15px; }
   .node h3 { margin: var(--s3) 0 2px; font-size: var(--t-sm); font-weight: 500; color: var(--ink-2); }
   .node .count { font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
   .node .amt { font-size: var(--t-sm); color: var(--ink-2); margin-top: 2px; }
-  /* Each gap sits on the line, centred between this stage's circle and the next one's. */
-  .gap { position: absolute; left: calc(50% + 16px); top: 3px; transform: translateX(-50%); z-index: 2; }
-  .gap a { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-xs); font-weight: 600; color: var(--amber); background: var(--amber-wash); border: 1px solid #ecd2b4; border-radius: 999px; padding: 2px 8px; text-decoration: none; white-space: nowrap; }
+  /* A link's callouts sit above the line, between this stage's circle and the next one's, with a tick down
+     to the link they describe. They never cover a circle, and a link can carry more than one. */
+  .gap { position: absolute; left: 40px; right: -8px; bottom: calc(100% + 10px); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .gap::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 25px; background: var(--rule); }
+  .gap a { display: inline-flex; align-items: center; gap: 4px; font-size: var(--t-xs); font-weight: 600; color: var(--amber); background: var(--amber-wash); border: 1px solid #ecd2b4; border-radius: 999px; padding: 1px 8px; text-decoration: none; white-space: nowrap; }
   .gap a.ok { color: var(--s-matched); background: var(--s-matched-wash); border-color: #c4e0cf; }
+  .gap a.todo { color: var(--ink-2); background: var(--rule-2); border-color: var(--rule); }
   .gap .ico { width: 12px; height: 12px; }
   .chain-foot { display: flex; gap: var(--s5); flex-wrap: wrap; margin-top: var(--s5); padding-top: var(--s4); border-top: 1px solid var(--rule-2); font-size: var(--t-sm); color: var(--ink-2); }
   .chain-foot b { color: var(--ink); font-weight: 600; }
@@ -43,16 +46,18 @@
   .feed li { display: grid; grid-template-columns: 64px 1fr; gap: var(--s3); padding: 7px 0; border-top: 1px solid var(--rule-2); }
   .feed li:first-child { border-top: 0; }
   .feed time { color: var(--ink-3); font-size: var(--t-xs); padding-top: 2px; }
-  @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
-  @media (max-width: 960px) {
+  /* Below desktop width the chain runs downwards: six stages and their callouts do not fit across. */
+  @media (max-width: 1100px) {
+    .grid-2 { grid-template-columns: 1fr; }
     .chain { padding-top: var(--s4); }
-    .chain-track { grid-template-columns: 1fr; }
+    .chain-track { grid-template-columns: 1fr; padding-top: 0; }
     .chain-track::before { left: 15px; right: auto; top: 16px; bottom: 16px; width: 2px; height: auto; }
     .node { display: grid; grid-template-columns: 32px 1fr; column-gap: var(--s3); padding: 0 0 var(--s4); }
     .node .dot { grid-row: 1 / span 3; }
     .node h3 { margin: 0; }
     .node .count { font-size: var(--t-xl); }
-    .gap { position: static; transform: none; grid-column: 2; margin-top: var(--s2); justify-content: flex-start; display: flex; }
+    .gap { position: static; grid-column: 2; margin-top: var(--s2); flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+    .gap::after { display: none; }
     .panel-head { flex-wrap: wrap; }
     .panel-head p { flex-basis: 100%; order: 3; }
   }
@@ -82,7 +87,7 @@
 <div class="concept-banner" role="note">
   <strong>Design concept, not the application.</strong>
   <span>All names, amounts and counts are illustrative sample data. No backend exists for this screen yet.</span>
-  <a href="reconciliation.html">Reconciliation concept</a> <a href="flows.html">Sign-in and confirmation states</a>
+  <a href="index.html">All concepts</a> <a href="reconciliation.html">Reconciliation concept</a> <a href="flows.html">Sign-in and confirmation states</a>
 </div>
 
 <div class="shell">
@@ -110,7 +115,7 @@
   <div class="main">
     <header class="topbar">
       <span class="select" role="button" aria-label="Period: April 2026">April 2026</span>
-      <span class="pill" style="color: var(--s-awaiting)">Open period</span>
+      <span class="pill" style="color: var(--ink-2)">Open period</span>
       <span class="muted" style="font-size: var(--t-xs)">Data to 30 Apr 2026, 23:59 IST</span>
       <span class="spacer"></span>
       <button class="btn btn-quiet">Jobs (1 running)</button>
@@ -137,21 +142,21 @@
               <h3>Merchant orders</h3>
               <div class="count num">2,148</div>
               <div class="amt num"><span class="cur">INR</span>63,42,180.00</div>
-              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>12 without payment</a></div>
+              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>17 without payment</a></div>
             </div>
             <div class="node">
               <div class="dot"><svg class="ico"><use href="#i-card"/></svg></div>
               <h3>Successful payments</h3>
               <div class="count num">2,131</div>
               <div class="amt num"><span class="cur">INR</span>62,97,440.00</div>
-              <div class="gap"><a href="#"><svg class="ico"><use href="#i-clock"/></svg>58 awaiting settlement</a></div>
+              <div class="gap"><a href="reconciliation.html"><svg class="ico"><use href="#i-delta"/></svg>9 differences</a><a href="#"><svg class="ico"><use href="#i-clock"/></svg>58 awaiting</a></div>
             </div>
             <div class="node">
               <div class="dot"><svg class="ico"><use href="#i-doc"/></svg></div>
               <h3>Settlement lines</h3>
               <div class="count num">2,073</div>
               <div class="amt num"><span class="cur">INR</span>61,20,915.40</div>
-              <div class="gap"><a href="#"><svg class="ico"><use href="#i-delta"/></svg>9 differences</a></div>
+              <div class="gap"><a class="ok" href="#"><svg class="ico"><use href="#i-check"/></svg>All in payouts</a></div>
             </div>
             <div class="node">
               <div class="dot"><svg class="ico"><use href="#i-out"/></svg></div>
@@ -165,18 +170,18 @@
               <h3>Bank credits</h3>
               <div class="count num">30</div>
               <div class="amt num"><span class="cur">INR</span>59,85,704.12</div>
-              <div class="gap"><a class="ok" href="#"><svg class="ico"><use href="#i-check"/></svg>24 journals ready</a></div>
+              <div class="gap"><a class="todo" href="flows.html#confirm"><svg class="ico"><use href="#i-clock"/></svg>6 to post</a></div>
             </div>
             <div class="node">
               <div class="dot"><svg class="ico"><use href="#i-ledger"/></svg></div>
-              <h3>Posted to the ledger</h3>
+              <h3>Posted journals</h3>
               <div class="count num">18</div>
               <div class="amt num"><span class="cur">INR</span>44,10,322.60</div>
             </div>
           </div>
           <div class="chain-foot">
             <span>Gateway fees and taxes deducted <b class="num"><span class="cur">INR</span>1,76,524.60</b>, exactly as reported</span>
-            <span>Open differences <b class="num diff"><span class="cur">INR</span>&minus;14,880.25</b> across 37 exceptions</span>
+            <span>Open differences <b class="num diff"><span class="cur">INR</span>14,880.25</b> across 37 exceptions, summed without netting</span>
             <span>Bank continuity: no gaps in account ••4821</span>
           </div>
         </div>

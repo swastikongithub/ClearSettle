@@ -13,7 +13,7 @@
   --petrol: #0b5563;       /* primary action, focus, selection */
   --petrol-ink: #073f4a;   /* primary hover / pressed */
   --petrol-wash: #e2eef0;  /* selected row, active nav */
-  --amber: #a85808;        /* differences: the thing the product exists to show */
+  --amber: #a85808;        /* differences, and gaps in the data behind them (partial imports): nothing else */
   --amber-wash: #fbf0e3;
 
   /* Reconciliation outcome colours: always paired with an icon and a label */
@@ -101,6 +101,7 @@ a { color: var(--petrol); }
 .st-awaiting { color: var(--s-awaiting); background: var(--s-awaiting-wash); }
 .st-unmatched { color: var(--s-unmatched); background: var(--s-unmatched-wash); }
 .st-risk { color: var(--s-risk); background: var(--s-risk-wash); }
+.st-neutral { color: var(--ink-2); background: var(--rule-2); } /* routine risk, period state: no outcome colour */
 
 /* ---------- panels and tables ---------- */
 .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-panel); }

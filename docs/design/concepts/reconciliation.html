@@ -8,7 +8,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="tokens.css">
 <style>
-  .run-head { display: grid; grid-template-columns: 1fr auto; gap: var(--s3) var(--s5); align-items: start; }
+  .run-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s3) var(--s5); align-items: flex-start; }
+  .run-head > div:first-child { flex: 1 1 420px; }
   .stages { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-control); overflow: hidden; background: var(--sheet); }
   .stages button { font: inherit; font-size: var(--t-sm); padding: 7px 14px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
   .stages button[aria-pressed="true"] { background: var(--petrol); color: #fff; }
@@ -44,10 +45,14 @@
   .compare .total { background: var(--amber-wash); font-weight: 600; color: var(--amber); }
   .actions { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s2); }
   .note { font-size: var(--t-xs); color: var(--ink-3); margin-top: var(--s3); }
+  .exc .meta { display: flex; align-items: center; gap: var(--s2); margin-top: 3px; font-size: var(--t-xs); color: var(--ink-3); }
+  .exc .status { padding-top: 0; padding-bottom: 0; }
+  .table-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s1) var(--s3); padding: var(--s3) var(--s4); font-size: var(--t-xs); color: var(--ink-3); border-top: 1px solid var(--rule); }
+  .parts { font-size: var(--t-xs); color: var(--ink-2); margin-top: var(--s2); }
+  th[aria-sort] .ico { width: 10px; height: 10px; vertical-align: -1px; margin-left: 2px; }
   .workspace > *, .run-head > * { min-width: 0; }
   @media (max-width: 1200px) { .workspace { grid-template-columns: 1fr; } }
   @media (max-width: 960px) {
-    .run-head { grid-template-columns: 1fr; }
     .run-head > div:last-child { justify-content: flex-start !important; }
     .stages { display: flex; width: 100%; }
     .stages button { flex: 1; }
@@ -71,12 +76,13 @@
   <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></symbol>
   <symbol id="i-unlink" viewBox="0 0 16 16"><path d="M5 11.5 3.8 12.7a2 2 0 0 1-2.8-2.8L4.6 6.3M11 4.5l1.2-1.2a2 2 0 0 1 2.8 2.8l-3.6 3.6M2 2l12 12"/></symbol>
   <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.5 14 13H2zM8 6.5v3M8 11.3v.2"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
 </svg>
 
 <div class="concept-banner" role="note">
   <strong>Design concept, not the application.</strong>
   <span>Illustrative sample data. Reconciliation runs, matches and exceptions have no backend yet (milestones M3 to M5).</span>
-  <a href="overview.html">Overview concept</a> <a href="flows.html">Sign-in and confirmation states</a>
+  <a href="index.html">All concepts</a> <a href="overview.html">Overview concept</a> <a href="flows.html">Sign-in and confirmation states</a>
 </div>
 
 <div class="shell">
@@ -102,7 +108,7 @@
   <div class="main">
     <header class="topbar">
       <span class="select" role="button" aria-label="Period: April 2026">April 2026</span>
-      <span class="pill" style="color: var(--s-awaiting)">Open period</span>
+      <span class="pill" style="color: var(--ink-2)">Open period</span>
       <span class="spacer"></span>
       <button class="btn btn-quiet">Jobs (1 running)</button>
       <button class="btn" aria-haspopup="menu">Priya S.</button>
@@ -138,7 +144,7 @@
       <div class="outcomes" role="group" aria-label="Outcome">
         <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-matched)"><use href="#i-check"/></svg>Matched</span><span class="n num">2,031</span><br><span class="a num">INR 60,12,004.10</span></button>
         <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-candidate)"><use href="#i-link"/></svg>Candidates</span><span class="n num">21</span><br><span class="a num">INR 4,10,250.00</span></button>
-        <button class="outcome" aria-pressed="true"><span class="lab"><svg class="ico" style="color:var(--amber)"><use href="#i-delta"/></svg>Differences</span><span class="n num">9</span><br><span class="a num">INR &minus;3,214.75 net</span></button>
+        <button class="outcome" aria-pressed="true"><span class="lab"><svg class="ico" style="color:var(--amber)"><use href="#i-delta"/></svg>Differences</span><span class="n num">9</span><br><span class="a num">INR 2,112.09, not netted</span><br><span class="a">and 1 in USD</span></button>
         <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-awaiting)"><use href="#i-clock"/></svg>Awaiting settlement</span><span class="n num">58</span><br><span class="a num">INR 1,76,525.30</span></button>
         <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-unmatched)"><use href="#i-unlink"/></svg>Unmatched</span><span class="n num">12</span><br><span class="a num">INR 44,740.00</span></button>
         <button class="outcome" aria-pressed="false"><span class="lab">Outside scope</span><span class="n num">0</span></button>
@@ -154,48 +160,50 @@
           <div class="table-wrap">
             <table class="data">
               <thead><tr>
-                <th scope="col">Payment</th><th scope="col">Value date</th><th scope="col" class="r">Gateway amount</th><th scope="col" class="r">Settlement amount</th><th scope="col" class="r">Difference</th><th scope="col">Type</th><th scope="col">Risk</th><th scope="col" class="r">Age</th>
+                <th scope="col">Payment</th><th scope="col" aria-sort="ascending">Value date<svg class="ico" aria-hidden="true"><use href="#i-up"/></svg></th><th scope="col" class="r">Payment gross</th><th scope="col" class="r">Settlement gross</th><th scope="col" class="r">Unexplained</th><th scope="col">Exception</th>
               </tr></thead>
               <tbody>
-                <tr aria-selected="true"><td class="ref">pay_Q7XK2LM</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>18,500.00</td><td class="r num"><span class="cur">INR</span>17,980.10</td><td class="r num diff">&minus;519.90</td><td>Amount mismatch</td><td><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High</span></td><td class="r num">6 d</td></tr>
-                <tr><td class="ref">pay_N2HD81Q</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>2,499.00</td><td class="r num"><span class="cur">INR</span>2,439.03</td><td class="r num diff">&minus;59.97</td><td>Settlement line inconsistency</td><td><span class="status st-difference">Routine</span></td><td class="r num">6 d</td></tr>
-                <tr><td class="ref">pay_T0ZC4WA</td><td>26 Apr</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num muted">0.00</td><td>Refunds exceed payment</td><td><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High</span></td><td class="r num">4 d</td></tr>
-                <tr><td class="ref">pay_H5LM0RB</td><td>27 Apr</td><td class="r num"><span class="cur">INR</span>1,199.00</td><td class="r num"><span class="cur">INR</span>1,170.70</td><td class="r num diff">&minus;28.30</td><td>Amount mismatch</td><td><span class="status st-difference">Routine</span></td><td class="r num">3 d</td></tr>
-                <tr><td class="ref">pay_V9KP3XE</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>12,000.00</td><td class="r num muted">not reported</td><td class="r num diff">&minus;12,000.00</td><td>Partial settlement</td><td><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High</span></td><td class="r num">2 d</td></tr>
-                <tr><td class="ref">pay_B3QW7ZN</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>3,450.00</td><td class="r num"><span class="cur">INR</span>3,367.20</td><td class="r num diff">&minus;82.80</td><td>Amount mismatch</td><td><span class="status st-difference">Routine</span></td><td class="r num">2 d</td></tr>
+                <tr aria-selected="true"><td class="ref">pay_Q7XK2LM</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>18,500.00</td><td class="r num"><span class="cur">INR</span>18,050.00</td><td class="r num diff">&minus;450.00</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>6 days</span></div></td></tr>
+                <tr><td class="ref">pay_N2HD81Q</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>2,499.00</td><td class="r num"><span class="cur">INR</span>2,499.00</td><td class="r num diff">&minus;0.99</td><td class="exc">Settlement line inconsistency<div class="meta"><span class="status st-neutral">Routine</span><span>6 days</span></div></td></tr>
+                <tr><td class="ref">pay_T0ZC4WA</td><td>26 Apr</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num diff">&minus;350.00</td><td class="exc">Refunds exceed payment<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>4 days</span></div></td></tr>
+                <tr><td class="ref">pay_H5LM0RB</td><td>27 Apr</td><td class="r num"><span class="cur">INR</span>1,199.00</td><td class="r num"><span class="cur">INR</span>1,170.70</td><td class="r num diff">&minus;28.30</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-neutral">Routine</span><span>3 days</span></div></td></tr>
+                <tr><td class="ref">pay_V9KP3XE</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>12,000.00</td><td class="r num"><span class="cur">USD</span>143.70</td><td class="r num muted">not comparable</td><td class="exc">Currency mismatch<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>2 days</span></div></td></tr>
+                <tr><td class="ref">pay_B3QW7ZN</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>3,450.00</td><td class="r num"><span class="cur">INR</span>3,367.20</td><td class="r num diff">&minus;82.80</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-neutral">Routine</span><span>2 days</span></div></td></tr>
               </tbody>
             </table>
           </div>
+          <div class="table-foot"><span>6 of 9 differences shown</span><span>Unexplained: the amount each exception concerns, signed from the merchant&rsquo;s side</span></div>
         </section>
 
         <aside class="panel" aria-labelledby="trace-title">
           <div class="trace">
             <h2 id="trace-title">pay_Q7XK2LM</h2>
-            <div class="sub">Amount mismatch on payment to settlement, opened 24 Apr 2026, 23:40 IST. Assignee: Priya S.</div>
+            <div class="sub">Amount mismatch between the payment and its settlement line, opened 24 Apr 2026, 23:40 IST. Assignee: Priya S.</div>
             <ol class="steps">
               <li class="step"><span class="pin"></span><div class="k">Merchant order</div>
                 <div class="v"><span class="ref">ORD-58213</span><span class="num"><span class="cur">INR</span>18,500.00</span></div>
                 <div class="src">orders_apr.csv, row 1,204</div></li>
-              <li class="step"><span class="pin"></span><div class="k">Payment attempt, successful</div>
+              <li class="step"><span class="pin"></span><div class="k">Payment attempt, successful (gross)</div>
                 <div class="v"><span class="ref">pay_Q7XK2LM</span><span class="num"><span class="cur">INR</span>18,500.00</span></div>
                 <div class="src">gateway_txn_apr.xlsx, row 3,877</div></li>
-              <li class="step is-diff"><span class="pin"></span><div class="k">Settlement line</div>
-                <div class="v"><span class="ref">SETL-2604-17 line 88</span><span class="num"><span class="cur">INR</span>17,980.10</span></div>
+              <li class="step is-diff"><span class="pin"></span><div class="k">Settlement line (gross)</div>
+                <div class="v"><span class="ref">SETL-2604-17 line 88</span><span class="num"><span class="cur">INR</span>18,050.00</span></div>
                 <div class="src">settlement_2026-04-26.csv, row 88</div>
                 <div class="compare" aria-label="Both original amounts and the difference">
-                  <div><span>Gateway transaction</span><span class="num">INR 18,500.00</span></div>
-                  <div><span>Settlement line (net, as reported)</span><span class="num">INR 17,980.10</span></div>
-                  <div class="total"><span>Unexplained difference</span><span class="num">INR &minus;519.90</span></div>
+                  <div><span>Payment, gross</span><span class="num">INR 18,500.00</span></div>
+                  <div><span>Settlement line, gross</span><span class="num">INR 18,050.00</span></div>
+                  <div class="total"><span>Unexplained difference</span><span class="num">INR &minus;450.00</span></div>
                 </div>
+                <div class="parts">Also reported on the line: fee <span class="num">INR 361.00</span>, tax on fee <span class="num">INR 64.98</span>, net <span class="num">INR 17,624.02</span>. They agree with the line&rsquo;s gross, so the difference is not a fee.</div>
                 <div class="actions">
                   <button class="btn">Attach evidence</button>
                   <button class="btn">Comment</button>
                   <button class="btn btn-primary">Resolve with a reason</button>
                 </div>
                 <div class="note">High risk: resolving it needs approval by a different Controller. Source values are never edited.</div></li>
-              <li class="step wait"><span class="pin"></span><div class="k">Payout</div><div class="v muted">Matched to P-0426-02 after resolution</div></li>
+              <li class="step wait"><span class="pin"></span><div class="k">Payout</div><div class="v muted">In payout P-0426-02</div></li>
               <li class="step wait"><span class="pin"></span><div class="k">Bank credit</div><div class="v muted">Stage 2</div></li>
-              <li class="step wait" style="padding-bottom:0"><span class="pin"></span><div class="k">Journal</div><div class="v muted">Blocked until the evidence is resolved</div></li>
+              <li class="step wait" style="padding-bottom:0"><span class="pin"></span><div class="k">Journal</div><div class="v muted">Not journalled until the difference is resolved</div></li>
             </ol>
           </div>
         </aside>

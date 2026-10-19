@@ -1,6 +1,7 @@
 # ClearSettle — Frontend Design Proposal
 
-**Status:** PROPOSAL for owner review (17 October 2026). Nothing here is approved or implemented. It answers
+**Status:** PROPOSAL for owner review (17 October 2026; revised 19 October 2026, see *Review corrections*
+below). Nothing here is approved or implemented. It answers
 OQ-47 (information architecture and visual direction) and the M1 frontend deliverable "a design proposal
 produced with the `frontend-design` skill … the owner must approve it" (implementation plan §5 M1, D-UI-01,
 D-UI-05, NFR-UX-003).
@@ -18,8 +19,41 @@ application" banner and uses illustrative sample data only):
 | [`concepts/reconciliation.html`](concepts/reconciliation.html) | Reconciliation run results and the record trace |
 | [`concepts/flows.html`](concepts/flows.html) | Sign-in (Keycloak theme direction), the post-enrolment step, session end, sensitive-action confirmation, data states |
 | [`concepts/tokens.css`](concepts/tokens.css) | The proposed tokens, as CSS custom properties |
+| [`concepts/index.html`](concepts/index.html) | A starting page that links the three concepts and says what to look at in each |
 
 No customer, transaction volume or financial result in the concepts is real.
+
+**Previewing locally:** open `docs/design/concepts/index.html` in a browser (on Windows:
+`start docs\design\concepts\index.html` from the repository root). No build, server or install is needed. The
+pages load IBM Plex from Google Fonts and fall back to a system font offline; the application would serve its
+fonts itself. Narrow the window below 1100 px and 960 px, or use the browser's device mode at 390 px, to see
+the tablet and phone layouts. The concepts were rendered in Chromium at 1600, 1440, 1280, 1024 and 390 px
+with no horizontal page scroll and no console errors.
+
+### Review corrections (19 October 2026)
+
+A review of the concepts against the specification and at more widths found three faults, now corrected:
+
+- **Gross compared with net.** The reconciliation example compared the payment's gross amount (INR
+  18,500.00) with the settlement line's *net* amount and called the fee an "unexplained difference". The
+  specification forbids exactly that comparison (FR-FIN-001; L2 compares gross with gross, and the net is
+  checked against the reported components by FR-REC-021). The table now shows *Payment gross* and
+  *Settlement gross*, and the trace shows the line's reported fee, tax on fee and net beside the comparison.
+  A second row wrongly showed an unreported settlement as a "Partial settlement" difference; it is now a
+  currency mismatch whose amounts are shown but not compared. The Differences tile no longer nets signed
+  differences (offsetting errors would hide each other) and never adds two currencies.
+- **Layout.** At 1280 px, inside the proposed desktop range, the chain's labels covered the stage circles;
+  they now sit above the line between the two stages they describe, and the chain runs vertically below
+  1100 px. At 1024 px the reconciliation header squeezed its title into a one-word column; its actions now
+  wrap below it. A table column (age) was hidden off the side of its panel at 1440 px; risk and age now sit
+  under the exception type.
+- **Colour roles.** Amber also marked "session ended" and "confirmation expired", and an outcome colour
+  (awaiting, purple) marked the open period, which contradicted "one warm colour for differences". Session
+  and confirmation notices are now informational (petrol), the period state and routine risk are neutral,
+  and amber is used only for differences and the data gaps behind them (a partially imported file).
+
+The sample figures were also made to agree with each other (orders less successful payments, journals to
+post, stage 2 results).
 
 ---
 
@@ -81,9 +115,15 @@ No customer, transaction volume or financial result in the concepts is real.
 
 Reconciliation outcomes each have a colour **and** an icon **and** a text label (status is never shown by
 colour alone, NFR-UX-002): matched `#1f6f47` (tick), candidate `#2c56a8` (link), difference `#a85808`
-(delta), awaiting settlement `#6a4aa8` (clock), unmatched `#55636c` (broken link). Vermilion `#ad2a1a` is
-reserved for high risk and destructive actions. Debit and credit are never coded red/green; they are
-labelled columns (Dr/Cr) in journals and statements.
+(delta), awaiting settlement `#6a4aa8` (clock), unmatched `#55636c` (broken link). Outcome colours are used
+for outcomes only. Vermilion `#ad2a1a` is reserved for high risk and destructive actions. Debit and credit
+are never coded red/green; they are labelled columns (Dr/Cr) in journals and statements.
+
+Messages have three roles: **information** on a petrol wash (a session ended, a confirmation was already
+used or expired, the post-enrolment sign-in); **data warning** in amber, only when the numbers themselves
+may be incomplete or wrong (a partially imported file, a run that used it); **error** in vermilion, only when
+an action failed and the user must do something. Neutral grey marks states that are neither (the period's
+open/closed state, routine risk).
 
 Measured text contrast of the tokens (WCAG formula): secondary text `#4a5963` 7.2:1 and tertiary text
 `#606d76` 4.9:1 on paper; white on petrol 8.4:1; each status colour on its tint 5.3–6.0:1; amber on its tint
@@ -199,8 +239,10 @@ Question it answers: *for this period, where is the money and what stops us from
 ```
 ┌ April 2026 ─ Provisional: open period, 6 unposted journals, 4 high-risk exceptions ──────────────────────┐
 │ Where the money is                                         Stage 1 R-0412, Stage 2 R-0413, finished …     │
-│  (◎)──[12 without payment]──(◎)──[58 awaiting]──(◎)──[9 differences]──(◎)──[1 short credit]──(◎)──[24 ready]──(◎)
-│  Orders        Successful payments  Settlement lines   Payouts          Bank credits      Posted to ledger │
+│           [17 without payment]  [9 differences]  [All in payouts]  [1 short credit]   [6 to post]          │
+│                                 [58 awaiting]                                                              │
+│  (◎)────────────┴──────────(◎)─────────┴──────(◎)───────┴───────(◎)───────┴───────(◎)───────┴──────(◎)     │
+│  Orders        Successful payments  Settlement lines   Payouts          Bank credits      Posted journals  │
 │  2,148         2,131                2,073              30               30                18               │
 │  INR …         INR …                INR …              INR …            INR …             INR …            │
 │  Fees and taxes deducted (as reported) · Open differences · Bank statement continuity                     │
@@ -214,7 +256,9 @@ Question it answers: *for this period, where is the money and what stops us from
 └──────────────────────────────────────────────────────┴────────────────────────────────────────────────────┘
 ```
 
-- Every number is a link to the filtered list behind it; every gap label is the work that closes it.
+- Every number is a link to the filtered list behind it; every callout above a link is the work that closes
+  it, placed on the link it belongs to (stage 1 differences sit between payments and settlement lines).
+- Open differences are summed without netting: a +500 and a −500 are INR 1,000.00 of open work, not zero.
 - The strip shows counts and amounts per currency; with several currencies it shows one row per currency.
 - Role emphasis: analysts see candidates and exceptions first, controllers see approvals and the close
   checklist, auditors get the same view read-only. The data is the same; only the order changes.
@@ -231,13 +275,14 @@ Question it answers: *for this period, where is the money and what stops us from
 │ [Matched 2,031] [Candidates 21] [Differences 9 ▾] [Awaiting settlement 58] [Unmatched 12] [Outside scope 0]
 ├──────────────────────────────────────────────────────────────┬───────────────────────────────────────┐
 │ Filters: type · risk · assignee · age                [Export]│ pay_Q7XK2LM  amount mismatch, 6 days   │
-│ Payment     Value date  Gateway   Settlement  Difference Type│ ○ Order ORD-58213     INR 18,500.00     │
-│ ▌pay_Q7XK2LM 24 Apr     18,500.00 17,980.10   −519.90   …    │   orders_apr.csv, row 1,204             │
-│  pay_N2HD81Q 24 Apr      2,499.00  2,439.03    −59.97   …    │ ○ Payment attempt     INR 18,500.00     │
-│  …                                                           │ ◉ Settlement line     INR 17,980.10     │
-│                                                              │   ┌ Gateway   INR 18,500.00 ┐          │
-│                                                              │   │ Settlement INR 17,980.10 │          │
-│                                                              │   └ Difference INR −519.90   ┘          │
+│ Payment     Value date  Payment   Settlement  Unexplained    │ ○ Order ORD-58213     INR 18,500.00     │
+│                         gross     gross       Exception      │   orders_apr.csv, row 1,204             │
+│ ▌pay_Q7XK2LM 24 Apr     18,500.00 18,050.00   −450.00        │ ○ Payment (gross)     INR 18,500.00     │
+│                                               Amount mismatch│ ◉ Settlement line     INR 18,050.00     │
+│                                               High risk, 6 d │   ┌ Payment gross    INR 18,500.00 ┐    │
+│  pay_N2HD81Q 24 Apr      2,499.00  2,499.00     −0.99        │   │ Settlement gross INR 18,050.00 │    │
+│                                         Settlement line inc. │   └ Unexplained      INR −450.00   ┘    │
+│  …                                       6 of 9 shown        │   fee 361.00, tax 64.98, net 17,624.02  │
 │                                                              │   [Attach evidence] [Comment] [Resolve] │
 │                                                              │ ┆ Payout · Bank credit · Journal         │
 └──────────────────────────────────────────────────────────────┴───────────────────────────────────────┘
@@ -302,6 +347,23 @@ How the designed UI uses what exists (D-SEC-11 to D-SEC-19):
   theme (FreeMarker templates and CSS) maintained with the realm. Proposed for the same milestone as the
   shell.
 
+### What the approved stack implies (no change proposed)
+
+The Next.js static export served by nginx on the API's origin stays (D-TEC-03, D-SEC-11). Nothing in this
+design needs server rendering or a Node server, and adding one would put authenticated pages back on a
+server path that D-SEC-11 deliberately avoids. Two consequences need to be designed for:
+
+- **Routes that carry an identifier use query parameters** (`/reconciliation/run/?id=R-0412`), as
+  `/review?action=<id>` does today. A static export cannot generate a page for an identifier it does not
+  know at build time, and nginx falls back to `/index.html` for unknown paths, so a path such as
+  `/runs/R-0412/` would silently show the overview.
+- **A Content Security Policy for the frontend is missing and needs build support.** nginx serves the static
+  pages with no `Content-Security-Policy` header today, and nothing in the specification requires one; it is
+  recommended for the shell milestone. The export emits inline scripts (checked in the current build), and a
+  static export cannot use per-request nonces, so a strict policy needs the inline scripts' hashes computed at
+  build time and written into the nginx configuration. Allowing `'unsafe-inline'` for scripts would be the
+  weak alternative and is not recommended.
+
 ---
 
 ## 8. Screens mapped to backend APIs
@@ -345,17 +407,106 @@ Most useful functional screen first; every step ships only screens whose backend
 
 ## 10. Decisions requested from the owner
 
-1. Approve the visual direction: palette, IBM Plex Sans, layout and the settlement chain as the signature
-   element.
-2. Approve the information architecture (section names, Records instead of Transactions, Settings holding
-   admin capabilities).
-3. Amount formatting for INR: Indian digit grouping (`1,24,500.00`) or international (`124,500.00`), and
-   negative-value style in statements (minus sign or parentheses).
-4. Accessibility and support target (OQ-46): WCAG 2.2 AA, current evergreen browsers, desktop first with
-   responsive review flows.
-5. Frontend dependencies (OQ-48, each adds supply-chain surface): proposed **Radix UI primitives** (dialogs,
-   menus, listboxes with correct accessibility), **TanStack Table** with **TanStack Virtual** (large grids),
-   **TanStack Query** (server state, with a full cache clear on workspace switch); styling with CSS custom
-   properties and CSS Modules (no CSS framework); self-hosted Plex fonts. No animation library.
-6. Provide the D-UI-03 reference screenshot (OQ-47) before the Keycloak theme is designed.
-7. Confirm the sequence in section 9, starting with the shell and authentication.
+Each decision has a recommended default. Approving the defaults is enough to start step 1 of section 9;
+decisions 3 and 5 can also be taken later, before the first screen that needs them.
+
+### 1. Visual direction
+
+**Recommended:** approve the palette, IBM Plex Sans with its condensed cut, the layout, and the settlement
+chain as the one signature element, as corrected on 19 October.
+
+**Why:** the chain is the product's own evidence model, so it explains the product instead of decorating
+it; a light, low-glare base suits long table sessions; one warm colour that means "difference" lets the
+eye find the work.
+
+**If you want a different feel:** the palette is the cheapest part to change, since the tokens are isolated
+in one file and the layout does not depend on them.
+
+### 2. Information architecture
+
+**Recommended:** approve the eight sections in section 3, with **Records** instead of "Transactions" and
+the administrator's tools inside **Settings**.
+
+**Why:** the sections follow journeys J1 to J6 and the record types of the specification, and "transaction"
+is ambiguous there (§2.1).
+
+**Alternative:** a separate Admin section, if workspace administrators are a different audience from the
+finance team (for example an IT administrator who should not see financial sections). That depends on
+OQ-36 (Admin access) and can be revisited then.
+
+### 3. Amounts in INR
+
+**Recommended:**
+- Indian digit grouping for INR (`1,24,500.00`), international grouping for every other currency
+  (`USD 124,500.00`).
+- Always the currency's full minor units (two decimals for INR and USD), and never abbreviated ("₹1.2 Cr"
+  or "12.4 L" are not used, even on the overview).
+- A true minus sign in working views and differences (`−450.00`). Parentheses only in the formal
+  statements, the P&L and the balance sheet, where accountants expect them.
+- Exports carry plain decimal values (`124500.00`) with a separate currency column, so spreadsheets read
+  them as numbers.
+
+**Why:** the users are Indian finance teams whose ledgers, bank statements and accounting software group in
+lakhs and crores. A difference needs a direction, and a minus sign reads faster in a dense table than
+brackets.
+
+**How:** amounts are formatted from the API's decimal string by one small, tested formatter that never
+converts them to a JavaScript number.
+
+**Alternative:** international grouping everywhere is a one-line change in that formatter. It mostly
+affects familiarity, not structure.
+
+### 4. Accessibility and browser support (OQ-46)
+
+**Recommended:**
+- WCAG 2.2 AA for every application screen, and complete keyboard operation.
+- The current and previous major versions of Chrome, Edge, Firefox and Safari on desktop.
+- Safari on iOS and Chrome on Android for the review flows: sign-in, approvals and exception review.
+- Layout: designed for 1280 to 1600 px, usable at 1024 px, and review flows from 360 px.
+
+**Why:** AA is the usual procurement baseline and what the tokens were measured against.
+
+**Caveat:** real Safari, iOS and Android testing needs a Mac and phones, or a paid device cloud, which is
+billable and needs your authorization. Today only Playwright WebKit and device emulation are available, and
+they are not Safari.
+
+### 5. Frontend dependencies (OQ-48)
+
+**Recommended:** add each library at the step that first needs it, pinned, and check its compatibility with
+React 19 and Next 16 at that point.
+
+| Need | Proposal | First needed |
+|---|---|---|
+| Dialogs and menus with correct focus, Escape and ARIA behaviour | Radix UI primitives (Dialog, Dropdown Menu, then others as needed) | Step 1: the confirmation dialog and the user menu |
+| Server state, and a full cache clear on workspace switch (FR-WSP-017) | TanStack Query, with no optimistic updates for financial actions | Step 2: workspaces |
+| Large, keyboard-navigable grids, sorted and filtered on the server | TanStack Table and TanStack Virtual (headless) | Steps 3 and 4: imports and results |
+| Fonts with no third-party request | IBM Plex Sans and Condensed `woff2` files in the repository (SIL Open Font License), loaded with `@font-face` | Step 1 |
+| Icons | A small set of in-repository SVG icons (about 25, as in the concepts), not an icon package | Step 1 |
+
+Not proposed: a CSS framework, a component kit (MUI, Chakra), an animation library, or a date library.
+Styling stays with CSS custom properties and CSS Modules. Dates use `Intl` and the API's ISO strings; a
+library is reconsidered only if time-zone logic grows.
+
+**Alternative:** no libraries at all. That is feasible for step 1, but costly and risky for the data grid
+and for accessible dialogs.
+
+### 6. The D-UI-03 sign-in reference (OQ-47)
+
+**Recommended:** provide the screenshot when convenient. It blocks only the Keycloak login theme, not the
+rest of step 1.
+
+**Until then:** ClearSettle's own signed-out and session-ended pages use the concept's colour field, and the
+Keycloak pages keep Keycloak's default theme. Users see a change of style between the two until the theme
+is built.
+
+### 7. Implementation sequence
+
+**Recommended:** confirm section 9, with two amendments:
+- Step 1 includes the two shell items still outstanding from M1 security: returning to a deep link after
+  sign-in, and the idle-expiry warning with its small backend addition.
+- Build ClearSettle-side session revocation in the M1 backend before step 2's members screen: an audited
+  administrative revocation, OIDC back-channel logout, or both (engineering checklist §7, D-SEC-18). Removing
+  a member and resetting a factor both depend on it.
+
+**Why:** the first step is useful on its own and has a working backend, and every later step ships only
+screens whose backend exists.
