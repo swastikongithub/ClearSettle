@@ -1,7 +1,7 @@
 # ClearSettle — Decision Register
 
-**Document status:** Consolidated for owner review. Authentication (M1) implementation is authorized as of 16 October 2026 (owner authorization, following the M0 spike and the approval of D-SEC-12 to D-SEC-15). Other areas remain in specification; implementation of those is not yet authorized.
-**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope), D-PRD-09 (workspace and accounting entity) and D-SEC-11 (authentication architecture) recorded 16 October 2026; D-SEC-12 to D-SEC-15 (identity provider, session policy, MFA, SameSite) recorded 16 October 2026 after the M0 spike, resolving OQ-34, OQ-38, OQ-55 and OQ-57 and authorizing M1 authentication implementation; M1 verification and implementation notes added to D-SEC-11 to D-SEC-15, 17 October 2026 (decision text unchanged); D-SEC-16 to D-SEC-19 (first sign-in after enrolment, sensitive-operation policy, MFA recovery, second factor) recorded 17 October 2026 after the owner approved the four M1 security-policy recommendations
+**Document status:** Consolidated for owner review. Authentication (M1) implementation is authorized as of 16 October 2026 (owner authorization, following the M0 spike and the approval of D-SEC-12 to D-SEC-15). On 19 October 2026 the owner approved the frontend design defaults (D-UI-07 to D-UI-13) and authorized the application UI to proceed in the approved build order. Other areas remain in specification; implementation of those is not yet authorized.
+**Consolidated:** 15 October 2026; revised 16 October 2026 after independent review; D-PRD-08 (ledger scope), D-PRD-09 (workspace and accounting entity) and D-SEC-11 (authentication architecture) recorded 16 October 2026; D-SEC-12 to D-SEC-15 (identity provider, session policy, MFA, SameSite) recorded 16 October 2026 after the M0 spike, resolving OQ-34, OQ-38, OQ-55 and OQ-57 and authorizing M1 authentication implementation; M1 verification and implementation notes added to D-SEC-11 to D-SEC-15, 17 October 2026 (decision text unchanged); D-SEC-16 to D-SEC-19 (first sign-in after enrolment, sensitive-operation policy, MFA recovery, second factor) recorded 17 October 2026 after the owner approved the four M1 security-policy recommendations; D-UI-07 to D-UI-13 (frontend design defaults) recorded 19 October 2026.
 **Primary source:** [`clearsettle_approved_decisions_seed.md`](clearsettle_approved_decisions_seed.md), cited below as "Seed §n, Lxx".
 **Related documents:** [Product specification](clearsettle_product_specification.md), [Specification audit](clearsettle_specification_audit.md), [Implementation plan](clearsettle_implementation_plan.md), [Engineering checklist](../engineering/clearsettle_master_engineering_checklist.md), [Pre-consolidation register (archived)](archive/clearsettle_decision_register_pre_consolidation.md).
 
@@ -79,6 +79,13 @@ Each decision records the following fields:
 | D-UI-04 | Marketing visual reference | APPROVED (reference); DEFERRED (build) |
 | D-UI-05 | No unapproved redesigns | APPROVED |
 | D-UI-06 | One Next.js app with three experiences | INFERENCE |
+| D-UI-07 | Visual direction: palette, IBM Plex Sans, the settlement chain | APPROVED (19 October 2026) |
+| D-UI-08 | Navigation: eight sections, Records, admin tools under Settings | APPROVED (19 October 2026) |
+| D-UI-09 | Amount formatting and currency boundaries | APPROVED (19 October 2026) |
+| D-UI-10 | Accessibility WCAG 2.2 AA and browser support | APPROVED (19 October 2026) |
+| D-UI-11 | Frontend architecture and dependencies, added only when needed | APPROVED (19 October 2026) |
+| D-UI-12 | The application's own sign-in experience | APPROVED (19 October 2026) |
+| D-UI-13 | Frontend build order | APPROVED (19 October 2026) |
 | D-IMP-01 | Four source-data categories | APPROVED |
 | D-IMP-02 | CSV and XLSX uploads | APPROVED |
 | D-IMP-03 | Guided column mapping and templates | APPROVED |
@@ -363,7 +370,7 @@ Each decision records the following fields:
 - **Decision:** A clean, restrained authentication form paired with a flowing multicolour animated background, based on a screenshot the owner supplied.
 - **Existing fact:** The screenshot is not in the repository (verified 15 October 2026).
 - **Source:** Prior register row "Authentication visual reference".
-- **Open:** OQ-47.
+- **Open:** the screenshot is still missing, but on 19 October 2026 the owner directed that it must not block the product UI (D-UI-12). It is needed only for the separate, optional Keycloak login theme.
 
 #### D-UI-04 — Marketing visual reference
 - **Status:** APPROVED (as a reference); DEFERRED (implementation, see D-DEF-01)
@@ -382,6 +389,72 @@ Each decision records the following fields:
 - **Rationale:** Listed as the "selected direction" in the prior register. The seed does not restate it.
 - **Source:** Prior register row "Frontend framework".
 - **Open:** OQ-48.
+
+The seven entries below record the owner's approval, on 19 October 2026, of the defaults in the frontend
+design proposal (`docs/design/clearsettle_frontend_design_proposal.md` §10), with the owner's clarifications.
+
+#### D-UI-07 — Visual direction
+- **Status:** APPROVED (owner approval, 19 October 2026)
+- **Decision:** The proposed palette (ink, paper, sheet, rule, petrol, amber), IBM Plex Sans with its condensed cut for references, and the settlement chain as the one signature element.
+- **Behaviour:** Professional, restrained and precise. No unnecessary gradients, decorative animation or generic dashboard-template styling. Amber marks differences and the data gaps behind them only; outcome colours mark outcomes only; status is never shown by colour alone.
+- **Depends on:** D-UI-01, D-UI-02, D-UI-05.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** none.
+
+#### D-UI-08 — Navigation
+- **Status:** APPROVED (owner approval, 19 October 2026)
+- **Decision:** Eight sections: Overview, Imports, Reconciliation, Exceptions, Records, Ledger, Reports, Settings. "Records" replaces "Transactions". Administrative tools sit under Settings.
+- **Constraints:** No separate Admin section until the admin-access decision (OQ-36) is resolved. Navigation shown by permission is a convenience; the server enforces every permission.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** OQ-36.
+
+#### D-UI-09 — Amount formatting and currency boundaries
+- **Status:** APPROVED (owner approval, 19 October 2026)
+- **Decision:**
+  - Indian digit grouping for INR (`1,24,500.00`); international grouping for other currencies.
+  - Working amounts are never abbreviated.
+  - A minus sign for negative amounts on working screens. Parentheses on profit-and-loss and balance-sheet views only.
+  - Exported values stay numeric and machine-readable (plain decimals, currency in its own column).
+- **Constraints:**
+  - Amounts in different currencies are never added together.
+  - A payment's gross amount is never compared with a settlement's net amount as if they were equivalent (FR-FIN-001).
+  - Amounts are formatted from the API's exact decimal strings, never through floating-point numbers.
+- **Note:** the owner's example wrote the rupee sign (`₹1,24,500.00`). The proposal's convention stands unless the owner says otherwise: the ISO code (`INR`) in tables and wherever currencies can mix, the sign allowed in prose.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** none.
+
+#### D-UI-10 — Accessibility and browser support
+- **Status:** APPROVED (owner approval, 19 October 2026). Resolves OQ-46.
+- **Decision:** WCAG 2.2 AA. The current and previous versions of Chrome, Edge, Firefox and Safari. Review workflows usable on phones.
+- **Constraints:** No device-testing service or other paid resource without separate authorization. Until real Safari, iOS and Android testing is available, those results are recorded as outstanding (Playwright WebKit and device emulation are not those browsers).
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** real-browser and real-device testing (infrastructure, authorization).
+
+#### D-UI-11 — Frontend architecture and dependencies
+- **Status:** APPROVED (owner approval, 19 October 2026). Resolves the frontend-library part of OQ-48.
+- **Decision:** Keep the Next.js static export and React, with same-origin API access (D-SEC-11). Add libraries incrementally, when a screen needs them:
+  - Radix primitives for dialogs and menus;
+  - TanStack Query when server-state management becomes necessary;
+  - TanStack Table and virtualization for the data-heavy tables.
+- **Constraints:** Fonts and icons live in the repository. No CSS framework, all-in-one component kit or animation library without a concrete need and a documented justification.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** OQ-48 (backend tooling: migration tool).
+
+#### D-UI-12 — The application's own sign-in experience
+- **Status:** APPROVED (owner approval, 19 October 2026)
+- **Decision:** The product UI is not blocked on the D-UI-03 screenshot. The application's own sign-in experience follows the approved visual direction (D-UI-07), with a polished, Stripe-inspired fintech aesthetic as high-level inspiration, without copying another product's interface. The Keycloak login theme is a separate, optional design task that can be refined later.
+- **Depends on:** D-UI-02, D-UI-03, D-UI-07.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** the Keycloak login theme (optional).
+
+#### D-UI-13 — Frontend build order
+- **Status:** APPROVED (owner approval, 19 October 2026)
+- **Decision:**
+  1. The application shell and the session experience, including returning the user to the page they asked for after sign-in and warning before the idle session expires.
+  2. The backend session-revocation work (engineering checklist §7), before the workspace-members screen.
+  3. The remaining approved screens and workflows in dependency order (proposal §9). No screen is built against fabricated data or APIs.
+- **Source:** Owner approval, 19 October 2026 (design defaults).
+- **Open:** none.
 
 ### 2.4 Source data and imports
 
@@ -1025,9 +1098,9 @@ Each decision records the following fields:
   - **Categories** (NFR-SEC-004), wired as their features are built, each feature recording the classification of its operations when it is designed: posting approval; period reopening; role and permission changes; offboarding steps a person starts; activation of templates and other changes to sensitive financial settings; original-file download. RECOMMENDATION: also an administrator's MFA reset of another user (D-SEC-18). Logout and sign out everywhere are never sensitive.
 - **Rationale:** *(source: owner approval)* fresh proof at the moment of a sensitive action, without replaying a financial mutation automatically (NFR-SEC-024).
 - **Behaviour:** a feature implements `SensitiveOperation` and starts it with `SensitiveActions.request`, which stores a pending action (user, type, parameters) and answers `202 confirmation_required` or `401 step_up_required` with the step-up URL; the operation runs only from `POST /api/sensitive-actions/{id}/confirm` (CSRF token and custom header required), which re-checks the evidence and claims the action exactly once in the same transaction as the operation (a failed operation rolls the claim back). Refusals: another user's or an unknown action `404`, executed or cancelled `409`, expired `410`, unregistered type `422`, stale or weak evidence `401 step_up_required`. Engineering default (not owner-set): an action must be confirmed within 5 minutes of the request (`clearsettle.auth.pending-action-ttl-seconds`). Every step is a security event.
-- **Constraints:** a pending action records who asked and what was asked; it is not a grant of authority — the operation re-checks the user's current authorization when it executes.
+- **Constraints:** a pending action records who asked and what was asked; it is not a grant of authority — the operation re-checks the user's current authorization when it executes. What executes is what was reviewed: every operation declares the version of what the user reviews, captured at the request; a confirmation is refused (`409 action_changed`) and the action withdrawn if it has changed, and the operation checks it again under lock (engineering default, 19 October 2026).
 - **Depends on:** D-SEC-13, D-SEC-14, NFR-SEC-022.
-- **Tests:** `SensitiveActionFlowTest` (15, H2), `PendingActionPostgresTest` (4, PostgreSQL 17.11, concurrent confirmations), `FreshAuthEvaluatorTest`; live H-01, H-06, H-07, H-08, M-02, LR-02, LR-03, LR-04.
+- **Tests:** `SensitiveActionFlowTest` (18, H2), `PendingActionPostgresTest` (4, PostgreSQL 17.11, concurrent confirmations), `FreshAuthEvaluatorTest`; live H-01, H-06, H-07, H-08, M-02, LR-02, LR-03, LR-04.
 - **Source:** Owner approval, 17 October 2026 (security policy).
 - **Open:** no sensitive business operation exists yet; the mechanism is verified with a test fixture and a no-op operation registered only in the local dev stack. Integration with each real operation is outstanding and is part of that feature's acceptance.
 
@@ -1310,9 +1383,9 @@ OQ-03 (workspace and accounting entity) was resolved on 16 October 2026 by D-PRD
 | OQ-43 | Which providers host the database, object storage, email, deployment, secrets manager and monitoring? | Needed for the RPO/RTO evidence and the operations runbook (Seed §13, L253). | Select providers that support point-in-time recovery, object versioning and an India region if required. The secrets approach and development and CI environments are needed for M1; the email provider for M8; production hosting for M9. | (a) | Owner | M1 (partial), M8, M9 |
 | OQ-44 | What processing time is acceptable for a 250,000-row import, and what defines load-test success? | Without a target the limits cannot be "validated" (AF-84). | Owner sets a target after a baseline measurement in M2. | (a)(c) | Owner | M9 |
 | OQ-45 | Is real customer data ever allowed outside production? | Non-production environments are weaker (AF-86). | No. Use synthetic or anonymized data only. | (a) | Owner | M1 |
-| OQ-46 | What accessibility target and browser and device support apply? | No acceptance criteria are possible otherwise (Seed §13, L256). | WCAG 2.2 AA (carried from the prior register as a proposal); current evergreen browsers; desktop-first, with responsive behaviour for tablet and mobile review flows. | (a) | Owner | M1 |
-| OQ-47 | What are the information architecture and visual direction, and can the missing reference screenshots be added? | `CLAUDE.md` requires a design proposal before UI work. The reference images are missing (AF-08). | Produce a design proposal with the `frontend-design` skill once implementation is authorized. Owner adds the reference images to the repository. | (a) | Owner | M1 |
-| OQ-48 | Which versions and tooling? Java LTS, Spring Boot, Maven or Gradle, Flyway or Liquibase, Next.js version and router, frontend libraries. | Needed before scaffolding. | Choose from current official documentation at M0. The prior register candidates (Tailwind, Radix, TanStack Query and Table, Motion) remain proposals. | (b) | Owner (confirm) | M1 |
+| OQ-46 | What accessibility target and browser and device support apply? | No acceptance criteria are possible otherwise (Seed §13, L256). | **RESOLVED 19 October 2026 by D-UI-10.** WCAG 2.2 AA (carried from the prior register as a proposal); current evergreen browsers; desktop-first, with responsive behaviour for tablet and mobile review flows. | (a) | Owner | M1 |
+| OQ-47 | What are the information architecture and visual direction, and can the missing reference screenshots be added? | `CLAUDE.md` requires a design proposal before UI work. The reference images are missing (AF-08). | **RESOLVED 19 October 2026 by D-UI-07, D-UI-08 and D-UI-12** (the screenshot no longer blocks; it is needed only for the optional Keycloak theme). Produce a design proposal with the `frontend-design` skill once implementation is authorized. Owner adds the reference images to the repository. | (a) | Owner | M1 |
+| OQ-48 | Which versions and tooling? Java LTS, Spring Boot, Maven or Gradle, Flyway or Liquibase, Next.js version and router, frontend libraries. | Needed before scaffolding. | **Frontend libraries resolved 19 October 2026 by D-UI-11; the migration tool remains open.** Choose from current official documentation at M0. The prior register candidates (Tailwind, Radix, TanStack Query and Table, Motion) remain proposals. | (b) | Owner (confirm) | M1 |
 | OQ-49 | How are jobs executed: database-backed jobs or a durable queue? | Restart recovery and backpressure depend on it. | PostgreSQL-backed jobs with leases, attempt limits and idempotency keys. Reassess after load tests. | (b) | Owner (confirm) | M2 |
 | OQ-50 | What are the API conventions for errors, identifiers and pagination? | Consistency (checklist §5). | RFC 9457 problem details, opaque UUID identifiers, cursor pagination for large lists. | (b) | Owner (confirm) | M1 |
 | OQ-51 | What does "unreconciled balances" mean in the period-close checklist (D-ACC-14)? | The item is approved but undefined. There is currently no ledger-to-bank tie-out (AF-102). | At period end, compare each bank account's ledger balance with the statement closing balance, and each clearing or in-transit account's balance with its open reconciliation items. Check statement continuity on import (FR-IMP-031). | (a)(d) | Owner; external accountant | M6, M7 |
@@ -1340,6 +1413,8 @@ Kept for traceability. Resolved questions are not counted as open.
 | OQ-34 | Which identity provider? | **Keycloak** (D-SEC-12, ADR-0001): OIDC Authorization Code + PKCE S256, confidential client; the only candidate tested live in the M0 spike. Cognito/Auth0 retained as alternatives. | 16 October 2026; owner approval after the M0 spike | Live Cognito/Auth0 validation (billable, not performed); backchannel logout; enrolment/recovery (OQ-55 scope). |
 | OQ-38 | Idle/absolute lifetimes and fresh-authentication policy? | **15-minute idle; 8-hour absolute** anchored to authentication time and not extended by activity (D-SEC-13, ADR-0002). Mechanisms proven in the spike at test values (T-01/T-02). | 16 October 2026; owner approval after the M0 spike | Freshness window and sensitive-operation policy approved 17 October 2026 (D-SEC-17); production values verified in M1 (LR-01 to LR-04); integration with each real sensitive operation as it is built. |
 | OQ-55 | Should MFA be broader than privileged roles? | **Universal MFA for every user at login, plus step-up for sensitive actions** (D-SEC-14, ADR-0003); step-up is not a substitute for the baseline. | 16 October 2026; owner approval after the M0 spike | Universal-MFA-at-login enforcement verified in M1; enrolment sign-in (D-SEC-16), recovery policy (D-SEC-18) and factor type (D-SEC-19) approved 17 October 2026; the recovery procedure, ClearSettle-side session revocation and the external review are outstanding. |
+| OQ-46 | Accessibility target and browser and device support? | **WCAG 2.2 AA**; current and previous Chrome, Edge, Firefox and Safari; review flows usable on phones (D-UI-10). | 19 October 2026; owner approval of the design defaults | Real Safari, iOS and Android testing (needs infrastructure and authorization). |
+| OQ-47 | Information architecture, visual direction, missing screenshots? | Visual direction D-UI-07; navigation D-UI-08; the application's own sign-in D-UI-12, not blocked on the screenshot. | 19 October 2026; owner approval of the design defaults | The D-UI-03 screenshot, for the optional Keycloak login theme only. |
 | OQ-57 | `SameSite` value and login-state storage? | **V3** (D-SEC-15, ADR-0004): session cookie `SameSite=Strict` (`__Host-`), separate `__Host-CSLOGIN` login cookie `SameSite=Lax`; full CSRF defense retained. | 16 October 2026; owner approval after the M0 spike | Safari/WebKit and mobile compatibility (unverified); external-deep-link UX under Strict. |
 
 ---
@@ -1426,6 +1501,7 @@ The prior register is preserved verbatim at [`archive/clearsettle_decision_regis
 | 16 October 2026 | After the owner-authorized M0 authentication spike and its security follow-up, the owner approved the four remaining D-SEC-11 sub-decisions and authorized M1 authentication implementation. Recorded as D-SEC-12 (identity provider: Keycloak; resolves OQ-34), D-SEC-13 (session policy 15-min idle / 8-h absolute; resolves OQ-38), D-SEC-14 (universal MFA + step-up; resolves OQ-55) and D-SEC-15 (SameSite V3; resolves OQ-57), each with a matching ADR in `adr/`. OQ-34, OQ-38, OQ-55 and OQ-57 annotated RESOLVED and added to §3.5. D-SEC-11 index status and "Open" line, §4 (§13 Q5, #76 CSRF) updated. Approval dates and outstanding acceptance criteria (live managed-provider validation; universal-MFA-at-login enforcement; enrolment/recovery; Safari/mobile; F-1 product logging integration; F-3 retention) recorded as still mandatory. No other approved decision changed. |
 | 17 October 2026 | The owner approved the four security-policy recommendations from the M1 integration validation. Recorded as D-SEC-16 (the sign-in that enrols TOTP creates no session), D-SEC-17 (sensitive operations: 5-minute freshness, step-up, single-use confirmation; categories from NFR-SEC-004), D-SEC-18 (MFA recovery: administrator-assisted, identity-verified, audited; no self-service reset; procedure and ClearSettle-side controls not built) and D-SEC-19 (TOTP for every user). D-SEC-13 and D-SEC-14 "Open" lines, OQ-38 and OQ-55 (§3.4, §3.5), §4 (§13 Q5) and §7 updated; ADR-0002 and ADR-0003 amended. No other approved decision changed. |
 
+| 19 October 2026 | The owner approved the seven defaults of the frontend design proposal, with clarifications. Recorded as D-UI-07 (visual direction), D-UI-08 (navigation), D-UI-09 (amount formatting and currency boundaries), D-UI-10 (accessibility and browser support; resolves OQ-46), D-UI-11 (frontend architecture and dependencies; resolves the frontend-library part of OQ-48), D-UI-12 (the application's own sign-in experience, not blocked on the D-UI-03 screenshot; with D-UI-07 and D-UI-08 resolves OQ-47) and D-UI-13 (build order). |
 ---
 
 ## 7. Decisions whose only source is an owner instruction outside the repository
@@ -1441,3 +1517,4 @@ The owner gave the 15 October 2026 consolidation brief, the Git and GitHub workf
 | D-PRD-09 | Workspace represents one accounting entity (owner approval, 16 October 2026, workspace model). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
 | D-SEC-11 | Authentication session architecture A′ (owner approval, 16 October 2026, authentication architecture). | Given explicitly by the owner on 16 October 2026; this entry is its record. |
 | D-SEC-16 to D-SEC-19 | The four M1 security-policy approvals (owner approval, 17 October 2026, security policy). | Given explicitly by the owner on 17 October 2026; these entries are their record. |
+| D-UI-07 to D-UI-13 | The seven frontend design approvals (owner approval, 19 October 2026, design defaults). | Given explicitly by the owner on 19 October 2026; these entries are their record. |

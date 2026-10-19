@@ -17,7 +17,7 @@ The authentication implementation lives under `backend/` (Spring Boot OIDC + ses
 
 ## Design sources
 
-- `design/clearsettle_frontend_design_proposal.md`: frontend design proposal (visual direction, information architecture, components, API mapping, sequence). **Proposal awaiting owner approval; not implemented.**
+- `design/clearsettle_frontend_design_proposal.md`: frontend design proposal (visual direction, information architecture, components, API mapping, sequence). **Approved 19 October 2026 (D-UI-07 to D-UI-13).** What is built is recorded in the implementation status.
 - `design/concepts/`: static visual concepts for that proposal, with illustrative sample data only. Open `design/concepts/index.html` in a browser; no build is needed.
 
 ## Engineering sources
