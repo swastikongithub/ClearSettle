@@ -45,6 +45,7 @@ public class SensitiveActionController {
 			body.put("status", r.action().status());
 			body.put("expiresAt", r.action().expiresAt().getEpochSecond());
 			body.put("supported", r.supported());
+			body.put("changed", r.changed());
 			body.put("stepUpRequired", r.stepUpRequired());
 			if (r.stepUpRequired()) {
 				body.put("stepUpUrl", SensitiveActionResponses.stepUpUrl(token.getAuthorizedClientRegistrationId(), actionId));
@@ -78,6 +79,7 @@ public class SensitiveActionController {
 			case NOT_PENDING -> error(HttpStatus.CONFLICT, "action_not_pending", actionId);
 			case EXPIRED -> error(HttpStatus.GONE, "action_expired", actionId);
 			case UNSUPPORTED -> error(HttpStatus.UNPROCESSABLE_CONTENT, "action_type_unsupported", actionId);
+			case CHANGED -> error(HttpStatus.CONFLICT, "action_changed", actionId);
 			case FAILED -> error(HttpStatus.INTERNAL_SERVER_ERROR, "operation_failed", actionId);
 		};
 	}

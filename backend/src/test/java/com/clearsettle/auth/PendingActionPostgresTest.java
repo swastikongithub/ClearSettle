@@ -92,7 +92,12 @@ class PendingActionPostgresTest {
 		}
 
 		@Override
-		public Map<String, Object> execute(UUID userId, Map<String, String> params) {
+		public String reviewedVersion(UUID userId, Map<String, String> params) {
+			return "pg-v1";
+		}
+
+		@Override
+		public Map<String, Object> execute(UUID userId, Map<String, String> params, String reviewedVersion) {
 			jdbc.update("insert into security_event(event, app_user_id) values ('pg_fixture_effect', ?)", userId);
 			try {
 				Thread.sleep(300);

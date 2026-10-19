@@ -39,7 +39,12 @@ public class DevFixtureSensitiveOperation implements SensitiveOperation {
 	}
 
 	@Override
-	public Map<String, Object> execute(UUID userId, Map<String, String> params) {
+	public String reviewedVersion(UUID userId, Map<String, String> params) {
+		return "dev-fixture-noop-v1"; // the no-op has no state that could change after review
+	}
+
+	@Override
+	public Map<String, Object> execute(UUID userId, Map<String, String> params, String reviewedVersion) {
 		events.record("dev_fixture_operation_executed", userId, "type=" + TYPE);
 		return Map.of("changed", false);
 	}

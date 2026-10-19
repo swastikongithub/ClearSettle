@@ -7,8 +7,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import com.clearsettle.auth.ReviewedStateChangedException;
 import com.clearsettle.auth.SensitiveActions;
 import com.clearsettle.auth.SensitiveOperation;
 import com.clearsettle.auth.StepUpService;
@@ -68,10 +70,15 @@ class SensitiveActionFlowTest {
 	private static final String CSRF = "csrf-test-token-value-0002";
 	private static final JsonMapper JSON = JsonMapper.builder().build();
 
-	/** Test-only sensitive operation: writes one effect row, optionally failing after the write. */
+	/**
+	 * Test-only sensitive operation: writes one effect row, optionally failing after the write. Its reviewed
+	 * state has a version the test can change before the confirmation, or just before the operation's own check.
+	 */
 	static final class FixtureOperation implements SensitiveOperation {
 
 		final AtomicInteger failuresToInject = new AtomicInteger();
+		final AtomicReference<String> version = new AtomicReference<>("v1");
+		final AtomicReference<String> changeAtExecution = new AtomicReference<>();
 		private final JdbcTemplate jdbc;
 
 		FixtureOperation(JdbcTemplate jdbc) {
@@ -89,7 +96,19 @@ class SensitiveActionFlowTest {
 		}
 
 		@Override
-		public Map<String, Object> execute(UUID userId, Map<String, String> params) {
+		public String reviewedVersion(UUID userId, Map<String, String> params) {
+			return version.get();
+		}
+
+		@Override
+		public Map<String, Object> execute(UUID userId, Map<String, String> params, String reviewedVersion) {
+			String late = changeAtExecution.getAndSet(null);
+			if (late != null) {
+				version.set(late); // changed after the framework's check, before this one
+			}
+			if (!version.get().equals(reviewedVersion)) {
+				throw new ReviewedStateChangedException("fixture state changed since review");
+			}
 			jdbc.update("insert into security_event(event, app_user_id, detail) values ('fixture_effect', ?, ?)",
 					userId, "what=" + params.get("what"));
 			if (failuresToInject.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
@@ -168,6 +187,8 @@ class SensitiveActionFlowTest {
 		jdbc.update("insert into app_user(id, iss, sub, email, disabled) values (?,?,?,?,false)", alice, ISS, "alice-sa", "a@example.test");
 		jdbc.update("insert into app_user(id, iss, sub, email, disabled) values (?,?,?,?,false)", bob, ISS, "bob-sa", "b@example.test");
 		operation.failuresToInject.set(0);
+		operation.version.set("v1");
+		operation.changeAtExecution.set(null);
 	}
 
 	// ---------- authentication evidence ----------
@@ -364,9 +385,46 @@ class SensitiveActionFlowTest {
 
 	@Test
 	void anUnregisteredActionTypeIsNeverExecuted() throws Exception {
-		UUID id = pendingActions.begin(alice, "unregistered.type", Map.of());
+		UUID id = pendingActions.begin(alice, "unregistered.type", Map.of(), "v1");
 		assertThat(confirm(id, as("alice-sa", 10), 422).get("error").asString()).isEqualTo("action_type_unsupported");
 		assertThat(status(id)).isEqualTo("PENDING");
+	}
+
+	// ---------- what executes is what was reviewed ----------
+
+	@Test
+	void aChangeAfterTheReviewIsRefusedAndWithdrawsTheAction() throws Exception {
+		UUID id = requestAsFreshAlice();
+		assertThat(perform(get("/api/sensitive-actions/" + id).with(as("alice-sa", 10)), 200).get("changed").asBoolean()).isFalse();
+		operation.version.set("v2");
+
+		assertThat(perform(get("/api/sensitive-actions/" + id).with(as("alice-sa", 10)), 200).get("changed").asBoolean()).isTrue();
+		assertThat(confirm(id, as("alice-sa", 10), 409).get("error").asString()).isEqualTo("action_changed");
+		assertThat(status(id)).as("withdrawn: it can never be confirmed").isEqualTo("CANCELLED");
+		assertThat(effects()).isZero();
+		operation.version.set("v1");
+		assertThat(confirm(id, as("alice-sa", 10), 409).get("error").asString()).isEqualTo("action_not_pending");
+		assertThat(effects()).isZero();
+	}
+
+	@Test
+	void aChangeTheOperationDetectsUnderLockRollsBackAndWithdrawsTheAction() throws Exception {
+		UUID id = requestAsFreshAlice();
+		operation.changeAtExecution.set("v2");
+
+		assertThat(confirm(id, as("alice-sa", 10), 409).get("error").asString()).isEqualTo("action_changed");
+		assertThat(status(id)).isEqualTo("CANCELLED");
+		assertThat(effects()).isZero();
+	}
+
+	@Test
+	void anActionWithoutAReviewedVersionIsNeverExecuted() throws Exception {
+		UUID id = UUID.randomUUID();
+		jdbc.update("insert into pending_action(id, user_id, action_type, context, status, created_at) values (?,?,?,?, 'PENDING', ?)",
+				id, alice, TYPE, "{\"what\":\"fixture-42\"}", OffsetDateTime.now(ZoneOffset.UTC));
+
+		assertThat(confirm(id, as("alice-sa", 10), 409).get("error").asString()).isEqualTo("action_changed");
+		assertThat(effects()).isZero();
 	}
 
 	@Test

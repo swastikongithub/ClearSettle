@@ -18,7 +18,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Store for pending sensitive actions (D-SEC-14, NFR-SEC-024). A requested sensitive action is recorded as
- * a PENDING {@code pending_action} bound to the requesting user, its action type and its parameters; it can
+ * a PENDING {@code pending_action} bound to the requesting user, its action type, its parameters and the
+ * version of what the user reviews ({@link SensitiveOperation#reviewedVersion}); it can
  * be claimed for execution exactly once, and only within the pending-action lifetime counted from the
  * request. The policy that decides when a claim may be attempted is {@link SensitiveActions}.
  *
@@ -36,9 +37,13 @@ public class StepUpService {
 		/** Older than the pending-action lifetime. */ EXPIRED
 	}
 
-	/** A pending sensitive action as stored. {@code params} are the parameters the user reviews and confirms. */
-	public record PendingAction(UUID id, UUID userId, String actionType, Map<String, String> params, String status,
-			Instant createdAt, Instant expiresAt) {
+	/**
+	 * A pending sensitive action as stored. {@code params} are the parameters the user reviews and confirms;
+	 * {@code reviewedVersion} is the version of what they review, captured at the request (null only for rows
+	 * written before it existed, which can never be confirmed).
+	 */
+	public record PendingAction(UUID id, UUID userId, String actionType, Map<String, String> params,
+			String reviewedVersion, String status, Instant createdAt, Instant expiresAt) {
 
 		public boolean pending() {
 			return "PENDING".equals(status);
@@ -61,11 +66,15 @@ public class StepUpService {
 		this.clock = clock;
 	}
 
-	/** Records a PENDING action of the given type and parameters for the user and returns its id. */
-	public UUID begin(UUID userId, String actionType, Map<String, String> params) {
+	/** Records a PENDING action of the given type, parameters and reviewed version for the user; returns its id. */
+	public UUID begin(UUID userId, String actionType, Map<String, String> params, String reviewedVersion) {
+		if (reviewedVersion == null) {
+			throw new IllegalArgumentException("a sensitive action needs the version of what the user reviews");
+		}
 		UUID id = UUID.randomUUID();
-		jdbc.update("insert into pending_action(id, user_id, action_type, context, status, created_at) values (?,?,?,?, 'PENDING', ?)",
-				id, userId, actionType, JSON.writeValueAsString(params == null ? Map.of() : params), utc(clock.instant()));
+		jdbc.update("insert into pending_action(id, user_id, action_type, context, reviewed_version, status, created_at) "
+				+ "values (?,?,?,?,?, 'PENDING', ?)", id, userId, actionType,
+				JSON.writeValueAsString(params == null ? Map.of() : params), reviewedVersion, utc(clock.instant()));
 		return id;
 	}
 
@@ -76,11 +85,13 @@ public class StepUpService {
 
 	/** The action, if it exists AND belongs to this user. Another user's action is indistinguishable from none. */
 	public Optional<PendingAction> find(UUID actionId, UUID userId) {
-		return jdbc.query("select id, user_id, action_type, context, status, created_at from pending_action where id = ? and user_id = ?",
+		return jdbc.query("select id, user_id, action_type, context, reviewed_version, status, created_at "
+				+ "from pending_action where id = ? and user_id = ?",
 				(rs, i) -> {
 					Instant created = rs.getObject("created_at", OffsetDateTime.class).toInstant();
 					return new PendingAction(rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
-							rs.getString("action_type"), params(rs.getString("context")), rs.getString("status"), created,
+							rs.getString("action_type"), params(rs.getString("context")), rs.getString("reviewed_version"),
+							rs.getString("status"), created,
 							created.plusSeconds(props.getPendingActionTtlSeconds()));
 				}, actionId, userId).stream().findFirst();
 	}
@@ -103,7 +114,10 @@ public class StepUpService {
 				.orElse(ClaimResult.NOT_FOUND);
 	}
 
-	/** Cancels this user's PENDING action. Returns false when there is no such pending action. */
+	/**
+	 * Cancels this user's PENDING action; also used to withdraw an action whose reviewed state has changed.
+	 * Returns false when there is no such pending action.
+	 */
 	public boolean cancel(UUID actionId, UUID userId) {
 		return jdbc.update("update pending_action set status = 'CANCELLED' where id = ? and user_id = ? and status = 'PENDING'",
 				actionId, userId) == 1;
