@@ -240,7 +240,8 @@ Owner input or decisions:
   remove the existing factor).
 - The frontend design proposal (`docs/design/`).
 
-Not yet built or not yet verified:
+Not yet built or not yet verified (the MFA-recovery and session-revocation items are also held open in
+the engineering checklist §7, so later product work cannot assume them):
 
 - Integration of the sensitive-action policy with real operations (posting approval first, M6).
 - Ending ClearSettle sessions on an IdP-side reset or logout: an audited administrative revocation or OIDC

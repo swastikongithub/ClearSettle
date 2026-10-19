@@ -138,6 +138,44 @@ This is a quality/reliability checklist only. It deliberately does **not** decid
 
 > **Status update (16 October 2026):** The authentication and session model is chosen: D-SEC-11 in `docs/product/clearsettle_decision_register.md`. Spring Boot is the OIDC client and keeps server-side sessions in PostgreSQL; the client-rendered frontend is served from the same origin. The controls it requires are specified in product specification §10.1 (NFR-SEC-001 to NFR-SEC-005 and NFR-SEC-020 to NFR-SEC-026). They are planned controls, not implemented or verified, so the items above stay unchecked. Because the session uses a cookie, CSRF defenses apply, and CORS is not one of them (NFR-SEC-022). Still open: the cookie's `SameSite` value (OQ-57), session limits (OQ-38), the identity provider (OQ-34) and MFA scope (OQ-55).
 
+> **Status update (19 October 2026): MFA recovery and session revocation are not done.** Owner decisions
+> D-SEC-16 to D-SEC-19 (17 October 2026) are recorded in the decision register and ADR-0003. The M1
+> authentication work verifies the IdP-side recovery controls and most session controls; the evidence is in
+> `docs/product/clearsettle_implementation_status.md`. The items below remain **open**.
+>
+> - Each one blocks onboarding real users (the item above on account recovery and session invalidation).
+> - None may be treated as complete because its policy is documented.
+> - Later product work must not assume them. In particular, removing a member or resetting a factor is not
+>   finished until item 1 exists.
+>
+> 1. **Ending application sessions on MFA reset or IdP logout** (D-SEC-18, NFR-SEC-023, AC-075, AC-163).
+>    - Today a reset or logout in Keycloak does not reach ClearSettle; there is no back-channel logout.
+>    - Live test R-02 shows the old application session still valid until an operator deletes the user's
+>      `spring_session` rows by hand. That is an interim step, not a control.
+>    - Required: an audited administrative session revocation in ClearSettle, OIDC back-channel logout, or
+>      both.
+>    - Tests: across two application instances, like M-03 to M-05.
+>    - Recommended timing: with the remaining M1 backend work (workspaces, audit core).
+> 2. **Identity verification for an MFA reset** (D-SEC-18): who may reset a factor, what evidence of
+>    identity is required, whether a second person approves, and the runbook. The owner decides this.
+> 3. **Safeguards around the reset itself:**
+>    - step-up for the administrator who performs it;
+>    - notifying the user that their factor was reset;
+>    - break-glass recovery when an administrator is locked out.
+> 4. **Recovery audit trail and retention:**
+>    - Keycloak admin and user events carried into ClearSettle's audit trail (D-DAT-07, D-DAT-08).
+>    - A retention period for Keycloak's stored events. They contain Keycloak session identifiers,
+>      usernames and IP addresses, and today they never expire.
+> 5. **Recovery-related settings awaiting review:**
+>    - the TOTP brute-force thresholds (Keycloak's defaults today, flagged for the security review);
+>    - whether users may add an authenticator from the Keycloak account console (possible today; it cannot
+>      remove the existing factor).
+> 6. **Invalidating sessions after a database restore** (NFR-SEC-023). No backup or restore tooling exists
+>    yet; the restore runbook must delete every stored session.
+> 7. **External security review** of MFA enrolment and recovery before production (NFR-SEC-026).
+>
+> The checklist items above stay unchecked.
+
 ## 8. Testing and acceptance evidence
 
 - [ ] Unit tests for matching rules, fees/tolerances, rounding, duplicate detection and state transitions.
