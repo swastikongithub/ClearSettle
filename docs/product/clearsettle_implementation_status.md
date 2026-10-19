@@ -4,8 +4,8 @@
 relevant requirement, per the implementation plan §6. A requirement is marked verified only with recorded
 test evidence; the status changes in the same commit as the work it describes.
 
-**Last updated:** 2026-10-17 (owner security-policy decisions D-SEC-16 to D-SEC-19 and the remaining M1
-authentication gaps).
+**Last updated:** 2026-10-19 (owner approval of the frontend design defaults, D-UI-07 to D-UI-13; the
+PostgreSQL user-provisioning fix; reviewed-version binding for sensitive actions; dev-fixture gating).
 
 **M1 is not complete.** The authentication path is verified end to end in the browser engines listed below,
 but real Safari and mobile browsers, MFA-recovery tooling, integration with real sensitive operations,
@@ -35,7 +35,7 @@ run), `ENGINE-LIMITATION` (a browser-jar SameSite assertion in an engine that im
 | Decision | Recorded in | Implementation | Status |
 |---|---|---|---|
 | D-SEC-16 The sign-in that enrols TOTP creates no session; the user signs in once more | Register D-SEC-16; ADR-0003 decision 1 | Refusal code `mfa_not_verified` (distinct from `mfa_required`) and an explanation on the landing page | Verified (unit, browser): `LoginSuccessMfaGateTest`, `OidcCallbackValidationTest`; B-01, B-07, R-02. The designed screen is part of the frontend milestone |
-| D-SEC-17 Sensitive operations: 5-minute freshness, step-up, single-use confirmation | Register D-SEC-17; ADR-0002; ADR-0003 decision 2 | `SensitiveOperation`, `SensitiveActions`, `/api/sensitive-actions/{id}` (review, confirm, cancel); configurable window and pending-action lifetime | Verified (unit, PostgreSQL, browser) with fixtures. **Outstanding:** integration with real sensitive operations (none exists yet) |
+| D-SEC-17 Sensitive operations: 5-minute freshness, step-up, single-use confirmation | Register D-SEC-17; ADR-0002; ADR-0003 decision 2 | `SensitiveOperation`, `SensitiveActions`, `/api/sensitive-actions/{id}` (review, confirm, cancel); configurable window and pending-action lifetime; since 19 October, every operation declares the version of what the user reviews, and a confirmation is refused (`409 action_changed`) and the action withdrawn if it changed | Verified (unit, PostgreSQL, browser) with fixtures. **Outstanding:** integration with real sensitive operations (none exists yet); the first one (posting approval) must implement the version check under lock and re-check workspace permission at confirmation. The no-op fixture is not evidence that financial operations are protected |
 | D-SEC-18 MFA recovery: administrator-assisted, identity-verified, audited; no self-service reset | Register D-SEC-18; ADR-0003 decision 3 | Keycloak realm: no password or OTP reset by email, no self-service factor removal, admin and user events stored, brute-force detection | Verified (live, browser) for the IdP controls: P-08, R-01, R-02, B-08. **Outstanding:** identity-verification procedure, ClearSettle-side session revocation (or back-channel logout), audit integration and retention, external review |
 | D-SEC-19 TOTP for every user | Register D-SEC-19; ADR-0003 decision 4 | Existing Keycloak TOTP policy; enrolment forced even without the required action | Verified (live, browser): P-07, P-08, B-01, B-04, B-07 |
 
@@ -43,19 +43,23 @@ The sensitive-action categories (posting approval, period reopening, role and pe
 offboarding steps, template activation and sensitive settings, original-file download) are documented in
 D-SEC-17; no route is classified yet because none of those features exists.
 
-## Backend tests — 91, all passing
+## Backend tests — 106, all passing
 
-`mvn test` (Maven 3.9 container, offline repository), 2026-10-17, on the code in this commit: 85 tests on H2
-pass; the 6 PostgreSQL tests are skipped there and pass when pointed at a disposable PostgreSQL 17.11
-database (`CS_TEST_PG_URL`, see `deploy/README.md`). Each intermediate commit of this round was also built and
-tested on its own.
+`mvn test` (Maven 3.9 container, offline repository), 2026-10-19, with `CS_TEST_PG_URL` pointing at a
+disposable PostgreSQL 17.11 database: 104 tests pass and 2 are skipped. The 93 H2 tests also run without a
+database; the 11 PostgreSQL tests are skipped there. The 2 skipped tests are the diagnostic reproduction of
+the Spring Session JDBC behaviour behind defect 12: planner-dependent, outside the standard suite, run on
+request with `CS_TEST_PG_DIAGNOSTICS=true` (both pass, 2026-10-19).
 
 | Class | Tests | Covers |
 |---|---|---|
 | `OidcCallbackValidationTest` | 18 | The real client registration (from OIDC discovery), filter chain and Spring Session JDBC against a controlled test provider. Positive control (PKCE S256, `state`, `nonce`, exact redirect URI, code redeemed only after client authentication, redirect URI and PKCE verifier matched; session persisted; user provisioned on `(iss, sub)`; no access or refresh token in the session). Refused, with no persisted security context, no provisioned user and one security event each: forged signature, `alg=none`, HS256 signed with the client secret, wrong issuer, wrong audience, expired token, missing `nonce`, mismatched `nonce`, token response without an ID token, wrong `state` (no code redeemed), missing or tampered login-state cookie, a code from another login (PKCE mismatch), a replayed callback, a valid token without a verified second factor (`mfa_not_verified`), a password-only token (`mfa_required`). The redirect URI never depends on the request host |
-| `SensitiveActionFlowTest` | 15 | Through the real security chain with a test-only sensitive operation: a fresh request answers `202` and runs nothing; older than 5 minutes, or weak, missing or future-dated evidence answers `401 step_up_required`; the reviewed parameters execute exactly once on confirmation; replay, cancelled, expired, unknown and another user's actions are refused and run nothing; confirmation needs the CSRF token and the custom header; a failed operation rolls back its claim and its effect; an unregistered type never runs; every step is a security event |
+| `SensitiveActionFlowTest` | 18 | Through the real security chain with a test-only sensitive operation: a fresh request answers `202` and runs nothing; older than 5 minutes, or weak, missing or future-dated evidence answers `401 step_up_required`; the reviewed parameters execute exactly once on confirmation; replay, cancelled, expired, unknown and another user's actions are refused and run nothing; confirmation needs the CSRF token and the custom header; a failed operation rolls back its claim and its effect; an unregistered type never runs; every step is a security event. What executes is what was reviewed: a change after the review, or one the operation detects under lock, is refused with `409 action_changed`, runs nothing and withdraws the action; an action without a reviewed version never runs |
 | `PendingActionPostgresTest` | 4 | On PostgreSQL 17.11: 12 concurrent confirmations execute the action exactly once; a failed operation rolls back the claim; expiry follows the application clock; another user's claim does not match |
-| `StepUpOriginPostgresTest` | 2 | On PostgreSQL 17.11 with the real Spring Session JDBC repository: the library's principal query returns a session without some attributes once several sessions' rows interleave (documents the behaviour); the step-up still finds and retires its originating session and keeps the anchor (fails on the previous lookup with `session_expired`) |
+| `AppUserServicePostgresTest` | 5 | On PostgreSQL 17.11, the production provisioning statement: first sign-in creates the user and later ones return it unchanged; identity is `(iss, sub)`, not email; 10 rounds of 16 simultaneous first sign-ins of one identity, each inside a caller transaction that keeps working afterwards, create exactly one user and abort no transaction; the conflict path returns the existing row with `disabled` and email unchanged; simultaneous sign-ins of different identities do not interfere. Run against the previous implementation, two of these fail with `25P02 current transaction is aborted` and `user provisioning failed` |
+| `StepUpOriginPostgresTest` | 2 | On PostgreSQL 17.11 with the real Spring Session JDBC store, deterministically: when the principal index returns sessions without their attributes (the worst case of defect 12), the step-up still finds and retires its originating session and keeps its anchor; a nonce no stored session carries fails closed and touches nothing |
+| `SpringSessionPrincipalQueryDiagnosticTest` | 2 (diagnostic) | Not in the standard suite (`CS_TEST_PG_DIAGNOSTICS=true`): reproduces the library's split sessions on PostgreSQL once statistics are current, and the step-up working through the library's own index. Planner-dependent by nature; use it to check a Spring Session upgrade |
+| `DevFixtureGatingTest` | 5 | The no-op dev operation is absent by default, absent with only the property or only the `local-dev` profile, present with both on a loopback origin, and stops the application on any other origin |
 | `FreshAuthEvaluatorTest` | 12 | Fail closed on missing, weak or malformed `acr`; missing, malformed, stale or future `auth_time`; missing or empty `amr`; passes with strong `acr`, fresh `auth_time` and `otp` in `amr` |
 | `LoginSuccessMfaGateTest` | 12 | Login gate (`mfa_required` for weak `acr`; `mfa_not_verified` for a strong `acr` without a second-factor `amr`; nothing provisioned); step-up: anchor carried over, originating session retired (also when the principal index returns partial sessions), missing origin fails closed, a different person or a refused step-up ends the originating session, a callback inside the originating session keeps it |
 | `SecurityChainSliceTest` | 8 | Unauthenticated API refused; authenticated GET; unsafe POST without CSRF token refused by the CSRF layer, without the custom header refused, with both accepted; session store is the JDBC repository; no access/refresh token retained; the dev fixture is not registered unless enabled |
@@ -228,6 +232,7 @@ Each fix has a regression test; commit hashes are on branch `m1/auth-foundation`
 | 10 | In an engine without SameSite the step-up callback runs inside the originating session, and an id-based guard deleted the live session | address the originating session by the id it was found under | `stepUpCallbackInsideTheOriginatingSessionKeepsItAndItsAnchor`; H-01 (WebKit) | 57a4eb4 |
 | 11 | A refused step-up left the stored originating session alive (rotated id), and in the Strict path MFA-failure or disabled-user refusals orphaned it | every step-up refusal ends the originating session by its stored id | three unit tests; H-04, H-05 | 57a4eb4 |
 | 12 | (found 17 October by LR-03) A step-up by a user with several sessions, minutes after sign-in, was refused as `session_expired` and signed the browser out: Spring Session JDBC's principal query has no `ORDER BY` and its extractor assumes adjacent rows, so on PostgreSQL a session came back without its step-up nonce | the originating session is read by id; only ids come from the principal index | `stepUpFindsTheOriginatingSessionWhenThePrincipalIndexReturnsPartialSessions`; `StepUpOriginPostgresTest` (fails on the previous code); LR-03 | 602a24d |
+| 13 | (found 19 October by review, not observed live) User provisioning, changed in `0e5cbdd` to suit the H2 test database, caught a uniqueness violation and re-read. On PostgreSQL that violation aborts a surrounding transaction, so a concurrent first sign-in inside a transaction would fail | one atomic PostgreSQL upsert on the `(iss, sub)` constraint (`ON CONFLICT … RETURNING`); the H2 tests use a test-only stand-in, and the production statement is tested on PostgreSQL | `AppUserServicePostgresTest` (fails on the previous code with `25P02`) | (this commit) |
 
 ## Outstanding
 
@@ -242,6 +247,12 @@ Owner input or decisions:
 
 Not yet built or not yet verified (the MFA-recovery and session-revocation items are also held open in
 the engineering checklist §7, so later product work cannot assume them):
+
+- Retention of finished pending actions. Executed, cancelled and expired `pending_action` rows are never
+  deleted. A purge period is a retention decision (D-DAT-07/08), and the rows are the only record of an
+  action's reviewed parameters until the audit core exists, so the purge is deferred: it belongs with the
+  first real sensitive operation (M6) or the audit core, whichever comes first. Proposed: delete finished
+  rows after 30 days once the audit trail holds the durable record.
 
 - Integration of the sensitive-action policy with real operations (posting approval first, M6).
 - Ending ClearSettle sessions on an IdP-side reset or logout: an audited administrative revocation or OIDC
