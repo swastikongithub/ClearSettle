@@ -23,9 +23,9 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Identity and session endpoints for the authenticated SPA. There are no financial domain operations
- * yet; the step-up mechanism (StepUpService / the resolver / the success-handler same-user binding)
- * will be wired to sensitive operations as later milestones build them.
+ * Identity and session endpoints for the authenticated SPA. There are no financial domain operations yet;
+ * sensitive operations, when built, go through {@link com.clearsettle.auth.SensitiveActions} (request, step-up,
+ * review, single-use confirmation).
  */
 @RestController
 public class AuthController {

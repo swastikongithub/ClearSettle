@@ -80,8 +80,13 @@ public final class LoginHandlers {
 			if (userId == null || nonce == null) {
 				return java.util.Optional.empty();
 			}
-			return sessions.findByPrincipalName(userId.toString()).values().stream()
-					.map(s -> (org.springframework.session.Session) s)
+			// Only the ids are taken from the principal index; each session is then read by its id. Spring
+			// Session JDBC's principal query has no ORDER BY and its row extractor assumes each session's
+			// attribute rows are adjacent: on PostgreSQL they interleave once a user's sessions have been
+			// updated, and a session can come back without some attributes (here, the nonce).
+			return sessions.findByPrincipalName(userId.toString()).keySet().stream()
+					.map(id -> (org.springframework.session.Session) sessions.findById(id))
+					.filter(java.util.Objects::nonNull)
 					.filter(s -> nonce.equals(s.getAttribute(SessionAttributes.STEP_UP_NONCE)))
 					.findFirst();
 		}
@@ -132,11 +137,15 @@ public final class LoginHandlers {
 			// Universal MFA gate (D-SEC-14): the authentication itself must carry MFA assurance, read
 			// provider-aware from acr AND (where configured) amr. Keycloak reports acr=mfa on the enrolment
 			// login with an empty amr, so acr alone is insufficient evidence. No assurance -> no session.
+			// The two refusals get distinct codes so the UI can explain them: mfa_not_verified is the expected
+			// first sign-in after enrolling an authenticator (sign in once more with a code from it, owner
+			// decision 17 October 2026); mfa_required means the provider did not perform MFA at all.
 			if (!props.isStrongAcr(reg, acr) || !props.hasRequiredAmr(reg, u.getIdToken().getClaims().get("amr"))) {
-				String why = !props.isStrongAcr(reg, acr) ? "acr_insufficient" : "amr_insufficient";
+				boolean strongAcr = props.isStrongAcr(reg, acr);
+				String why = strongAcr ? "amr_insufficient" : "acr_insufficient";
 				events.record("login_refused_mfa_required", null,
 						"registration=" + reg + " reason=" + why + " acr=" + safeClaim(u, "acr") + " amr=" + safeClaim(u, "amr"));
-				abort(req, res, session, origin, "mfa_required");
+				abort(req, res, session, origin, strongAcr ? "mfa_not_verified" : "mfa_required");
 				return;
 			}
 

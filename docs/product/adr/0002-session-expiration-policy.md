@@ -1,7 +1,8 @@
 # ADR-0002 — Session Expiration Policy
 
 - **Status:** Accepted 2026-10-16 (owner approval). Recorded as **D-SEC-13**; resolves **OQ-38** (session
-  lifetime values; the fresh-authentication action list remains partly open — see below).
+  lifetime values). **Amended 2026-10-17:** the 5-minute freshness window and the sensitive-operation policy
+  were approved (**D-SEC-17**, shared with ADR-0003).
 - **Builds on:** D-SEC-11, D-SEC-09 (configurable session controls).
 
 ## Context
@@ -18,7 +19,11 @@ policy.
   extended by session activity, renewal, or refresh**. At 8 hours the session is refused even if the user
   is active, forcing full re-authentication.
 - **Sensitive actions require fresh authentication** (and step-up where applicable, per ADR-0003),
-  enforced fail-closed against `auth_time`/`acr`.
+  enforced fail-closed against `auth_time`/`acr`/`amr`.
+- **Freshness window = 5 minutes** (approved 17 October 2026, D-SEC-17), configurable through
+  `clearsettle.auth.step-up-freshness-seconds`. A sensitive operation also needs the user's explicit,
+  single-use confirmation, and a step-up does not extend the 8-hour absolute lifetime. The categories and
+  the mechanism are recorded in ADR-0003 (decision 2).
 
 ## Alternatives considered
 
@@ -56,10 +61,16 @@ membership removal (L-06).
 ## Outstanding acceptance criteria (mandatory)
 
 - Verify idle expiry at **15 min** and absolute expiry at **8 h despite activity** with deterministic or
-  controlled integration tests in the product (mechanisms proven only at spike test values).
+  controlled integration tests in the product (mechanisms proven only at spike test values). **Verified in
+  M1:** idle at 15 minutes on the wall clock (LR-01) and at controlled time (D-03); absolute at 8 hours
+  despite activity at controlled time (D-04); both on a second application instance (M-06).
 - Enumerate the exact **sensitive/high-risk action set** and the **freshness window** (shared with
-  ADR-0003). **FLAG:** proposed safe default freshness window = **5 minutes** (consistent with the earlier
-  OQ-38 candidate), to be confirmed by the owner.
+  ADR-0003). **Resolved 17 October 2026 (D-SEC-17):** 5 minutes; the categories of NFR-SEC-004, each wired
+  when its feature is built. Verified with a fixture operation: 5 minutes on the wall clock (LR-02, LR-03,
+  LR-04) and at controlled time (`SensitiveActionFlowTest`). Integration with real sensitive operations is
+  **OUTSTANDING** (none exists yet).
+- Invalidate restored sessions after a database restore (NFR-SEC-023). **OUTSTANDING:** no backup/restore
+  tooling exists yet; the restore runbook must delete all `spring_session` rows before service resumes.
 
 ## Assumptions / limitations
 

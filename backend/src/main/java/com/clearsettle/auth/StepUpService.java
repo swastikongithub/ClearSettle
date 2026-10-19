@@ -1,96 +1,125 @@
 package com.clearsettle.auth;
 
-import java.util.List;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.clearsettle.config.AuthProperties;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Step-up sensitive-action lifecycle (D-SEC-14). A sensitive action that lacks fresh strong
- * authentication creates a PENDING {@code pending_action} bound to the requesting user; the action
- * executes only through an explicit, single-use confirmation after a successful step-up re-authentication
- * for the SAME user.
+ * Store for pending sensitive actions (D-SEC-14, NFR-SEC-024). A requested sensitive action is recorded as
+ * a PENDING {@code pending_action} bound to the requesting user, its action type and its parameters; it can
+ * be claimed for execution exactly once, and only within the pending-action lifetime counted from the
+ * request. The policy that decides when a claim may be attempted is {@link SensitiveActions}.
  *
- * <p>This is reusable infrastructure. ClearSettle has no financial domain operations yet (the ledger and
- * approval workflows arrive in later milestones); when they do, they call {@link #begin} / {@link #claim}
- * to require step-up. The sensitive-action set (posting approval, period reopening, role changes,
- * offboarding, original-file download — OQ-38) and the exact freshness window are owner decisions; the
- * mechanism here enforces whatever set is wired to it, fail-closed.
+ * <p>Times come from the injected {@link Clock} (also for {@code created_at}), so expiry is consistent and
+ * testable without depending on the database clock.
  */
 @Service
 public class StepUpService {
 
 	/** Outcome of attempting to claim a pending action for execution. */
 	public enum ClaimResult {
-		/** Claimed exactly once; caller may execute. */ OK,
+		/** Claimed exactly once; the caller may execute. */ OK,
 		/** No such pending action for this user. */ NOT_FOUND,
-		/** Already executed or cancelled (single-use violated). */ NOT_PENDING,
-		/** Older than the allowed confirmation window. */ EXPIRED
+		/** Already executed or cancelled (single use). */ NOT_PENDING,
+		/** Older than the pending-action lifetime. */ EXPIRED
 	}
+
+	/** A pending sensitive action as stored. {@code params} are the parameters the user reviews and confirms. */
+	public record PendingAction(UUID id, UUID userId, String actionType, Map<String, String> params, String status,
+			Instant createdAt, Instant expiresAt) {
+
+		public boolean pending() {
+			return "PENDING".equals(status);
+		}
+
+		public boolean expiredAt(Instant now) {
+			return !now.isBefore(expiresAt);
+		}
+	}
+
+	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	private final JdbcTemplate jdbc;
+	private final AuthProperties props;
+	private final Clock clock;
 
-	public StepUpService(JdbcTemplate jdbc) {
+	public StepUpService(JdbcTemplate jdbc, AuthProperties props, Clock clock) {
 		this.jdbc = jdbc;
+		this.props = props;
+		this.clock = clock;
 	}
 
-	/** Creates a PENDING action of the given type for the user and returns its id. */
-	public UUID begin(UUID userId, String actionType, Map<String, String> context) {
+	/** Records a PENDING action of the given type and parameters for the user and returns its id. */
+	public UUID begin(UUID userId, String actionType, Map<String, String> params) {
 		UUID id = UUID.randomUUID();
-		jdbc.update("insert into pending_action(id, user_id, action_type, context, status) values (?,?,?,?, 'PENDING')",
-				id, userId, actionType, contextToString(context));
+		jdbc.update("insert into pending_action(id, user_id, action_type, context, status, created_at) values (?,?,?,?, 'PENDING', ?)",
+				id, userId, actionType, JSON.writeValueAsString(params == null ? Map.of() : params), utc(clock.instant()));
 		return id;
 	}
 
-	/** True when a PENDING action with this id belongs to this user (used to authorize a step-up start). */
+	/** True when this user's action is PENDING and not expired (only such an action may start a step-up). */
 	public boolean isPendingForUser(UUID actionId, UUID userId) {
-		Integer n = jdbc.queryForObject(
-				"select count(*) from pending_action where id = ? and user_id = ? and status = 'PENDING'",
-				Integer.class, actionId, userId);
-		return n != null && n == 1;
+		return find(actionId, userId).filter(a -> a.pending() && !a.expiredAt(clock.instant())).isPresent();
+	}
+
+	/** The action, if it exists AND belongs to this user. Another user's action is indistinguishable from none. */
+	public Optional<PendingAction> find(UUID actionId, UUID userId) {
+		return jdbc.query("select id, user_id, action_type, context, status, created_at from pending_action where id = ? and user_id = ?",
+				(rs, i) -> {
+					Instant created = rs.getObject("created_at", OffsetDateTime.class).toInstant();
+					return new PendingAction(rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+							rs.getString("action_type"), params(rs.getString("context")), rs.getString("status"), created,
+							created.plusSeconds(props.getPendingActionTtlSeconds()));
+				}, actionId, userId).stream().findFirst();
 	}
 
 	/**
-	 * Atomically claims a PENDING action for a user, enforcing single use and a confirmation window.
-	 * On {@link ClaimResult#OK} the action is marked EXECUTED in the same statement, so a concurrent or
-	 * repeated confirm cannot double-execute.
+	 * Atomically claims a PENDING, unexpired action for a user: one conditional UPDATE marks it EXECUTED, so
+	 * a repeated or concurrent claim cannot succeed twice (a concurrent claim waits for the row lock and then
+	 * no longer matches {@code status='PENDING'}). Run it in the same transaction as the operation, so a
+	 * failed operation rolls the claim back.
 	 */
-	public ClaimResult claim(UUID actionId, UUID userId, long maxAgeSeconds) {
-		List<Map<String, Object>> rows = jdbc.queryForList(
-				"select status, extract(epoch from (now() - created_at)) as age_s "
-						+ "from pending_action where id = ? and user_id = ?",
-				actionId, userId);
-		if (rows.isEmpty()) {
-			return ClaimResult.NOT_FOUND;
+	public ClaimResult claim(UUID actionId, UUID userId) {
+		Instant now = clock.instant();
+		int claimed = jdbc.update("update pending_action set status = 'EXECUTED', executed_at = ? "
+						+ "where id = ? and user_id = ? and status = 'PENDING' and created_at > ?",
+				utc(now), actionId, userId, utc(now.minusSeconds(props.getPendingActionTtlSeconds())));
+		if (claimed == 1) {
+			return ClaimResult.OK;
 		}
-		Map<String, Object> row = rows.get(0);
-		if (!"PENDING".equals(row.get("status"))) {
-			return ClaimResult.NOT_PENDING;
-		}
-		double ageSeconds = ((Number) row.get("age_s")).doubleValue();
-		if (ageSeconds > maxAgeSeconds) {
-			return ClaimResult.EXPIRED;
-		}
-		int claimed = jdbc.update(
-				"update pending_action set status='EXECUTED', executed_at=now() where id=? and user_id=? and status='PENDING'",
-				actionId, userId);
-		return claimed == 1 ? ClaimResult.OK : ClaimResult.NOT_PENDING;
+		return find(actionId, userId).map(a -> a.pending() ? ClaimResult.EXPIRED : ClaimResult.NOT_PENDING)
+				.orElse(ClaimResult.NOT_FOUND);
 	}
 
-	public Optional<String> actionType(UUID actionId, UUID userId) {
-		return jdbc.queryForList("select action_type from pending_action where id = ? and user_id = ?",
-				String.class, actionId, userId).stream().findFirst();
+	/** Cancels this user's PENDING action. Returns false when there is no such pending action. */
+	public boolean cancel(UUID actionId, UUID userId) {
+		return jdbc.update("update pending_action set status = 'CANCELLED' where id = ? and user_id = ? and status = 'PENDING'",
+				actionId, userId) == 1;
 	}
 
-	private static String contextToString(Map<String, String> context) {
-		if (context == null || context.isEmpty()) {
-			return null;
+	private static OffsetDateTime utc(Instant instant) {
+		return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
+	}
+
+	private static Map<String, String> params(String json) {
+		if (json == null || json.isBlank()) {
+			return Map.of();
 		}
-		StringBuilder sb = new StringBuilder();
-		context.forEach((k, v) -> sb.append(k).append('=').append(v).append(';'));
-		return sb.toString();
+		Map<String, String> out = new LinkedHashMap<>();
+		((Map<?, ?>) JSON.readValue(json, Map.class))
+				.forEach((k, v) -> out.put(String.valueOf(k), v == null ? null : String.valueOf(v)));
+		return Collections.unmodifiableMap(out);
 	}
 }

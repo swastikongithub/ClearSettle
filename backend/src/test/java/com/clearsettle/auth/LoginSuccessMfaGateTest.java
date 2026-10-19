@@ -53,7 +53,7 @@ class LoginSuccessMfaGateTest {
 			Map.of("keycloak", List.of("otp")));
 
 	/** Minimal in-memory session repository with principal-name indexing. */
-	static final class Sessions implements FindByIndexNameSessionRepository<MapSession> {
+	static class Sessions implements FindByIndexNameSessionRepository<MapSession> {
 		final Map<String, MapSession> store = new ConcurrentHashMap<>();
 		public MapSession createSession() { return new MapSession(); }
 		public void save(MapSession s) { store.put(s.getId(), s); }
@@ -127,7 +127,8 @@ class LoginSuccessMfaGateTest {
 
 	@Test
 	void strongAcrWithoutSecondFactorAmrIsRefused() throws Exception {
-		// Exactly what Keycloak issues on the enrolment login: acr=mfa, amr=[].
+		// Exactly what Keycloak issues on the enrolment login: acr=mfa, amr=[]. Refused with its own code so the
+		// UI can say "sign in once more with your authenticator code" (the approved extra step).
 		AppUserService users = users();
 		SecurityEvents events = Mockito.mock(SecurityEvents.class);
 		var handler = new LoginHandlers.Success(props, users, events, "https://app.example.test", new Sessions());
@@ -136,7 +137,7 @@ class LoginSuccessMfaGateTest {
 
 		handler.onAuthenticationSuccess(req, res, token(SUB, "mfa", List.of()));
 
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 		verify(users, never()).findOrCreate(Mockito.anyString(), Mockito.anyString(), Mockito.any());
 		verify(events).record(Mockito.eq("login_refused_mfa_required"), Mockito.isNull(), Mockito.contains("reason=amr_insufficient"));
 	}
@@ -147,7 +148,7 @@ class LoginSuccessMfaGateTest {
 		var handler = new LoginHandlers.Success(props, users(), events, "https://app.example.test", new Sessions());
 		MockHttpServletResponse res = new MockHttpServletResponse();
 		handler.onAuthenticationSuccess(new MockHttpServletRequest(), res, token(SUB, "mfa", null));
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 	}
 
 	@Test
@@ -182,6 +183,42 @@ class LoginSuccessMfaGateTest {
 		assertThat(req.getSession(false).getAttribute(SessionAttributes.AUTHENTICATED_AT))
 				.as("step-up must not reset the absolute-lifetime anchor").isEqualTo(anchor);
 		assertThat(sessions.findById(origin.getId())).as("originating session retired").isNull();
+	}
+
+	/**
+	 * Regression (M1 wall-clock test LR-03): with several sessions per user, Spring Session JDBC's principal
+	 * query can return a session split into fragments on PostgreSQL, and the fragment it keeps may lack the
+	 * nonce. The step-up then failed as "session_expired" although the originating session existed. The
+	 * index is now used for ids only; each session is read by id.
+	 */
+	@Test
+	void stepUpFindsTheOriginatingSessionWhenThePrincipalIndexReturnsPartialSessions() throws Exception {
+		Sessions sessions = new Sessions() {
+			@Override
+			public Map<String, MapSession> findByIndexNameAndIndexValue(String indexName, String indexValue) {
+				Map<String, MapSession> partial = new HashMap<>();
+				super.findByIndexNameAndIndexValue(indexName, indexValue).forEach((id, s) -> {
+					MapSession fragment = new MapSession(s.getId());
+					fragment.setAttribute(PRINCIPAL_NAME_INDEX_NAME, s.getAttribute(PRINCIPAL_NAME_INDEX_NAME));
+					partial.put(id, fragment); // the nonce and the anchor are missing from what the index returns
+				});
+				return partial;
+			}
+		};
+		long anchor = 1_700_000_000L;
+		originatingSession(sessions, "other-nonce", anchor + 60); // another session of the same user
+		MapSession origin = originatingSession(sessions, "nonce-split", anchor);
+		var handler = new LoginHandlers.Success(props, users(), Mockito.mock(SecurityEvents.class), "https://app.example.test", sessions);
+		String action = UUID.randomUUID().toString();
+		MockHttpServletRequest req = stepUpCallback("nonce-split", action);
+		MockHttpServletResponse res = new MockHttpServletResponse();
+
+		handler.onAuthenticationSuccess(req, res, token(SUB, "mfa", List.of("otp")));
+
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/review?action=" + action);
+		assertThat(req.getSession(false).getAttribute(SessionAttributes.AUTHENTICATED_AT)).isEqualTo(anchor);
+		assertThat(sessions.findById(origin.getId())).as("originating session retired").isNull();
+		assertThat(sessions.store).hasSize(1); // the user's other session is untouched
 	}
 
 	@Test
@@ -256,7 +293,7 @@ class LoginSuccessMfaGateTest {
 
 		handler.onAuthenticationSuccess(req, res, token(SUB, "mfa", List.of()));
 
-		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_required");
+		assertThat(res.getRedirectedUrl()).isEqualTo("https://app.example.test/?auth_error=mfa_not_verified");
 		assertThat(sessions.findById(origin.getId())).as("no orphaned originating session").isNull();
 		assertThat(req.getSession(false)).isNull();
 	}

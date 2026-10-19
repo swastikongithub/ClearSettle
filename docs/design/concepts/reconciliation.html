@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reconciliation concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .run-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s3) var(--s5); align-items: flex-start; }
+  .run-head > div:first-child { flex: 1 1 420px; }
+  .stages { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r-control); overflow: hidden; background: var(--sheet); }
+  .stages button { font: inherit; font-size: var(--t-sm); padding: 7px 14px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+  .stages button[aria-pressed="true"] { background: var(--petrol); color: #fff; }
+  .run-meta { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s5); font-size: var(--t-xs); color: var(--ink-2); margin-top: var(--s2); }
+  .run-meta b { color: var(--ink); font-weight: 500; }
+  .warn { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s3) var(--s4); border: 1px solid #ecd2b4; background: var(--amber-wash); border-radius: var(--r-control); font-size: var(--t-sm); }
+  .warn .ico { color: var(--amber); margin-top: 3px; }
+  .outcomes { display: flex; gap: var(--s2); flex-wrap: wrap; }
+  .outcome { font: inherit; text-align: left; border: 1px solid var(--rule); background: var(--sheet); border-radius: var(--r-control); padding: var(--s2) var(--s4); cursor: pointer; min-width: 132px; color: var(--ink); }
+  .outcome .lab { display: flex; align-items: center; gap: 6px; font-size: var(--t-xs); color: var(--ink-2); }
+  .outcome .n { font-size: var(--t-lg); font-weight: 600; }
+  .outcome .a { font-size: var(--t-xs); color: var(--ink-3); }
+  .outcome[aria-pressed="true"] { border-color: var(--amber); box-shadow: inset 0 -3px 0 var(--amber); }
+  .outcome .ico { width: 13px; height: 13px; }
+  .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: var(--s5); align-items: start; }
+  .filters { display: flex; gap: var(--s2); flex-wrap: wrap; padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule); }
+  .table-wrap { overflow: auto; max-height: 560px; }
+  .trace { padding: var(--s4) var(--s5) var(--s5); }
+  .trace h2 { font-size: var(--t-lg); margin: 0; font-weight: 600; }
+  .trace .sub { color: var(--ink-3); font-size: var(--t-xs); margin-top: 2px; }
+  .steps { list-style: none; margin: var(--s4) 0 0; padding: 0; position: relative; }
+  .steps::before { content: ""; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 2px; background: var(--rule); }
+  .step { position: relative; padding: 0 0 var(--s4) 36px; }
+  .step .pin { position: absolute; left: 4px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--sheet); border: 2px solid var(--s-matched); }
+  .step.is-diff .pin { border-color: var(--amber); background: var(--amber-wash); }
+  .step.wait .pin { border-color: var(--rule); border-style: dashed; }
+  .step .k { font-size: var(--t-xs); color: var(--ink-3); }
+  .step .v { font-size: var(--t-sm); display: flex; justify-content: space-between; gap: var(--s3); }
+  .step .src { font-size: var(--t-xs); color: var(--ink-3); }
+  .compare { margin: var(--s2) 0 0; border: 1px solid #ecd2b4; border-radius: var(--r-control); overflow: hidden; font-size: var(--t-sm); }
+  .compare div { display: flex; justify-content: space-between; padding: 6px var(--s3); }
+  .compare div + div { border-top: 1px solid #f2e2cf; }
+  .compare .total { background: var(--amber-wash); font-weight: 600; color: var(--amber); }
+  .actions { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s2); }
+  .note { font-size: var(--t-xs); color: var(--ink-3); margin-top: var(--s3); }
+  .exc .meta { display: flex; align-items: center; gap: var(--s2); margin-top: 3px; font-size: var(--t-xs); color: var(--ink-3); }
+  .exc .status { padding-top: 0; padding-bottom: 0; }
+  .table-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s1) var(--s3); padding: var(--s3) var(--s4); font-size: var(--t-xs); color: var(--ink-3); border-top: 1px solid var(--rule); }
+  .parts { font-size: var(--t-xs); color: var(--ink-2); margin-top: var(--s2); }
+  th[aria-sort] .ico { width: 10px; height: 10px; vertical-align: -1px; margin-left: 2px; }
+  .workspace > *, .run-head > * { min-width: 0; }
+  @media (max-width: 1200px) { .workspace { grid-template-columns: 1fr; } }
+  @media (max-width: 960px) {
+    .run-head > div:last-child { justify-content: flex-start !important; }
+    .stages { display: flex; width: 100%; }
+    .stages button { flex: 1; }
+    .outcomes { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--s1); }
+    .outcome { flex: none; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 16 16"><path d="M2 7.5 8 2.5l6 5V14H10v-4H6v4H2z"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 16 16"><path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M5 11.5 3.8 12.7a2 2 0 0 1-2.8-2.8L4.6 6.3M11 4.5l1.2-1.2a2 2 0 0 1 2.8 2.8l-3.6 3.6"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 16 16"><path d="M3 14V2.5M3 3h8.5l-2 3 2 3H3"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 16 16"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h11"/></symbol>
+  <symbol id="i-book" viewBox="0 0 16 16"><path d="M3 2.5h7.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2zM3 11.5a2 2 0 0 1 2-2h7.5"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 16 16"><path d="M2.5 13.5h11M4.5 11V7M8 11V4M11.5 11V8.5"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></symbol>
+  <symbol id="i-delta" viewBox="0 0 16 16"><path d="M8 2.5 14 13H2z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></symbol>
+  <symbol id="i-unlink" viewBox="0 0 16 16"><path d="M5 11.5 3.8 12.7a2 2 0 0 1-2.8-2.8L4.6 6.3M11 4.5l1.2-1.2a2 2 0 0 1 2.8 2.8l-3.6 3.6M2 2l12 12"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.5 14 13H2zM8 6.5v3M8 11.3v.2"/></symbol>
+  <symbol id="i-up" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
+</svg>
+
+<div class="concept-banner" role="note">
+  <strong>Design concept, not the application.</strong>
+  <span>Illustrative sample data. Reconciliation runs, matches and exceptions have no backend yet (milestones M3 to M5).</span>
+  <a href="index.html">All concepts</a> <a href="overview.html">Overview concept</a> <a href="flows.html">Sign-in and confirmation states</a>
+</div>
+
+<div class="shell">
+  <nav class="rail" aria-label="Main">
+    <button class="ws-switch" aria-haspopup="listbox" aria-label="Active workspace: Example Workspace. Switch workspace">
+      <span class="ws-mark" aria-hidden="true">EW</span>
+      <span><span class="ws-name">Example Workspace</span><br><span class="ws-sub">INR, sample data</span></span>
+    </button>
+    <ul class="nav">
+      <li><a href="overview.html"><svg class="ico"><use href="#i-home"/></svg>Overview</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-upload"/></svg>Imports</a></li>
+      <li><a href="#" aria-current="page"><svg class="ico"><use href="#i-link"/></svg>Reconciliation</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-flag"/></svg>Exceptions<span class="count num">37</span></a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-rows"/></svg>Records</a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-book"/></svg>Ledger<span class="count num">6</span></a></li>
+      <li><a href="#"><svg class="ico"><use href="#i-chart"/></svg>Reports</a></li>
+    </ul>
+    <div class="nav-group">Workspace</div>
+    <ul class="nav"><li><a href="#"><svg class="ico"><use href="#i-gear"/></svg>Settings</a></li></ul>
+    <div class="rail-foot">Times in IST (Asia/Kolkata)</div>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="select" role="button" aria-label="Period: April 2026">April 2026</span>
+      <span class="pill" style="color: var(--ink-2)">Open period</span>
+      <span class="spacer"></span>
+      <button class="btn btn-quiet">Jobs (1 running)</button>
+      <button class="btn" aria-haspopup="menu">Priya S.</button>
+    </header>
+
+    <main class="content">
+      <div class="run-head">
+        <div>
+          <h1 class="page-title">Reconciliation</h1>
+          <div class="run-meta">
+            <span>Run <b>R-0412</b></span>
+            <span>Scope <b>1–30 Apr 2026</b></span>
+            <span>Rules <b>v7</b></span>
+            <span>Inputs <b>4 imports</b></span>
+            <span>Started by <b>Priya S.</b> 30 Apr 2026, 22:02 IST</span>
+          </div>
+        </div>
+        <div style="display:flex; gap: var(--s2); flex-wrap: wrap; justify-content: flex-end">
+          <div class="stages" role="group" aria-label="Stage">
+            <button aria-pressed="true">Stage 1: payments to settlement</button>
+            <button aria-pressed="false">Stage 2: settlement to bank</button>
+          </div>
+          <button class="btn">Compare runs</button>
+          <button class="btn btn-primary">Start a new run</button>
+        </div>
+      </div>
+
+      <div class="warn" role="status">
+        <svg class="ico"><use href="#i-warn"/></svg>
+        <span>This run used the settlement report for 28 Apr, which was <b>partially imported</b> (14 rows quarantined). Results for that day may be incomplete. <a href="#">Open the import</a></span>
+      </div>
+
+      <div class="outcomes" role="group" aria-label="Outcome">
+        <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-matched)"><use href="#i-check"/></svg>Matched</span><span class="n num">2,031</span><br><span class="a num">INR 60,12,004.10</span></button>
+        <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-candidate)"><use href="#i-link"/></svg>Candidates</span><span class="n num">21</span><br><span class="a num">INR 4,10,250.00</span></button>
+        <button class="outcome" aria-pressed="true"><span class="lab"><svg class="ico" style="color:var(--amber)"><use href="#i-delta"/></svg>Differences</span><span class="n num">9</span><br><span class="a num">INR 2,112.09, not netted</span><br><span class="a">and 1 in USD</span></button>
+        <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-awaiting)"><use href="#i-clock"/></svg>Awaiting settlement</span><span class="n num">58</span><br><span class="a num">INR 1,76,525.30</span></button>
+        <button class="outcome" aria-pressed="false"><span class="lab"><svg class="ico" style="color:var(--s-unmatched)"><use href="#i-unlink"/></svg>Unmatched</span><span class="n num">12</span><br><span class="a num">INR 44,740.00</span></button>
+        <button class="outcome" aria-pressed="false"><span class="lab">Outside scope</span><span class="n num">0</span></button>
+      </div>
+
+      <div class="workspace">
+        <section class="panel" aria-label="Differences">
+          <div class="filters">
+            <span class="select">Type: all</span><span class="select">Risk: all</span><span class="select">Assignee: anyone</span><span class="select">Age: any</span>
+            <span style="flex:1"></span>
+            <button class="btn">Export</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr>
+                <th scope="col">Payment</th><th scope="col" aria-sort="ascending">Value date<svg class="ico" aria-hidden="true"><use href="#i-up"/></svg></th><th scope="col" class="r">Payment gross</th><th scope="col" class="r">Settlement gross</th><th scope="col" class="r">Unexplained</th><th scope="col">Exception</th>
+              </tr></thead>
+              <tbody>
+                <tr aria-selected="true"><td class="ref">pay_Q7XK2LM</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>18,500.00</td><td class="r num"><span class="cur">INR</span>18,050.00</td><td class="r num diff">&minus;450.00</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>6 days</span></div></td></tr>
+                <tr><td class="ref">pay_N2HD81Q</td><td>24 Apr</td><td class="r num"><span class="cur">INR</span>2,499.00</td><td class="r num"><span class="cur">INR</span>2,499.00</td><td class="r num diff">&minus;0.99</td><td class="exc">Settlement line inconsistency<div class="meta"><span class="status st-neutral">Routine</span><span>6 days</span></div></td></tr>
+                <tr><td class="ref">pay_T0ZC4WA</td><td>26 Apr</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num"><span class="cur">INR</span>7,250.00</td><td class="r num diff">&minus;350.00</td><td class="exc">Refunds exceed payment<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>4 days</span></div></td></tr>
+                <tr><td class="ref">pay_H5LM0RB</td><td>27 Apr</td><td class="r num"><span class="cur">INR</span>1,199.00</td><td class="r num"><span class="cur">INR</span>1,170.70</td><td class="r num diff">&minus;28.30</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-neutral">Routine</span><span>3 days</span></div></td></tr>
+                <tr><td class="ref">pay_V9KP3XE</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>12,000.00</td><td class="r num"><span class="cur">USD</span>143.70</td><td class="r num muted">not comparable</td><td class="exc">Currency mismatch<div class="meta"><span class="status st-risk"><svg class="ico"><use href="#i-flag"/></svg>High risk</span><span>2 days</span></div></td></tr>
+                <tr><td class="ref">pay_B3QW7ZN</td><td>28 Apr</td><td class="r num"><span class="cur">INR</span>3,450.00</td><td class="r num"><span class="cur">INR</span>3,367.20</td><td class="r num diff">&minus;82.80</td><td class="exc">Amount mismatch<div class="meta"><span class="status st-neutral">Routine</span><span>2 days</span></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot"><span>6 of 9 differences shown</span><span>Unexplained: the amount each exception concerns, signed from the merchant&rsquo;s side</span></div>
+        </section>
+
+        <aside class="panel" aria-labelledby="trace-title">
+          <div class="trace">
+            <h2 id="trace-title">pay_Q7XK2LM</h2>
+            <div class="sub">Amount mismatch between the payment and its settlement line, opened 24 Apr 2026, 23:40 IST. Assignee: Priya S.</div>
+            <ol class="steps">
+              <li class="step"><span class="pin"></span><div class="k">Merchant order</div>
+                <div class="v"><span class="ref">ORD-58213</span><span class="num"><span class="cur">INR</span>18,500.00</span></div>
+                <div class="src">orders_apr.csv, row 1,204</div></li>
+              <li class="step"><span class="pin"></span><div class="k">Payment attempt, successful (gross)</div>
+                <div class="v"><span class="ref">pay_Q7XK2LM</span><span class="num"><span class="cur">INR</span>18,500.00</span></div>
+                <div class="src">gateway_txn_apr.xlsx, row 3,877</div></li>
+              <li class="step is-diff"><span class="pin"></span><div class="k">Settlement line (gross)</div>
+                <div class="v"><span class="ref">SETL-2604-17 line 88</span><span class="num"><span class="cur">INR</span>18,050.00</span></div>
+                <div class="src">settlement_2026-04-26.csv, row 88</div>
+                <div class="compare" aria-label="Both original amounts and the difference">
+                  <div><span>Payment, gross</span><span class="num">INR 18,500.00</span></div>
+                  <div><span>Settlement line, gross</span><span class="num">INR 18,050.00</span></div>
+                  <div class="total"><span>Unexplained difference</span><span class="num">INR &minus;450.00</span></div>
+                </div>
+                <div class="parts">Also reported on the line: fee <span class="num">INR 361.00</span>, tax on fee <span class="num">INR 64.98</span>, net <span class="num">INR 17,624.02</span>. They agree with the line&rsquo;s gross, so the difference is not a fee.</div>
+                <div class="actions">
+                  <button class="btn">Attach evidence</button>
+                  <button class="btn">Comment</button>
+                  <button class="btn btn-primary">Resolve with a reason</button>
+                </div>
+                <div class="note">High risk: resolving it needs approval by a different Controller. Source values are never edited.</div></li>
+              <li class="step wait"><span class="pin"></span><div class="k">Payout</div><div class="v muted">In payout P-0426-02</div></li>
+              <li class="step wait"><span class="pin"></span><div class="k">Bank credit</div><div class="v muted">Stage 2</div></li>
+              <li class="step wait" style="padding-bottom:0"><span class="pin"></span><div class="k">Journal</div><div class="v muted">Not journalled until the difference is resolved</div></li>
+            </ol>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

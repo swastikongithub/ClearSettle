@@ -91,7 +91,7 @@ public class StepUpAuthorizationRequestResolver implements OAuth2AuthorizationRe
 		}
 	}
 
-	/** Only a signed-in user's own PENDING action can start a step-up. */
+	/** Only a signed-in user's own PENDING, unexpired action can start a step-up. */
 	private Optional<StepUp> stepUpFor(HttpServletRequest request) {
 		String actionParam = request.getParameter("step_up");
 		Authentication auth = SecurityContextHolder.getContext().getAuthentication();

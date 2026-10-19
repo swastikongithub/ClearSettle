@@ -113,6 +113,21 @@ class SecurityChainSliceTest {
 				.isInstanceOf(com.clearsettle.security.NonRetainingAuthorizedClientRepository.class);
 	}
 
+	@Autowired
+	org.springframework.context.ApplicationContext context;
+
+	/** The local-stack fixture operation must never be present unless explicitly enabled (it is not here). */
+	@Test
+	void devFixturesAreNotRegisteredByDefault() throws Exception {
+		org.assertj.core.api.Assertions.assertThat(context.getBeansOfType(com.clearsettle.devfixture.DevFixtureSensitiveOperation.class)).isEmpty();
+		org.assertj.core.api.Assertions.assertThat(context.getBeansOfType(com.clearsettle.devfixture.DevFixtureController.class)).isEmpty();
+		mvc.perform(post("/api/dev-fixture/sensitive-actions").with(alice())
+						.cookie(new jakarta.servlet.http.Cookie("__Host-XSRF-TOKEN", CSRF))
+						.header("X-XSRF-TOKEN", CSRF)
+						.header("X-CS-Request", "1"))
+				.andExpect(status().isNotFound());
+	}
+
 	@Test
 	void unauthenticatedApiIsRejected() throws Exception {
 		mvc.perform(get("/api/me"))

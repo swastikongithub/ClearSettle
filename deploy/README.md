@@ -6,9 +6,10 @@ requiring MFA), the Spring Boot backend, and the redacting nginx reverse proxy. 
 `clearsettle-dev` (isolated from other projects); only `127.0.0.1:8443` (proxy) and `127.0.0.1:8081`
 (Keycloak) are published.
 
-> **Status:** run end-to-end on 2026-10-16 (M1 integration validation). Results and the defects found and
-> fixed are recorded in `docs/product/clearsettle_implementation_status.md`. The backend's unit and
-> security-chain tests run without this stack (`cd backend && mvn test`).
+> **Status:** run end-to-end on 2026-10-16/17 (M1 integration validation, then the 17 October security-policy
+> work). Results and the defects found and fixed are recorded in
+> `docs/product/clearsettle_implementation_status.md`. The backend's unit and security-chain tests run without
+> this stack (`cd backend && mvn test`).
 
 ## Topology (dev only)
 
@@ -51,27 +52,77 @@ PostgreSQL stores its data in an anonymous Docker volume (declared by the offici
 recreating its container re-imports the realm from `keycloak/clearsettle-realm.json` (Keycloak requires
 the `<realm>-realm.json` file name) and discards dev users.
 
-## MFA behaviour (D-SEC-14)
+## MFA behaviour (D-SEC-14, D-SEC-16, D-SEC-19)
 
-- Every user must enrol TOTP on first sign-in (required action; cannot be skipped).
-- The **enrolment login itself does not create an application session**: Keycloak reports `acr=mfa` for
-  it but `amr` is empty (no previously enrolled factor was verified), and the backend requires
-  `acr=mfa` **and** `amr` containing `otp`. The user signs in again and enters a code from the enrolled
-  authenticator (Keycloak SSO already covers the password), and the session is created.
+- Every user must enrol TOTP (the only second factor) on first sign-in. Enrolment is a default required
+  action, and the level-2 flow requires the OTP form, so a user without the required action enrols too.
+- **Expected, not a fault: the sign-in that enrols the authenticator does not create an application
+  session.** Keycloak reports `acr=mfa` for it but `amr` shows no verified factor, and the backend requires
+  `acr=mfa` **and** `amr` containing `otp`. The browser lands on `/?auth_error=mfa_not_verified` with a "sign
+  in once more" message; the next sign-in asks for a code from the new authenticator (Keycloak SSO covers the
+  password) and creates the session. `auth_error=mfa_required` instead means the IdP performed no MFA.
 - The realm adds the AMR protocol mapper and authentication references (`pwd`, `otp`) so `amr` reflects
   the authenticators that actually ran.
+
+## MFA recovery controls (D-SEC-18)
+
+No self-service MFA reset. The realm file is the reference configuration:
+
+- password reset off, and its flow (`clearsettle-reset-credentials`) has no *Reset OTP* step;
+- the `delete_credential` required action is disabled (the account console cannot remove a factor);
+- user events and admin events are stored (admin representation bodies off), so an administrator's factor
+  removal is recorded with the administrator's identity;
+- brute-force detection with Keycloak's default thresholds (temporary lockout).
+
+Administrator-assisted reset in the dev stack (after verifying the person's identity out of band):
+
+```bash
+# as the Keycloak admin (kcadm inside the container)
+kcadm.sh delete users/<user-id>/credentials/<otp-credential-id> -r clearsettle
+kcadm.sh update users/<user-id> -r clearsettle -s 'requiredActions=["CONFIGURE_TOTP"]'
+kcadm.sh create users/<user-id>/logout -r clearsettle
+# interim, until ClearSettle has an audited session revocation or back-channel logout:
+psql -c "delete from spring_session where principal_name = '<app_user id>'"
+```
+
+Keycloak's logout does not end ClearSettle sessions; without the last step the user's existing application
+session stays valid (R-02 shows this). The identity-verification procedure, the ClearSettle-side revocation
+and the external review are not built; this is not a production recovery process.
+
+## Sensitive actions (D-SEC-17) and the dev fixture
+
+No sensitive business operation exists yet. The stack sets `CLEARSETTLE_DEVFIXTURES_ENABLED=true`, which
+registers one **no-op** sensitive operation (`dev.fixture.noop`, endpoint
+`POST /api/dev-fixture/sensitive-actions`) so the policy can be exercised in a browser: the request answers
+`202 confirmation_required` (sign-in under 5 minutes old) or `401 step_up_required`; the step-up lands on
+`/review?action=<id>`; only **Confirm** (`POST /api/sensitive-actions/<id>/confirm`) runs it, once. Executing
+it changes nothing and records a `dev_fixture_operation_executed` security event. The backend logs a warning
+at startup when it is enabled; never enable it outside this stack.
+
+## Second application instance (cross-instance tests)
+
+```bash
+docker compose --profile multi-instance up -d backend-2   # same image, same PostgreSQL session store
+docker compose --profile multi-instance stop backend-2
+```
+
+The proxy keeps routing to `backend`; `backend-2` is reached directly on `127.0.0.1:8082` (plain HTTP,
+loopback only). Build the image first with `docker compose up -d --build backend`.
 
 ## Automated validation
 
 ```bash
 cd e2e && npm ci
 export PLAYWRIGHT_BROWSERS_PATH=<dir with Playwright 1.64.1 browsers>   # or: npx playwright install chromium firefox webkit
-node run.mjs chromium P,B,C,D,E,H,K,G # protocol, login/MFA, cookies, sessions, CSRF, step-up, tossing, log scan
-node run.mjs firefox  B,C,D,E,H,K,G
-node run.mjs webkit   B,C,D,E,H,K,G   # Playwright WebKit = engine proxy, NOT Safari/iOS
+node run.mjs chromium P,B,C,D,E,H,R,K,G # protocol/IdP config, login/MFA, cookies, sessions, CSRF, step-up and
+                                        # confirmation, MFA recovery, tossing, log scan
+node run.mjs firefox  B,C,D,E,H,R,K,G
+node run.mjs webkit   B,C,D,E,H,R,K,G   # Playwright WebKit = engine proxy, NOT Safari/iOS
 E2E_DEVICE="Pixel 7"   node run.mjs chromium B,C,E,H   # device EMULATION (viewport/UA/touch), not a real device
 E2E_DEVICE="iPhone 15" node run.mjs webkit   B,C,E,H
-node longrun.mjs chromium             # ~16 min: 15-min idle + 5-min freshness, production values
+node run.mjs chromium M,G              # two instances (start backend-2 first, see above)
+node longrun.mjs chromium              # ~17 min: 15-min idle, 5-min freshness, step-up and expiry of
+                                       # sensitive actions, production values
 node engine-samesite-probe.mjs        # which engines enforce SameSite (no stack needed)
 bash ../deploy/f1-logging-regression.sh https://localhost:8443 clearsettle-proxy clearsettle-backend --with-upstream-failure
 ```
@@ -81,7 +132,13 @@ Test users are created in the dev realm at runtime with random synthetic passwor
 `B-06` briefly reconfigures the dev client's ACR defaults (restored in a `finally`; if a run is killed
 during `B-06`, `P-06` on the next Chromium run shows whether the client's ACR defaults need restoring).
 Every run starts with the preflight `A-01`: the proxy serves the app shell, its script runs against the
-API, and anonymous visits create no server-side session.
+API, and anonymous visits create no server-side session. `B-08` locks a dedicated test user at the IdP and
+clears the lockout afterwards.
+
+The backend's PostgreSQL tests (single-use confirmation under concurrency; the step-up's session lookup on the
+real Spring Session repository) run only against a disposable
+database named by `CS_TEST_PG_URL`, `CS_TEST_PG_USER` and `CS_TEST_PG_PASSWORD` (the production schema is
+applied to it); without them `mvn test` reports them as skipped. Never point them at this stack's database.
 
 Result statuses: `PASS`, `FAIL`, `ERROR` (the test could not run), `ENGINE-LIMITATION` (a browser-jar
 SameSite assertion in an engine shown by the probe not to implement SameSite: Playwright WebKit on

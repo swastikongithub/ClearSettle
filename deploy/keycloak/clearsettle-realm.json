@@ -6,6 +6,45 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
   "registrationAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 30,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "quickLoginCheckMilliSeconds": 1000,
+  "minimumQuickLoginWaitSeconds": 60,
+  "maxDeltaTimeSeconds": 43200,
+  "eventsEnabled": true,
+  "enabledEventTypes": [
+    "LOGIN",
+    "LOGIN_ERROR",
+    "LOGOUT",
+    "LOGOUT_ERROR",
+    "CODE_TO_TOKEN_ERROR",
+    "UPDATE_CREDENTIAL",
+    "UPDATE_CREDENTIAL_ERROR",
+    "REMOVE_CREDENTIAL",
+    "REMOVE_CREDENTIAL_ERROR",
+    "UPDATE_TOTP",
+    "UPDATE_TOTP_ERROR",
+    "REMOVE_TOTP",
+    "REMOVE_TOTP_ERROR",
+    "RESET_PASSWORD",
+    "RESET_PASSWORD_ERROR",
+    "SEND_RESET_PASSWORD",
+    "SEND_RESET_PASSWORD_ERROR",
+    "UPDATE_PASSWORD",
+    "UPDATE_PASSWORD_ERROR",
+    "EXECUTE_ACTIONS",
+    "EXECUTE_ACTION_TOKEN",
+    "EXECUTE_ACTION_TOKEN_ERROR",
+    "CUSTOM_REQUIRED_ACTION",
+    "CUSTOM_REQUIRED_ACTION_ERROR",
+    "USER_DISABLED_BY_TEMPORARY_LOCKOUT",
+    "USER_DISABLED_BY_PERMANENT_LOCKOUT"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": false,
   "attributes": {
     "acr.loa.map": "{\"pwd\":1,\"mfa\":2}"
   },
@@ -22,9 +61,18 @@
       "enabled": true,
       "defaultAction": true,
       "priority": 10
+    },
+    {
+      "alias": "delete_credential",
+      "name": "Delete Credential",
+      "providerId": "delete_credential",
+      "enabled": false,
+      "defaultAction": false,
+      "priority": 100
     }
   ],
   "browserFlow": "clearsettle-browser",
+  "resetCredentialsFlow": "clearsettle-reset-credentials",
   "authenticationFlows": [
     {
       "alias": "clearsettle-browser",
@@ -116,6 +164,36 @@
           "authenticatorFlow": false,
           "userSetupAllowed": false,
           "authenticatorConfig": "cs-ref-otp"
+        }
+      ]
+    },
+    {
+      "alias": "clearsettle-reset-credentials",
+      "description": "Password reset without the built-in 'Reset OTP' step: controlling the email address must never reset the second factor (MFA recovery is administrator-assisted). Unused while resetPasswordAllowed is false.",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "reset-credentials-choose-user",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-credential-email",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "reset-password",
+          "requirement": "REQUIRED",
+          "priority": 30,
+          "authenticatorFlow": false,
+          "userSetupAllowed": false
         }
       ]
     }

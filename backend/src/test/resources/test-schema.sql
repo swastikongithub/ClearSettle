@@ -22,6 +22,6 @@ create table if not exists pending_action (
     action_type varchar(200) not null,
     context varchar(2000),
     status varchar(20) not null,
-    created_at timestamp not null default current_timestamp,
-    executed_at timestamp
+    created_at timestamp with time zone not null default current_timestamp,
+    executed_at timestamp with time zone
 );

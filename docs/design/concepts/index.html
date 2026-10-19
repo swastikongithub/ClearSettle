@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClearSettle design concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .index { max-width: 880px; margin: 0 auto; padding: var(--s7) var(--s4); display: grid; gap: var(--s6); }
+  .index h1 { font-size: var(--t-xl); font-weight: 600; margin: 0 0 var(--s2); letter-spacing: -0.01em; }
+  .index > header p { margin: 0; color: var(--ink-2); max-width: 66ch; }
+  .index code { font-size: 0.9em; overflow-wrap: anywhere; }
+  .pages { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s4); }
+  .pages > li { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-panel); padding: var(--s4) var(--s5); }
+  .pages h2 { font-size: var(--t-lg); font-weight: 600; margin: 0 0 var(--s1); }
+  .pages h2 a { text-decoration: none; }
+  .pages h2 a:hover { text-decoration: underline; }
+  .pages p { margin: 0 0 var(--s2); color: var(--ink-2); font-size: var(--t-sm); }
+  .pages ul { margin: 0; padding-left: 1.2em; font-size: var(--t-sm); display: grid; gap: 2px; }
+  .how { font-size: var(--t-sm); color: var(--ink-2); display: grid; gap: var(--s2); }
+  .how h2 { font-size: var(--t-md); font-weight: 600; color: var(--ink); margin: 0; }
+  .how p { margin: 0; max-width: 72ch; }
+</style>
+</head>
+<body>
+<div class="concept-banner" role="note">
+  <strong>Design concepts, not the application.</strong>
+  <span>Static pages with illustrative sample data, for the owner's review of the frontend design proposal.</span>
+</div>
+
+<main class="index">
+  <header>
+    <h1>ClearSettle design concepts</h1>
+    <p>Three static pages that show the proposed visual direction. Nothing here is approved or connected to a backend. The written proposal, with the decisions it asks for, is <code>docs/design/clearsettle_frontend_design_proposal.md</code>.</p>
+  </header>
+
+  <ul class="pages">
+    <li>
+      <h2><a href="overview.html">Period overview</a></h2>
+      <p>The application shell and the first screen of a period.</p>
+      <ul>
+        <li>The settlement chain: orders to posted journals, with each link's open items above it.</li>
+        <li>Needs attention, ordered by risk and then age; every item says what its button does.</li>
+        <li>Amounts in Indian digit grouping with the currency code (decision 3).</li>
+      </ul>
+    </li>
+    <li>
+      <h2><a href="reconciliation.html">Reconciliation results</a></h2>
+      <p>One run's differences, with the selected payment's trace from order to journal.</p>
+      <ul>
+        <li>Gross compared with gross; the fee and tax reported on the line shown beside the comparison.</li>
+        <li>Both original amounts and the unexplained difference, never a corrected value.</li>
+        <li>A partially imported input announced above the results that depend on it.</li>
+      </ul>
+    </li>
+    <li>
+      <h2><a href="flows.html">Sign-in, confirmation and data states</a></h2>
+      <p>Pages that exist in some form today, redesigned.</p>
+      <ul>
+        <li>The second sign-in after enrolling an authenticator, explained rather than shown as an error.</li>
+        <li>A sensitive action: verify it is you, review, confirm once; refused and expired confirmations.</li>
+        <li>Loading, empty, error and partial states.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <section class="how" aria-labelledby="how-title">
+    <h2 id="how-title">Viewing them</h2>
+    <p>Open this file directly in a browser; no build or server is needed. The pages load IBM Plex from Google Fonts and fall back to a system font when offline (the application would serve its fonts itself).</p>
+    <p>To see the tablet and phone layouts, narrow the window below 1100 px and 960 px, or use the browser's device mode at 390 px wide.</p>
+  </section>
+</main>
+</body>
+</html>
