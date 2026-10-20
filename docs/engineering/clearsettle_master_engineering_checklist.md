@@ -176,6 +176,20 @@ This is a quality/reliability checklist only. It deliberately does **not** decid
 >
 > The checklist items above stay unchecked.
 
+> **Status update (19 October 2026): obligations for the first real sensitive operation.** The sensitive-action
+> mechanism (D-SEC-17) has been verified only with a no-op development fixture, which is not evidence that financial
+> operations are protected. The first real operation (posting approval, M6) must:
+>
+> - implement `SensitiveOperation.reviewedVersion` so it changes whenever what the user reviewed changes, and
+>   check it under lock in `execute`, throwing `ReviewedStateChangedException` (the framework already refuses a
+>   changed action with `409 action_changed` and withdraws it);
+> - bind the action to its workspace and re-check the user's membership and role at confirmation;
+> - come with PostgreSQL tests of both.
+>
+> Also open: a retention period and purge for finished `pending_action` rows, with the first real operation or the
+> audit core (see the implementation status). The no-op fixture now needs the `local-dev` profile and an explicit
+> property, and refuses to start on a non-loopback origin.
+
 ## 8. Testing and acceptance evidence
 
 - [ ] Unit tests for matching rules, fees/tolerances, rounding, duplicate detection and state transitions.

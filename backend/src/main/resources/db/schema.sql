@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS pending_action (
     user_id uuid NOT NULL REFERENCES app_user(id),
     action_type text NOT NULL,
     context text,
+    reviewed_version text,
     status text NOT NULL CHECK (status IN ('PENDING','EXECUTED','CANCELLED')),
     created_at timestamptz NOT NULL DEFAULT now(),
     executed_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS pending_action_user ON pending_action (user_id, status);
+-- Added 19 October 2026; re-applying this file upgrades an existing database. Rows without it never confirm.
+ALTER TABLE pending_action ADD COLUMN IF NOT EXISTS reviewed_version text;

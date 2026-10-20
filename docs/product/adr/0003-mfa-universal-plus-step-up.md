@@ -55,6 +55,11 @@ after an MFA reset (D-SEC-18).
   action exactly once in the same transaction as the operation. Another user's, an executed, cancelled or
   expired action is refused. Engineering default: an action must be confirmed within 5 minutes of the
   request (`pending-action-ttl-seconds`).
+- What executes is what was reviewed (added 19 October 2026): each operation declares the version of what the
+  user reviews (`SensitiveOperation.reviewedVersion`), stored with the pending action. A confirmation is
+  refused with `409 action_changed`, and the action withdrawn, when the version has changed; the operation
+  checks it again under lock before changing anything. The first real operation must also re-check workspace
+  membership and role at confirmation.
 - **Categories** that require this policy as their features are built (NFR-SEC-004): posting approval;
   period reopening; role and permission changes; offboarding steps a person starts; activation of templates
   and other changes to sensitive financial settings; original-file download. Recommended in addition: an

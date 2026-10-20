@@ -91,13 +91,24 @@ and the external review are not built; this is not a production recovery process
 
 ## Sensitive actions (D-SEC-17) and the dev fixture
 
-No sensitive business operation exists yet. The stack sets `CLEARSETTLE_DEVFIXTURES_ENABLED=true`, which
-registers one **no-op** sensitive operation (`dev.fixture.noop`, endpoint
+No sensitive business operation exists yet. The stack activates the Spring profile `local-dev` and sets
+`CLEARSETTLE_DEVFIXTURES_ENABLED=true`; only the two together register one **no-op** sensitive operation (`dev.fixture.noop`, endpoint
 `POST /api/dev-fixture/sensitive-actions`) so the policy can be exercised in a browser: the request answers
 `202 confirmation_required` (sign-in under 5 minutes old) or `401 step_up_required`; the step-up lands on
 `/review?action=<id>`; only **Confirm** (`POST /api/sensitive-actions/<id>/confirm`) runs it, once. Executing
 it changes nothing and records a `dev_fixture_operation_executed` security event. The backend logs a warning
-at startup when it is enabled; never enable it outside this stack.
+at startup when it is enabled, and refuses to start if it is enabled while `CLEARSETTLE_OIDC_APPBASEURL` is
+not a loopback origin; never enable it outside this stack.
+
+Every sensitive action records the version of what the user reviews; a confirmation is refused with
+`409 action_changed` if it has changed. The column was added on 19 October 2026: on a database created
+before then, re-apply the (idempotent) schema once:
+
+```bash
+docker exec clearsettle-db psql -v ON_ERROR_STOP=1 -U postgres -d clearsettle -f /schema/schema.sql
+```
+
+(From Git Bash on Windows, prefix it with `MSYS_NO_PATHCONV=1`.)
 
 ## Second application instance (cross-instance tests)
 
@@ -135,10 +146,12 @@ Every run starts with the preflight `A-01`: the proxy serves the app shell, its 
 API, and anonymous visits create no server-side session. `B-08` locks a dedicated test user at the IdP and
 clears the lockout afterwards.
 
-The backend's PostgreSQL tests (single-use confirmation under concurrency; the step-up's session lookup on the
-real Spring Session repository) run only against a disposable
-database named by `CS_TEST_PG_URL`, `CS_TEST_PG_USER` and `CS_TEST_PG_PASSWORD` (the production schema is
-applied to it); without them `mvn test` reports them as skipped. Never point them at this stack's database.
+The backend's PostgreSQL tests (user provisioning under concurrent first sign-ins; single-use confirmation
+under concurrency; the step-up's session lookup on the real Spring Session repository) run only against a
+disposable database named by `CS_TEST_PG_URL`, `CS_TEST_PG_USER` and `CS_TEST_PG_PASSWORD` (the production
+schema is applied to it); without them `mvn test` reports them as skipped. Never point them at this stack's
+database. `CS_TEST_PG_DIAGNOSTICS=true` additionally runs a diagnostic reproduction of the Spring Session JDBC
+behaviour behind defect 12; it depends on PostgreSQL's query plan, so it is not part of the standard suite.
 
 Result statuses: `PASS`, `FAIL`, `ERROR` (the test could not run), `ENGINE-LIMITATION` (a browser-jar
 SameSite assertion in an engine shown by the probe not to implement SameSite: Playwright WebKit on

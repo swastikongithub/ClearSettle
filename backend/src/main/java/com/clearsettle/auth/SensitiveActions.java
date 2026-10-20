@@ -34,6 +34,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>{@link #confirm}: the user's explicit confirmation. The authentication evidence is checked again
  *       (fail closed), then the action is claimed exactly once and executed in one transaction.</li>
  * </ol>
+ * What executes is what the user reviewed: the operation's {@link SensitiveOperation#reviewedVersion} is
+ * recorded at the request, and a confirmation is refused and the action withdrawn if it has changed (checked
+ * before the claim and again by the operation under lock).
  * Missing, malformed, weak, stale or future-dated evidence never authorizes; another user's, an executed,
  * cancelled or expired action is refused. The absolute session lifetime is unaffected (a step-up keeps the
  * originating session's anchor).
@@ -46,13 +49,13 @@ public class SensitiveActions {
 			Instant expiresAt) {
 	}
 
-	/** What the review page shows before the user confirms. */
-	public record Review(PendingAction action, String summary, boolean supported, boolean stepUpRequired,
-			List<String> reasons) {
+	/** What the review page shows before the user confirms. {@code changed}: confirming now would be refused. */
+	public record Review(PendingAction action, String summary, boolean supported, boolean changed,
+			boolean stepUpRequired, List<String> reasons) {
 	}
 
 	public enum Outcome {
-		EXECUTED, STEP_UP_REQUIRED, NOT_FOUND, NOT_PENDING, EXPIRED, UNSUPPORTED, FAILED
+		EXECUTED, STEP_UP_REQUIRED, NOT_FOUND, NOT_PENDING, EXPIRED, UNSUPPORTED, CHANGED, FAILED
 	}
 
 	public record Confirmation(Outcome outcome, String actionType, List<String> reasons, Map<String, Object> result) {
@@ -93,11 +96,13 @@ public class SensitiveActions {
 	 * @throws IllegalArgumentException if {@code actionType} is not a registered sensitive operation
 	 */
 	public Challenge request(AppUser user, OAuth2AuthenticationToken auth, String actionType, Map<String, String> params) {
-		if (!operations.containsKey(actionType)) {
+		SensitiveOperation op = operations.get(actionType);
+		if (op == null) {
 			throw new IllegalArgumentException("not a registered sensitive operation: " + actionType);
 		}
+		Map<String, String> requested = params == null ? Map.of() : params;
 		FreshAuthEvaluator.Decision fresh = evaluate(auth);
-		UUID id = pending.begin(user.id(), actionType, params);
+		UUID id = pending.begin(user.id(), actionType, requested, op.reviewedVersion(user.id(), requested));
 		events.record("sensitive_action_requested", user.id(),
 				"type=" + actionType + " action=" + id + " step_up_required=" + !fresh.ok());
 		Instant expiresAt = pending.find(id, user.id()).map(PendingAction::expiresAt).orElseThrow();
@@ -109,7 +114,9 @@ public class SensitiveActions {
 		return pending.find(actionId, user.id()).map(a -> {
 			SensitiveOperation op = operations.get(a.actionType());
 			FreshAuthEvaluator.Decision fresh = evaluate(auth);
-			return new Review(a, op == null ? null : op.summary(a.params()), op != null, !fresh.ok(), fresh.reasons());
+			boolean changed = op != null && !reviewedVersionHolds(op, user, a);
+			return new Review(a, op == null ? null : op.summary(a.params()), op != null, changed, !fresh.ok(),
+					fresh.reasons());
 		});
 	}
 
@@ -138,6 +145,9 @@ public class SensitiveActions {
 		if (!fresh.ok()) {
 			return refused(user, actionId, action.actionType(), Outcome.STEP_UP_REQUIRED, fresh.reasons());
 		}
+		if (!reviewedVersionHolds(op, user, action)) {
+			return withdrawn(user, action);
+		}
 		Confirmation done;
 		try {
 			done = tx.execute(status -> {
@@ -147,9 +157,13 @@ public class SensitiveActions {
 							: claim == ClaimResult.NOT_FOUND ? Outcome.NOT_FOUND : Outcome.NOT_PENDING,
 							action.actionType(), List.of(), Map.of());
 				}
-				Map<String, Object> result = op.execute(user.id(), action.params());
+				Map<String, Object> result = op.execute(user.id(), action.params(), action.reviewedVersion());
 				return new Confirmation(Outcome.EXECUTED, action.actionType(), List.of(), result == null ? Map.of() : result);
 			});
+		}
+		catch (ReviewedStateChangedException e) {
+			// Changed between the check above and the operation's own check under lock: rolled back, withdrawn.
+			return withdrawn(user, action);
 		}
 		catch (RuntimeException e) {
 			// The claim was rolled back with the operation: the action is still pending.
@@ -171,6 +185,18 @@ public class SensitiveActions {
 			events.record("sensitive_action_cancelled", user.id(), "action=" + actionId);
 		}
 		return cancelled;
+	}
+
+	/** True only when the action carries a reviewed version and the operation still reports the same one. */
+	private static boolean reviewedVersionHolds(SensitiveOperation op, AppUser user, PendingAction action) {
+		return action.reviewedVersion() != null
+				&& action.reviewedVersion().equals(op.reviewedVersion(user.id(), action.params()));
+	}
+
+	/** What the user reviewed has changed: the action can never be confirmed, so it is withdrawn. */
+	private Confirmation withdrawn(AppUser user, PendingAction action) {
+		pending.cancel(action.id(), user.id());
+		return refused(user, action.id(), action.actionType(), Outcome.CHANGED, List.of());
 	}
 
 	private FreshAuthEvaluator.Decision evaluate(OAuth2AuthenticationToken auth) {

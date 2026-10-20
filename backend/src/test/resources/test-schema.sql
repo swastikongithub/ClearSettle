@@ -21,6 +21,7 @@ create table if not exists pending_action (
     user_id uuid not null,
     action_type varchar(200) not null,
     context varchar(2000),
+    reviewed_version varchar(500),
     status varchar(20) not null,
     created_at timestamp with time zone not null default current_timestamp,
     executed_at timestamp with time zone

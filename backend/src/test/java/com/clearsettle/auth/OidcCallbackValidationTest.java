@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.clearsettle.security.H2UserProvisioning;
 import com.nimbusds.jwt.JWTClaimsSet;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.Cookie;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -38,7 +40,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Session JDBC store (H2) run against {@link StubOidcProvider}, which returns exactly the ID token each test
  * chooses. Every tampered callback must be rejected, leave no persisted security context, provision no
  * application user, and be recorded as a security event. Spring Security performs the cryptographic and claim
- * validation; nothing here relaxes it.
+ * validation; nothing here relaxes it. User creation on H2 uses the test-only {@link H2UserProvisioning}; the
+ * production statement is tested on PostgreSQL.
  */
 @SpringBootTest(properties = {
 		"spring.datasource.url=jdbc:h2:mem:csoidc;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
@@ -46,6 +49,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 		"clearsettle.oidc.keycloak.client-id=clearsettle-web",
 		"clearsettle.oidc.keycloak.client-secret=" + OidcCallbackValidationTest.CLIENT_SECRET })
 @ActiveProfiles("test")
+@Import(H2UserProvisioning.class)
 class OidcCallbackValidationTest {
 
 	/** Long enough to be a valid HS256 key, so the algorithm-confusion forgery is well-formed. */

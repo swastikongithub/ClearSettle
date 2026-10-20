@@ -9,7 +9,6 @@ import com.clearsettle.web.SensitiveActionResponses;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * LOCAL DEVELOPMENT FIXTURE: the "feature endpoint" of {@link DevFixtureSensitiveOperation}, shaped the way a
  * real sensitive endpoint uses the policy (request, then return the challenge; never execute directly).
- * Registered only when {@code clearsettle.dev-fixtures.enabled=true}.
+ * Registered only for the local development stack ({@link LocalDevFixture}).
  */
 @RestController
-@ConditionalOnProperty(name = "clearsettle.dev-fixtures.enabled", havingValue = "true")
+@LocalDevFixture
 public class DevFixtureController {
 
 	private static final Logger log = LoggerFactory.getLogger(DevFixtureController.class);

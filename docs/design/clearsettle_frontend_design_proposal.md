@@ -1,8 +1,10 @@
 # ClearSettle — Frontend Design Proposal
 
-**Status:** PROPOSAL for owner review (17 October 2026; revised 19 October 2026, see *Review corrections*
-below). Nothing here is approved or implemented. It answers
-OQ-47 (information architecture and visual direction) and the M1 frontend deliverable "a design proposal
+**Status:** APPROVED by the owner on 19 October 2026: the seven decisions in section 10, with the owner's
+clarifications, are recorded as D-UI-07 to D-UI-13 in the decision register. Proposed 17 October 2026 and
+revised 19 October 2026 (see *Review corrections* below). The concepts remain static design references, not
+the application; what is implemented is recorded in `docs/product/clearsettle_implementation_status.md`. It
+answers OQ-47 (information architecture and visual direction) and the M1 frontend deliverable "a design proposal
 produced with the `frontend-design` skill … the owner must approve it" (implementation plan §5 M1, D-UI-01,
 D-UI-05, NFR-UX-003).
 
@@ -213,7 +215,7 @@ Settings           Workspace profile · Members and roles · Source accounts · 
   symbol allowed in prose. Tabular figures, right-aligned, exact decimal values from the API (never
   floating-point arithmetic in the browser). Negative values with a true minus sign; differences signed and
   in amber. No total ever adds two currencies (FR-RPT-014). Grouping follows the workspace locale; for INR
-  the proposal is Indian grouping (`1,24,500.00`) — a decision for the owner (§10).
+  Indian grouping (`1,24,500.00`), approved as D-UI-09.
 - **Dates and times:** shown in the workspace time zone with its label ("IST"); the UTC instant is available
   on hover and in exports (NFR-UX-004). Value dates are dates, not timestamps.
 - **References:** condensed cut, copyable, never truncated in the middle.
@@ -405,10 +407,20 @@ Most useful functional screen first; every step ships only screens whose backend
 
 ---
 
-## 10. Decisions requested from the owner
+## 10. Decisions (approved 19 October 2026)
 
-Each decision has a recommended default. Approving the defaults is enough to start step 1 of section 9;
-decisions 3 and 5 can also be taken later, before the first screen that needs them.
+The owner approved all seven recommended defaults on 19 October 2026, with these clarifications. The
+decision register entries are authoritative; the recommendations below are kept as the reasoning.
+
+| # | Decision | Register | Owner's clarification |
+|---|---|---|---|
+| 1 | Visual direction | D-UI-07 | Professional, restrained, precise; no unnecessary gradients, decorative animation or dashboard-template styling. |
+| 2 | Navigation | D-UI-08 | No separate Admin section until the admin-access decision (OQ-36). |
+| 3 | Amounts | D-UI-09 | Indian grouping for INR, international for other currencies; minus signs on working screens, parentheses on P&L and balance-sheet views; exports numeric; never add currencies or compare gross with net. |
+| 4 | Accessibility and browsers | D-UI-10 | No paid device testing without separate authorization; real Safari, iOS and Android results stay outstanding until available. |
+| 5 | Dependencies | D-UI-11 | Static export and same-origin API kept; Radix, TanStack Query, TanStack Table and virtualization only when needed; fonts and icons in the repository; no CSS framework, component kit or animation library without a documented need. |
+| 6 | Sign-in reference | D-UI-12 | Do not block on the screenshot. The application's own sign-in follows the approved direction with a Stripe-inspired polish, without copying; the Keycloak theme is a separate, optional task. |
+| 7 | Build order | D-UI-13 | Shell and session experience first (return to the intended page, idle warning); backend session revocation before the members screen; then dependency order. |
 
 ### 1. Visual direction
 
