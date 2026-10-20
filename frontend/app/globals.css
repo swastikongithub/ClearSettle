@@ -1,0 +1,107 @@
+/* ClearSettle visual direction (D-UI-07): tokens, self-hosted IBM Plex (D-UI-11), base styles. */
+
+/* IBM Plex Sans and Condensed, SIL Open Font License 1.1 (public/fonts/*-OFL.txt). Latin, and Latin Extended
+   for the rupee sign and other currency symbols; no third-party font request is ever made. */
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-400-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-ext-600-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-condensed-latin-500-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "IBM Plex Sans Condensed"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url("/fonts/ibm-plex-sans-condensed-latin-ext-500-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+:root {
+  --ink: #17232b;          /* text, icons: 14.6:1 on paper */
+  --ink-2: #4a5963;        /* secondary text: 7.2:1 on paper */
+  --ink-3: #606d76;        /* tertiary text: 4.9:1 on paper */
+  --paper: #f3f5f4;        /* application background */
+  --sheet: #ffffff;        /* panels, tables, forms, dialogs */
+  --rule: #d6dddb;         /* borders */
+  --rule-2: #e7ecea;       /* row separators, quiet fills */
+  --petrol: #0b5563;       /* primary action, focus, selection: white on it 8.4:1 */
+  --petrol-ink: #073f4a;
+  --petrol-wash: #e2eef0;
+  --amber: #a85808;        /* differences and data gaps only */
+  --amber-wash: #fbf0e3;
+  --risk: #ad2a1a;         /* high risk, destructive actions and failed actions only */
+  --risk-wash: #fbe9e6;
+  --ok: #1f6f47;
+  --ok-wash: #e5f2ea;
+
+  --font: "IBM Plex Sans", "Noto Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --t-xs: 0.75rem;   /* 12 */
+  --t-sm: 0.8125rem; /* 13 */
+  --t-md: 0.9375rem; /* 15 */
+  --t-lg: 1.125rem;  /* 18 */
+  --t-xl: 1.5rem;    /* 24 */
+  --t-2xl: 2rem;     /* 32 */
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+  --r-control: 6px;
+  --r-panel: 10px;
+  --shadow-dialog: 0 18px 48px rgba(16, 38, 46, 0.22), 0 2px 6px rgba(16, 38, 46, 0.12);
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; min-height: 100vh; font-family: var(--font); font-size: var(--t-md); line-height: 1.5;
+  color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p { margin: 0; }
+a { color: var(--petrol); text-underline-offset: 2px; }
+a:hover { color: var(--petrol-ink); }
+:focus-visible { outline: 2px solid var(--petrol); outline-offset: 2px; }
+button { font: inherit; }
+
+.num { font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
+.ref { font-family: var(--font-cond); font-weight: 500; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* Buttons: one primary per view; labels say what happens. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); min-height: 36px;
+  padding: 7px 14px; border: 1px solid var(--rule); border-radius: var(--r-control); background: var(--sheet);
+  color: var(--ink); font-size: var(--t-sm); font-weight: 500; line-height: 1.3; text-decoration: none; cursor: pointer;
+}
+.btn:hover { border-color: var(--ink-3); color: var(--ink); }
+.btn:disabled, .btn[aria-disabled="true"] { cursor: not-allowed; opacity: 0.6; }
+.btn-primary { background: var(--petrol); border-color: var(--petrol); color: #fff; }
+.btn-primary:hover { background: var(--petrol-ink); border-color: var(--petrol-ink); color: #fff; }
+.btn-quiet { border-color: transparent; background: transparent; color: var(--petrol); }
+.btn-quiet:hover { background: var(--petrol-wash); border-color: transparent; color: var(--petrol-ink); }
+.btn-large { min-height: 44px; padding: 10px 18px; font-size: var(--t-md); }
+
+/* Messages: information (petrol), a data warning (amber), an error that needs action (vermilion). */
+.msg { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s3) var(--s4); border-radius: var(--r-control); font-size: var(--t-sm); }
+.msg > svg { flex: none; margin-top: 2px; }
+.msg-info { background: var(--petrol-wash); color: var(--petrol-ink); }
+.msg-warn { background: var(--amber-wash); color: #6d3a05; }
+.msg-error { background: var(--risk-wash); color: #7a1d12; }
+.msg-ok { background: var(--ok-wash); color: #164f33; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
