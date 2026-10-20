@@ -1,17 +1,20 @@
 # ClearSettle — Implementation Status
 
-**Scope so far:** M1 authentication foundation (D-SEC-11 to D-SEC-19). This document records one row per
+**Scope so far:** M1 authentication foundation (D-SEC-11 to D-SEC-19) and the first frontend increment, the
+application shell (D-UI-07 to D-UI-13). This document records one row per
 relevant requirement, per the implementation plan §6. A requirement is marked verified only with recorded
 test evidence; the status changes in the same commit as the work it describes.
 
-**Last updated:** 2026-10-19 (owner approval of the frontend design defaults, D-UI-07 to D-UI-13; the
-PostgreSQL user-provisioning fix; reviewed-version binding for sensitive actions; dev-fixture gating).
+**Last updated:** 2026-10-20 (the application shell: sign-in states, return to the page asked for, the idle
+warning, Security and sessions, the review page; browser group U). Previously, 2026-10-19: owner approval of
+the frontend design defaults, the PostgreSQL user-provisioning fix, reviewed-version binding for sensitive
+actions, dev-fixture gating.
 
 **M1 is not complete.** The authentication path is verified end to end in the browser engines listed below,
 but real Safari and mobile browsers, MFA-recovery tooling, integration with real sensitive operations,
-restored-session invalidation and production logging intermediaries remain (last section). The rest of the
-planned M1 scope (workspaces, tenant isolation, audit core, the application shell; implementation plan §5)
-has not started.
+restored-session invalidation and production logging intermediaries remain (last section). The application
+shell is built (below), but most of its sections wait for backends that don't exist. The rest of the planned
+M1 scope (workspaces, tenant isolation, audit core; implementation plan §5) has not started.
 
 ## Status values
 
@@ -120,8 +123,8 @@ once; the replay was refused and the absolute anchor was unchanged.
 
 Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
 
-- **A** preflight, every run: the proxy serves the app shell, its script runs against the API, anonymous
-  visits create no server-side session.
+- **A** preflight, every run: the proxy serves the app shell, its script runs against the API and shows the
+  sign-in screen, anonymous visits create no server-side session.
 - **P** protocol and IdP configuration (Chromium only; browser-independent): authorization request; PKCE
   required; unregistered redirect URI refused; forged callback; issuer consistency; client configuration;
   flow evidence (ACR, AMR mapper); MFA and recovery configuration (P-08).
@@ -136,6 +139,10 @@ Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
   (H-01); confirmation replay (H-06); six concurrent confirmations (H-07); refused confirmations (H-08);
   step-up callback replay (H-02); another user's action (H-03); a different person (H-04); a refused step-up
   (H-05).
+- **U** the application shell: the review page's states and cancellation (U-01); a double press of Confirm
+  (U-02); return to the page asked for after sign-in (U-03); the idle warning on an advanced browser clock
+  (U-04); an external deep link under `SameSite=Strict` (U-06); sign out everywhere from the Security page
+  (U-05).
 - **R** MFA recovery: no self-service reset (R-01); administrator-assisted reset (R-02).
 - **M** two application instances on one session store (M-00…M-06).
 - **K** sibling-subdomain cookie tossing; **G** secret and log scan plus the AC-168 and sensitive-action
@@ -152,11 +159,11 @@ Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
 | AC-159 cookies; no token in storage | Verified (browser) in Chromium and Firefox | `CookieSerializerTest`, `LoginStateCookieRepositoryTest`; C-01, C-02, C-05; C-03 in all three engines | SameSite in Playwright WebKit's jar (engine limitation); real Safari and mobile browsers (Blocked: no macOS/iOS/Android devices) | D-SEC-15 |
 | AC-160 CSRF | Verified (unit, browser) | `SecurityChainSliceTest`, `RequiredHeaderFilterTest`, `SensitiveActionFlowTest`; E-01…E-10 and H-08 (confirmation without a token) in all three engines | GET inventory by code inspection: `/api/me`, `/api/session`, `/api/csrf`, `/api/sensitive-actions/{id}` change no state | D-SEC-15 |
 | AC-161 cross-site form POST and fetch | Verified (browser) | E-08, E-09 in all three engines | — | D-SEC-15 |
-| AC-162 rotation, logout, idle, absolute, cookie cleared | Verified (unit, live, browser) / Outstanding (expiry warning) | `AbsoluteTimeoutFilterTest`; D-02, D-05, D-08 (session cookie expired by the server and removed from the jar on logout and sign-out-everywhere), D-03, LR-01, D-04, M-06 | Pre-expiry warning not built (needs the remaining idle time from the backend) | D-SEC-13 |
+| AC-162 rotation, logout, idle, absolute, cookie cleared; warning before expiry | Verified (unit, live, browser) | `AbsoluteTimeoutFilterTest`; D-02, D-05, D-08 (session cookie expired by the server and removed from the jar on logout and sign-out-everywhere), D-03, LR-01, D-04, M-06; the warning: `sessionClock.test.mjs`, U-04 | The 8-hour notice is unit-tested only; the idle warning in the browser runs on an advanced browser clock (U-04), not wall-clock time | D-SEC-13, D-UI-13 |
 | AC-163 sign-out everywhere; removal; two instances | Verified (live, browser) / Outstanding (workspace removal) | D-06, D-07; across two instances: M-03 (sign-out-everywhere on instance 2 refuses both browsers on both), M-04 (logout), M-05 (disable) | Removal from every workspace (workspaces not built) | D-SEC-13 |
 | AC-164 step-up; different person; review, no replay | Verified (unit, PostgreSQL, browser) with fixtures / Outstanding (real operations) | `SensitiveActionFlowTest`, `PendingActionPostgresTest`, `LoginSuccessMfaGateTest`; H-01, H-06, H-07, H-08, H-04, M-02, LR-03 | No real sensitive operation exists; each feature's integration is part of its own acceptance | D-SEC-14, D-SEC-17 |
 | AC-165 weak, old or missing claims fail closed | Verified (unit, live) | `FreshAuthEvaluatorTest`, `SensitiveActionFlowTest` (acr, amr, auth_time cases at a sensitive operation), `OidcCallbackValidationTest`; B-06, B-01, LR-02, LR-03 | — | D-SEC-14 |
-| AC-166 same-origin static frontend; no secrets | Verified (live) | Static export routes `/`, `/_not-found`, `/review`; A-01 in all engines; bundle scan (see AC-166 note below) | — | D-SEC-11 |
+| AC-166 same-origin static frontend; no secrets | Verified (live) | Static export routes `/`, `/_not-found`, `/review`, `/imports`, `/reconciliation`, `/exceptions`, `/records`, `/ledger`, `/reports`, `/settings`, `/settings/security`; A-01 in all engines; bundle scan (see AC-166 note below) | — | D-SEC-11 |
 | AC-168 events with correlation ids; no secrets in logs | Verified (live) | G-01 in all three engines (proxy, backend, second instance in M runs, Keycloak and PostgreSQL logs, `security_event`); F-1 script PASS | Production logging intermediaries (CDN/LB/WAF/APM) | D-SEC-11 |
 | NFR-SEC-022 CSRF token + custom header; no state via GET | Verified (unit, browser) | as AC-160, AC-161, E-07, K-01 | — | D-SEC-15 |
 | NFR-SEC-023 session lifecycle | Verified (live, browser) / Outstanding (restore invalidation, privileged-role trigger) | as AC-162, AC-163; two instances M-01…M-06 | Invalidation of restored sessions after a database restore (no backup/restore tooling yet; the restore runbook must delete all `spring_session` rows before service resumes); workspace and role triggers | D-SEC-13 |
@@ -167,6 +174,77 @@ Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
 
 AC-166 note: the rebuilt bundle was scanned again on 2026-10-17 after this round's scaffold changes: 28 files,
 no `.env` value, no JWT, no private key, no client-secret string.
+
+## Application shell — first frontend increment, 2026-10-20
+
+Step 1 of the approved build order (D-UI-13; design proposal §9). It uses only the existing APIs: no new
+endpoint, no fabricated data. Sections whose backend does not exist say so plainly and show no figures.
+**This is not the full product UI**: of the eight sections, only Settings → Security and sessions and the
+sensitive-action review page do real work today.
+
+| Part | What it does | API | Status and evidence |
+|---|---|---|---|
+| Sign-in screen | Starts sign-in, remembering the page asked for. Explains why a session ended (idle, the 8-hour limit, signed out, signed out everywhere) and each refusal from the backend (`mfa_not_verified`, `mfa_required`, `account_disabled`, `reauth_user_mismatch`, `session_expired`; other provider codes only as a reference). A separate state when the server can't be reached | `GET /api/me`, `/oauth2/authorization/keycloak` | Verified (browser): A-01, B-01, U-03, U-04, U-05 |
+| Return to the page asked for (`lib/returnTo.mjs`) | Only same-origin section paths; valid 10 minutes; used once; applied only on the landing page after sign-in, so a step-up return to a review page is never redirected | — | Verified (unit, browser): `returnTo.test.mjs`; U-03 |
+| Session clock and idle warning (`lib/sessionClock.mjs`, `IdleWarning`) | Counts idle time from the last request the server answered, shared between tabs, never polling. Warns 2 minutes before the 15-minute limit; "Stay signed in" makes one request. Announces the 8-hour limit 10 minutes ahead (it cannot be extended). Ends the page's session at either limit with the reason | `GET /api/session` | Verified (unit, browser): `sessionClock.test.mjs`; U-04 (browser clock advanced). The 8-hour notice: unit tests only |
+| Navigation shell (`AppShell`, `UserMenu`) | The eight approved sections with the current one marked; skip link; account menu (Radix) with security, sign out and sign out everywhere; below 960 px a scrolling strip that keeps the current section in view | — | Verified (browser): U-03; accessibility audit below |
+| Security and sessions (`/settings/security/`) | Who is signed in, when, with which factors, and when the session ends; sign out; sign out everywhere behind a confirmation; whether a sensitive action would need a fresh verification right now; what to do about a lost authenticator, with the two gaps stated: an authenticator reset does not end existing sessions, and there is no per-device session list | `GET /api/me`, `GET /api/session`, `POST /logout`, `POST /api/session/logout-everywhere` | Verified (browser): U-05 |
+| Review and confirm (`/review/`) | One sensitive action: its summary, reference and expiry (counted by the server's clock). Confirm and Cancel; a step-up link when the sign-in is too old. Every server answer has its own message: ran, cancelled, verify first, already settled, changed since review (withdrawn), expired, unsupported, failed and rolled back, refused, and unknown when no clear answer came back. It then shows the state the server holds, never one assumed. One request per press | `GET /api/sensitive-actions/{id}`, `POST …/confirm`, `POST …/cancel` | Verified (unit, browser): `reviewState.test.mjs`; H-01, U-01, U-02. The changed, failed and unknown outcomes are unit-tested only, because the dev fixture cannot produce them |
+| Sections without a backend: Overview (the settlement chain, without figures), Imports, Reconciliation, Exceptions, Records, Ledger, Reports; Settings → workspace rows | A plain not-built state saying what each section will do and what it waits for | none | Built; no data. U-03 lands on one |
+| Amount and time formatting (`lib/format.mjs`) | Indian grouping for INR (`₹1,24,500.00`), international grouping otherwise, never abbreviated; a true minus sign on working screens and parentheses on statements; refuses excess decimals and unknown currencies; times in IST | — | Verified (unit): `format.test.mjs`. No screen shows an amount yet |
+
+- Frontend unit tests: `cd frontend && npm test`: 24, all passing (formatting, return-to, session clock,
+  review outcomes).
+- Dependencies added (D-UI-11): `@radix-ui/react-alert-dialog` 1.1.23 and `@radix-ui/react-dropdown-menu`
+  2.1.24, exact versions, for the dialogs and the account menu (focus trapping, keyboard handling and ARIA
+  roles). TanStack Query, Table and Virtual are not added yet: no screen lists or caches data so far.
+- Fonts: IBM Plex Sans (400, 500, 600) and IBM Plex Sans Condensed (500), latin and latin-ext subsets, served
+  from the app's own origin, with the OFL licence files in `frontend/public/fonts/`. `₹` renders in Plex: the
+  latin-ext subset loads on demand (checked in Chromium).
+- The confirmation is a page rather than a dialog, because the step-up returns the user to it. An
+  in-place dialog for an operation that needs no step-up arrives with the first real sensitive operation (M6).
+
+Browser runs against the local stack (backend at `a07e3a2`, frontend at `c182809`; synthetic users; raw
+results in `e2e/results/`, git-ignored):
+
+| Run | Groups | PASS | FAIL | ERROR |
+|---|---|---|---|---|
+| Chromium, full suite, on an earlier build of this increment (before the final review-page, copy and mobile-navigation refinements) | A, P, B, C, D, E, H, U, R, K, G | 58 | 0 | 0 |
+| Chromium, final build | A, H, U, G | 16 | 0 | 0 |
+| Firefox, final build | A, H, U, G | 16 | 0 | 0 |
+| WebKit, final build (engine proxy, not Safari), run alone | A, H, U, G | 15 | 1 (U-06, a test defect: see below) | 0 |
+| WebKit, group U after correcting U-06 | A, U | 6, and U-06 `NOT-OBSERVABLE` | 0 | 0 |
+| Chromium, wall clock at the production limits (`longrun.mjs`; LR-03 now reads the review page's outcome attributes), final build | LR-01 to LR-04 | 4 | 0 | 0 |
+
+- WebKit U-06: Playwright WebKit omits the `Cookie` header from the requests it reports, so the test saw no
+  session cookie even on the API request, although the API answered as signed in. U-06 now reports
+  `NOT-OBSERVABLE` in that case, as C-05 does, instead of `FAIL`.
+- A first WebKit attempt, run straight after the Firefox run, errored from its first fixture sign-in
+  onwards: 4 PASS, 2 FAIL, 10 ERROR, because the harness's two-step sign-in got no session for its users.
+  The same groups run alone passed as above, and the same sign-in, traced on its own in WebKit, got its
+  session. The cause of the first attempt was not established.
+
+- U-06 shows the deep-link answer to ADR-0004. The page request that follows a link from another site
+  carries no session cookie (`SameSite=Strict`), but the shell's own API requests do, so the user lands
+  on the section still signed in, with no new sign-in. This is shown in Chromium and Firefox; Playwright
+  WebKit on Windows implements no SameSite, so it cannot show the first half.
+- Not rerun in this round: the emulated devices and two instances (group M). The backend is unchanged
+  since those runs.
+
+Accessibility (WCAG 2.2 AA is the target, D-UI-10):
+
+- Automated: axe-core 4.10.3 (WCAG 2.0, 2.1 and 2.2 A and AA rules, run from outside the repository) found
+  **no violations** in 18 states at 1440 and 390 px. The states were: sign-in and a refused sign-in;
+  Overview; Settings; Security and sessions; a not-built section; the review page, ready and cancelled; the
+  account menu; the sign-out-everywhere dialog. Left for manual review (axe "incomplete"): colour contrast
+  of the sideways-scrolled navigation strip at 390 px, and two Radix-managed ARIA attributes (the menu's
+  `aria-controls`, `aria-hidden` outside the dialog).
+- Keyboard (Chromium):
+  - the tab order is skip link, brand, navigation, account menu, then the page's controls;
+  - the account menu opens from the keyboard, and Escape returns focus to its trigger;
+  - the sign-out-everywhere dialog opens with focus on Cancel, and Escape closes it without signing out.
+- Not done: screen-reader testing (NVDA, VoiceOver), a manual WCAG 2.2 AA review, and real Safari, iOS and
+  Android (Blocked: infrastructure).
 
 ## Gap closure in this round (owner request of 17 October 2026)
 
@@ -243,7 +321,6 @@ Owner input or decisions:
 - Brute-force thresholds (Keycloak defaults today) and the retention period of Keycloak events.
 - Whether users may add a second authenticator from the Keycloak account console (possible today; it cannot
   remove the existing factor).
-- The frontend design proposal (`docs/design/`).
 
 Not yet built or not yet verified (the MFA-recovery and session-revocation items are also held open in
 the engineering checklist §7, so later product work cannot assume them):
@@ -259,11 +336,13 @@ the engineering checklist §7, so later product work cannot assume them):
   back-channel logout (today an interim operator step).
 - Real Safari (macOS) and iOS/Android browsers: **Blocked (infrastructure)**: no such devices here. Playwright
   WebKit is an engine proxy and device emulation changes only viewport, user agent and touch.
-- External-deep-link re-entry UX under `SameSite=Strict` (ADR-0004) and the pre-expiry warning (AC-162):
-  part of the application shell.
+- Accessibility beyond the automated audit and the keyboard checks: screen-reader testing (NVDA, VoiceOver)
+  and a manual WCAG 2.2 AA review.
+- The next steps of the approved build order (D-UI-13): the backend session revocation (checklist §7) before
+  the workspace-members screen, then the workspace screens.
 - Restored-session invalidation after a database restore (NFR-SEC-023): no backup/restore tooling yet.
 - F-1 redaction on every logging intermediary of a real deployment (CDN, load balancer, WAF, APM).
 - Live Cognito/Auth0 validation: not performed, not authorized (billable).
 - External security review of MFA enrolment and recovery (NFR-SEC-026).
 - The rest of M1 per the implementation plan: workspaces and memberships, tenant isolation (row-level
-  security), audit core, the application shell.
+  security), audit core.

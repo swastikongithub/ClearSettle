@@ -30,7 +30,8 @@ requiring MFA), the Spring Boot backend, and the redacting nginx reverse proxy. 
   `MSYS_NO_PATHCONV=1` so `/CN=localhost` is not rewritten into a Windows path:
   `MSYS_NO_PATHCONV=1 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout deploy/nginx/certs/server.key -out deploy/nginx/certs/server.crt -days 30 -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"`
 - `cp deploy/.env.example deploy/.env` and fill in strong, local-only, synthetic values (git-ignored).
-- Build the frontend once: `cd frontend && npm ci && npm run build` (produces `frontend/out`). After a
+- Build the frontend once: `cd frontend && npm ci && npm run build` (produces `frontend/out`); its unit
+  tests (amount and time formatting, return-to, the session clock, review outcomes) run with `npm test`. After a
   rebuild while the stack runs, `docker compose restart proxy`: `next build` deletes and recreates
   `frontend/out`, and Docker Desktop's bind mount keeps pointing at the deleted directory (every page
   then fails). The e2e preflight `A-01` detects this.
@@ -125,10 +126,10 @@ loopback only). Build the image first with `docker compose up -d --build backend
 ```bash
 cd e2e && npm ci
 export PLAYWRIGHT_BROWSERS_PATH=<dir with Playwright 1.64.1 browsers>   # or: npx playwright install chromium firefox webkit
-node run.mjs chromium P,B,C,D,E,H,R,K,G # protocol/IdP config, login/MFA, cookies, sessions, CSRF, step-up and
-                                        # confirmation, MFA recovery, tossing, log scan
-node run.mjs firefox  B,C,D,E,H,R,K,G
-node run.mjs webkit   B,C,D,E,H,R,K,G   # Playwright WebKit = engine proxy, NOT Safari/iOS
+node run.mjs chromium P,B,C,D,E,H,U,R,K,G # protocol/IdP config, login/MFA, cookies, sessions, CSRF, step-up and
+                                          # confirmation, the application shell, MFA recovery, tossing, log scan
+node run.mjs firefox  B,C,D,E,H,U,R,K,G
+node run.mjs webkit   B,C,D,E,H,U,R,K,G   # Playwright WebKit = engine proxy, NOT Safari/iOS
 E2E_DEVICE="Pixel 7"   node run.mjs chromium B,C,E,H   # device EMULATION (viewport/UA/touch), not a real device
 E2E_DEVICE="iPhone 15" node run.mjs webkit   B,C,E,H
 node run.mjs chromium M,G              # two instances (start backend-2 first, see above)
@@ -143,7 +144,10 @@ Test users are created in the dev realm at runtime with random synthetic passwor
 `B-06` briefly reconfigures the dev client's ACR defaults (restored in a `finally`; if a run is killed
 during `B-06`, `P-06` on the next Chromium run shows whether the client's ACR defaults need restoring).
 Every run starts with the preflight `A-01`: the proxy serves the app shell, its script runs against the
-API, and anonymous visits create no server-side session. `B-08` locks a dedicated test user at the IdP and
+API and shows the sign-in screen, and anonymous visits create no server-side session. Group `U` drives the
+application shell itself: the review page, return to the page asked for after sign-in, the idle warning (the
+browser clock is advanced, so it takes seconds), an external deep link under `SameSite=Strict`, and sign out
+everywhere from the Security page. `B-08` locks a dedicated test user at the IdP and
 clears the lockout afterwards.
 
 The backend's PostgreSQL tests (user provisioning under concurrent first sign-ins; single-use confirmation

@@ -372,7 +372,7 @@ server path that D-SEC-11 deliberately avoids. Two consequences need to be desig
 
 | Screen | Existing API | Missing backend (milestone) |
 |---|---|---|
-| Sign-in states, sign-out, sign out everywhere, session ended | `/oauth2/authorization/keycloak`, `/login/oauth2/code/keycloak`, `GET /api/me`, `GET /api/session`, `GET /api/csrf`, `POST /logout`, `POST /api/session/logout-everywhere` | Remaining idle time for the expiry warning (M1) |
+| Sign-in states, sign-out, sign out everywhere, session ended | `/oauth2/authorization/keycloak`, `/login/oauth2/code/keycloak`, `GET /api/me`, `GET /api/session`, `GET /api/csrf`, `POST /logout`, `POST /api/session/logout-everywhere` | None. The expiry warning needs no new endpoint: the browser counts idle time from the last request the server answered and shares activity between tabs (built 20 October 2026) |
 | Sensitive-action review and confirmation | `GET /api/sensitive-actions/{id}`, `POST …/confirm`, `POST …/cancel`, step-up via `?step_up=` | A real sensitive operation (first: posting approval, M6) |
 | Workspace switcher, create workspace | none | Workspaces, memberships, active-workspace validation, `/api/v1/workspaces` (M1) |
 | Members, roles, invitations | none | Membership, roles, invitations, audit (M1) |
@@ -397,6 +397,10 @@ Most useful functional screen first; every step ships only screens whose backend
    `mfa_not_verified`; signed-out and session-ended handling with deep-link return; user menu with sign out
    and sign out everywhere; the sensitive-action confirmation dialog wired to the existing endpoints;
    accessibility baseline. Replaces the scaffold pages, keeping the e2e hooks the harness uses.
+   **Built 20 October 2026** (evidence in the implementation status, "Application shell"). The confirmation
+   is the review page, because the step-up returns the user to it; an in-place confirmation dialog for an
+   operation that needs no step-up arrives with the first real sensitive operation (M6). Sections without a
+   backend show a plain not-built state, with no sample data.
 2. **Workspaces and members** (with the M1 workspace backend): create workspace, explicit switcher that
    clears client state, members, roles and invitations. Completes J1.
 3. **Imports** (M2): the first financial screen, the start of the release-gate workflow.
