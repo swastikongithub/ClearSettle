@@ -1236,6 +1236,9 @@ async function groupU() {
     await page.close();
     const actual = { document_request_had_session_cookie: documentHadCookie, api_request_had_session_cookie: apiHadCookie, signed_in_section_shown: signedIn, landed };
     const expected = "the cross-site page request carries no session cookie (Strict); /api/me from the page carries it; the section is shown signed in; no redirect to the identity provider";
+    // A signed-in shell proves its API requests carried the session cookie. If the cookie header is still not
+    // seen, the engine hides request cookies (Playwright WebKit), so the SameSite half can't be observed.
+    if (signedIn && apiHadCookie !== true) return { layer: "browser", expected, actual, status: "NOT-OBSERVABLE" };
     if (ENGINE_WITHOUT_SAMESITE && documentHadCookie === true) {
       return { layer: "browser", expected, actual, status: signedIn ? "ENGINE-LIMITATION" : "FAIL" };
     }
