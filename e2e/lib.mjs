@@ -131,8 +131,15 @@ export async function totpFor(base32Secret) {
 }
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** The page that stands in for a held redirect to the callback in WebKit (holdCallback in run.mjs): one link to it. */
+export function heldRedirectPage(location) {
+  const href = location.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return `<!doctype html><title>Redirect</title><a id="held-redirect" href="${href}">Continue</a>`;
+}
+
 /**
- * Completes whatever Keycloak presents: username/password, OTP enrolment (CONFIGURE_TOTP), or OTP.
+ * Completes whatever Keycloak presents: username/password, OTP enrolment (CONFIGURE_TOTP), or OTP; follows the
+ * stand-in for a held redirect (heldRedirectPage), which is not a page of its own in the trace.
  * Returns a trace of the pages seen (names only). user = { username, password, totpSecret? }.
  */
 export async function keycloakLogin(page, user) {
@@ -169,6 +176,10 @@ export async function keycloakLogin(page, user) {
       if (!user.totpSecret) throw new Error("OTP requested but no enrolled secret for user");
       await page.fill("#otp", await totpFor(user.totpSecret));
       await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }).catch(() => {}), page.click("#kc-login")]);
+      continue;
+    }
+    if (await page.locator("#held-redirect").count()) {
+      await Promise.all([page.waitForURL((u) => !u.href.startsWith(KC), { waitUntil: "domcontentloaded" }), page.click("#held-redirect")]);
       continue;
     }
     const err = await page.locator("#input-error, .alert-error, .pf-m-danger, #kc-error-message").first().innerText().catch(() => "");

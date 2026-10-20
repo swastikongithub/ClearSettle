@@ -207,6 +207,9 @@ defaults, and `B-11` and `H-10` set the authentication references' max age to 0.
 a `finally`. If a run is killed during one, `P-06` (ACR defaults) or `P-10` (max age) on the next Chromium run
 shows whether a restore is needed. A sign-in helper retries only after the sign-in that enrols the
 authenticator, which gets no session by design; any other refused sign-in fails the test.
+`B-09`, `B-11`, `H-09` and `H-10` hold Keycloak's redirect to the callback for 3 s. Playwright cannot fulfil an
+intercepted request with a redirect status in WebKit, so there the held redirect is handed over as a page with
+one link to the same callback URL, which the sign-in helper follows.
 Every run starts with the preflight `A-01`: the proxy serves the app shell, its script runs against the
 API and shows the sign-in screen, and anonymous visits create no server-side session. Group `U` drives the
 application shell itself: the review page, return to the page asked for after sign-in, the idle warning (the
