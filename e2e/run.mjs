@@ -1,8 +1,9 @@
 // ClearSettle end-to-end validation against the LOCAL dev stack (deploy/). Synthetic identities only.
-// Usage: node run.mjs <chromium|firefox|webkit> [groups]   groups: P,B,C,D,E,H,R,K,M,G (default P,B,C,D,E,H)
+// Usage: node run.mjs <chromium|firefox|webkit> [groups]   groups: P,B,C,D,E,H,U,R,K,M,G (default P,B,C,D,E,H)
 //   A preflight: app shell served (always runs)        P protocol/OIDC/IdP config (browser-independent; run once)
 //   B login + universal MFA   C cookies/storage        D sessions/expiry/logout   E CSRF / cookie tossing
 //   H step-up + sensitive-action confirmation           R MFA recovery controls    K sibling-subdomain tossing
+//   U the application shell in the browser (return to the page asked for, idle warning, review page, sign out everywhere)
 //   M two application instances (needs `docker compose --profile multi-instance up -d backend-2`)
 //   G secret/log scan
 import crypto from "node:crypto";
@@ -85,6 +86,14 @@ async function requestFixtureAction(page) {
   await L.api(page, "/api/csrf");
   return L.api(page, "/api/dev-fixture/sensitive-actions", { method: "POST" });
 }
+
+/** The outcome the review page reports for a confirmation or cancellation (its data attributes, not its wording). */
+async function confirmResult(page) {
+  const el = page.locator("#confirm-result");
+  if (!(await el.waitFor({ timeout: 10000 }).then(() => true, () => false))) return { outcome: null, httpStatus: null };
+  return { outcome: await el.getAttribute("data-outcome"), httpStatus: await el.getAttribute("data-http-status") };
+}
+const visible = (locator, timeout = 10000) => locator.waitFor({ timeout }).then(() => true, () => false);
 
 /**
  * Exactly one sign-in attempt (no retries): password, then, if the IdP asks, one code (default: the current
@@ -748,7 +757,7 @@ async function groupH() {
     const landed = new URL(step.page.url());
     const rows = sessionRows(uid);
     await step.page.click("#confirm");
-    const result = await step.page.locator("#confirm-result").innerText({ timeout: 10000 }).catch(() => "");
+    const result = await confirmResult(step.page);
     const afterConfirm = { executions: fixtureExecutions(uid), status: pendingStatus(id) };
     await step.page.close();
     const ok = req.status === 202 && req.data.status === "confirmation_required" && afterRequest.executions === 0 && afterRequest.status === "PENDING"
@@ -756,7 +765,7 @@ async function groupH() {
       && landed.pathname.startsWith("/review") && landed.searchParams.get("action") === id && reviewRendered && /no-op/.test(summary || "")
       && beforeConfirm.executions === 0 && beforeConfirm.status === "PENDING" && after.data?.freshAuth?.ok === true
       && after.data?.sessionAuthenticatedAt === authAtBefore && rows === 1
-      && /result: 200 executed/.test(result) && afterConfirm.executions === 1 && afterConfirm.status === "EXECUTED";
+      && result.outcome === "executed" && result.httpStatus === "200" && afterConfirm.executions === 1 && afterConfirm.status === "EXECUTED";
     return { layer: "browser", expected: "202 confirmation_required, nothing run; step-up params; OTP re-entered; review page shows the action, still PENDING and not run; freshAuth ok; anchor unchanged; 1 session; Confirm -> 200 executed, exactly 1 execution, EXECUTED",
       actual: { request_status: req.status, request_body_status: req.data && req.data.status, after_request: afterRequest, prompt: q.get("prompt"), max_age: q.get("max_age"), acr_values: q.get("acr_values"), trace: step.trace,
         landed: landed.pathname, action_matches: landed.searchParams.get("action") === id, review_rendered: reviewRendered, summary, before_confirm: beforeConfirm, fresh_auth: after.data?.freshAuth ?? null,
@@ -1112,30 +1121,174 @@ async function groupG() {
   });
 }
 
+// ---------- U: the application shell in the browser (D-UI-13) ----------
+async function groupU() {
+  const u = createUser("shell");
+  const s = await loginReady(u); // enrols the authenticator; its sign-in is fresh for the review-page tests
+  const uid = (await L.api(s.page, "/api/me")).data.appUserId;
+
+  await test("U-01", "Review page: a fresh request shows the action pending and not run, with Confirm and Cancel; Cancel ends it without running it and the page then shows the server's state; an unknown id and a link without an action offer nothing to confirm", "AC-164, D-SEC-17, D-UI-13", async () => {
+    const req = await requestFixtureAction(s.page);
+    const id = req.data && req.data.actionId;
+    const page = await s.context.newPage();
+    await page.goto(`${L.APP}/review/?action=${id}`, { waitUntil: "domcontentloaded" });
+    const shown = await visible(page.locator(`[data-review-action="${id}"][data-review-state="ready"]`));
+    const summary = shown ? await page.locator("#action-summary").innerText() : null;
+    const buttons = { confirm: await page.locator("#confirm").count(), cancel: await page.locator("#cancel").count() };
+    const beforeCancel = { executions: fixtureExecutions(uid), status: pendingStatus(id) };
+    await page.click("#cancel");
+    const result = await confirmResult(page);
+    const settled = await visible(page.locator('[data-review-state="cancelled"]'));
+    const confirmOffered = await page.locator("#confirm").count();
+    const after = { executions: fixtureExecutions(uid), status: pendingStatus(id) };
+    await page.goto(`${L.APP}/review/?action=${crypto.randomUUID()}`, { waitUntil: "domcontentloaded" });
+    const unknown = await visible(page.locator('[data-review-state="not-found"]'));
+    await page.goto(`${L.APP}/review/?action=preflight`, { waitUntil: "domcontentloaded" });
+    const none = await visible(page.locator('[data-review-state="no-action"]'));
+    const confirmOnEmpty = await page.locator("#confirm").count();
+    await page.close();
+    const ok = req.status === 202 && shown && /no-op/.test(summary || "") && buttons.confirm === 1 && buttons.cancel === 1
+      && beforeCancel.executions === 0 && beforeCancel.status === "PENDING" && result.outcome === "cancelled" && result.httpStatus === "200"
+      && settled && confirmOffered === 0 && after.executions === 0 && after.status === "CANCELLED" && unknown && none && confirmOnEmpty === 0;
+    return { layer: "browser", expected: "ready state with the summary, Confirm and Cancel; nothing run; Cancel -> cancelled (200), CANCELLED, 0 executions, no Confirm; unknown id -> not-found; no action -> no-action; no Confirm",
+      actual: { request: req.status, shown, summary, buttons, before_cancel: beforeCancel, result, settled_state_shown: settled, confirm_offered_after: confirmOffered, after, unknown_id: unknown, no_action: none, confirm_on_empty: confirmOnEmpty },
+      status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("U-02", "Confirm pressed twice in quick succession sends one confirmation; the action runs exactly once and the page shows that it ran", "AC-164, NFR-SEC-024", async () => {
+    const req = await requestFixtureAction(s.page);
+    const id = req.data && req.data.actionId;
+    const page = await s.context.newPage();
+    const posts = [];
+    page.on("request", (r) => { if (r.method() === "POST" && r.url().endsWith(`/api/sensitive-actions/${id}/confirm`)) posts.push(r.url()); });
+    await page.goto(`${L.APP}/review/?action=${id}`, { waitUntil: "domcontentloaded" });
+    const ready = await visible(page.locator('[data-review-state="ready"] #confirm'));
+    const before = fixtureExecutions(uid);
+    await page.evaluate(() => { const b = document.getElementById("confirm"); b.click(); b.click(); });
+    const result = await confirmResult(page);
+    const ran = await visible(page.locator('[data-review-state="executed"]'));
+    const executed = fixtureExecutions(uid) - before;
+    await page.close();
+    const ok = ready && posts.length === 1 && result.outcome === "executed" && result.httpStatus === "200" && ran && executed === 1 && pendingStatus(id) === "EXECUTED";
+    return { layer: "browser", expected: "one confirm POST; executed (200); 1 execution; the page shows the executed state",
+      actual: { ready, confirm_posts: posts.length, result, executed_state_shown: ran, executions: executed, status: pendingStatus(id) }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("U-03", "Return to the page asked for: an anonymous visit to a section shows the sign-in screen; signing in from it lands on that section, signed in, with the navigation marking it", "D-UI-13, AC-162", async () => {
+    const ctx = await browser.newContext(L.contextOptions);
+    const page = await ctx.newPage();
+    await page.goto(`${L.APP}/ledger/`, { waitUntil: "domcontentloaded" });
+    const signInShown = await visible(page.locator('[data-session="signed-out"] #sign-in'));
+    await Promise.all([page.waitForURL((url) => url.href.startsWith(L.KC), { timeout: 15000 }).catch(() => {}), page.click("#sign-in")]);
+    const trace = await L.keycloakLogin(page, u);
+    const shell = await visible(page.locator('[data-session="signed-in"] [data-not-built]'), 15000);
+    const landed = new URL(page.url()).pathname;
+    const current = (await page.locator('nav[aria-label="Main"] a[aria-current="page"]').innerText().catch(() => "")).trim();
+    const left = await page.evaluate(() => sessionStorage.getItem("cs.returnTo"));
+    await ctx.close();
+    const ok = signInShown && trace.includes("otp") && shell && /^\/ledger\/?$/.test(landed) && current === "Ledger" && left === null;
+    return { layer: "browser", expected: "sign-in screen on /ledger/; password + otp; lands on /ledger/ signed in; the navigation marks Ledger; the remembered page is consumed",
+      actual: { sign_in_shown: signInShown, trace, signed_in_section_shown: shell, landed, nav_current: current, return_to_left: left }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("U-04", "Idle warning (browser clock advanced): the dialog opens two minutes before the 15-minute idle limit with a countdown; Stay signed in makes one request and closes it; with no further activity the page shows the sign-in screen at the limit, saying why", "D-UI-13, AC-162, D-SEC-13", async () => {
+    const page = await s.context.newPage();
+    await page.clock.install();
+    const sessionCalls = [];
+    page.on("request", (r) => { if (new URL(r.url()).pathname === "/api/session") sessionCalls.push(r.method()); });
+    await page.goto(`${L.APP}/settings/security/`, { waitUntil: "domcontentloaded" });
+    const loaded = await visible(page.locator('[data-session="signed-in"] [data-state="ready"]'), 15000);
+    const dialog = page.locator('[data-testid="idle-warning"]');
+    await page.clock.fastForward("12:30");
+    const openTooEarly = await dialog.isVisible();
+    await page.clock.fastForward("01:00"); // 13 min 30 s without a request
+    const opened = await visible(dialog, 5000);
+    const countdown = opened ? (await dialog.locator('[role="timer"]').innerText()).trim() : null;
+    const callsBefore = sessionCalls.length;
+    await page.getByRole("button", { name: "Stay signed in" }).click();
+    const closed = await dialog.waitFor({ state: "hidden", timeout: 5000 }).then(() => true, () => false);
+    const stayRequests = sessionCalls.length - callsBefore;
+    await page.clock.fastForward("14:00"); // 14 min after that request
+    const reopened = await visible(dialog, 5000);
+    await page.clock.fastForward("01:05"); // past the limit
+    const ended = await visible(page.locator('[data-session="signed-out"][data-reason="idle"]'), 5000);
+    const heading = ended ? (await page.locator("h1").innerText()).trim() : null;
+    await page.close();
+    const ok = loaded && !openTooEarly && opened && /^1:[23]\d$/.test(countdown || "") && closed && stayRequests === 1 && reopened && ended && heading === "You were signed out";
+    return { layer: "browser", expected: "closed at 12:30; open at 13:30 with about 1:30 left; Stay signed in -> 1 request, closed; open again 14 min later; sign-in screen (reason idle) past 15 min",
+      actual: { loaded, open_at_12_30: openTooEarly, open_at_13_30: opened, countdown, closed_after_stay: closed, stay_requests: stayRequests, reopened_after_14_min: reopened, signed_out_idle: ended, heading },
+      status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("U-06", "External deep link under SameSite=Strict: following a link from another site to a section, the page request carries no session cookie but the shell's same-origin API calls do, so the user lands on that section still signed in, without signing in again", "ADR-0004, D-SEC-15, D-UI-13", async () => {
+    const page = await s.context.newPage();
+    const target = `${L.APP}/reports/`;
+    await page.route("https://partner.example:8443/**", (route) => route.fulfill({ status: 200, contentType: "text/html",
+      body: `<html><body><a id="go" href="${target}">Open in ClearSettle</a></body></html>` }));
+    await page.goto("https://partner.example:8443/message", { waitUntil: "domcontentloaded" });
+    const carries = (r) => r.allHeaders().then((h) => (h.cookie || "").includes(`${L.SESSION_COOKIE}=`)).catch(() => null);
+    const documentCookie = page.waitForRequest((r) => r.url() === target && r.isNavigationRequest(), { timeout: 15000 }).then(carries, () => null);
+    const apiCookie = page.waitForRequest((r) => r.url() === `${L.APP}/api/me`, { timeout: 15000 }).then(carries, () => null);
+    await page.click("#go");
+    const [documentHadCookie, apiHadCookie] = await Promise.all([documentCookie, apiCookie]);
+    const signedIn = await visible(page.locator('[data-session="signed-in"] [data-not-built]'), 15000);
+    const landed = page.url();
+    await page.close();
+    const actual = { document_request_had_session_cookie: documentHadCookie, api_request_had_session_cookie: apiHadCookie, signed_in_section_shown: signedIn, landed };
+    const expected = "the cross-site page request carries no session cookie (Strict); /api/me from the page carries it; the section is shown signed in; no redirect to the identity provider";
+    if (ENGINE_WITHOUT_SAMESITE && documentHadCookie === true) {
+      return { layer: "browser", expected, actual, status: signedIn ? "ENGINE-LIMITATION" : "FAIL" };
+    }
+    const ok = documentHadCookie === false && apiHadCookie === true && signedIn && landed.replace(/\/$/, "") === target.replace(/\/$/, "");
+    return { layer: "browser", expected, actual, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("U-05", "Sign out everywhere from Security and sessions: a confirmation names the consequence; confirming ends the sessions in both browsers and this page says why it was signed out", "AC-163, D-UI-13", async () => {
+    const other = await login(u);
+    const page = await s.context.newPage();
+    await page.goto(`${L.APP}/settings/security/`, { waitUntil: "domcontentloaded" });
+    const loaded = await visible(page.locator('[data-state="ready"] #sign-out-everywhere'), 15000);
+    const rowsBefore = sessionRows(uid);
+    await page.click("#sign-out-everywhere");
+    const dialogText = (await page.getByRole("alertdialog").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await page.click("#confirm-sign-out-everywhere");
+    const ended = await visible(page.locator('[data-session="signed-out"][data-reason="signed-out-everywhere"]'));
+    const mine = await L.api(page, "/api/me");
+    const theirs = await L.api(other.page, "/api/me");
+    await page.close(); await other.context.close();
+    const ok = loaded && rowsBefore >= 2 && /every browser and on every device, including this one/.test(dialogText) && ended
+      && mine.status === 401 && theirs.status === 401 && sessionRows(uid) === 0;
+    return { layer: "browser", expected: "at least 2 sessions (this browser and another); the dialog says it ends every session including this one; confirm -> signed-out-everywhere screen; both 401; 0 rows",
+      actual: { loaded, rows_before: rowsBefore, dialog: dialogText.slice(0, 200), signed_out_shown: ended, this_browser: mine.status, other_browser: theirs.status, rows_after: sessionRows(uid) },
+      status: ok ? "PASS" : "FAIL" };
+  });
+  await s.context.close();
+}
+
 // ---------- A: preflight (every run) — the proxy serves the app shell and its script runs ----------
 // The other groups drive the IdP and the API directly, so a proxy serving no frontend (e.g. a stale bind
 // mount after rebuilding frontend/out) would otherwise go unnoticed.
 async function preflight() {
-  await test("A-01", "The proxy serves the app shell (/, /review/); its script runs against the API; anonymous visits create no server-side session", "D-SEC-11, NFR-SEC-020", async () => {
+  await test("A-01", "The proxy serves the app shell (/, /review/); its script runs against the API and, with no session, shows the sign-in screen; anonymous visits create no server-side session", "D-SEC-11, NFR-SEC-020", async () => {
     const t0 = Number(L.sql(`select (extract(epoch from now()) * 1000)::bigint`)) - 2000;
     const ctx = await browser.newContext(L.contextOptions);
     const page = await ctx.newPage();
     const home = await page.goto(`${L.APP}/`, { waitUntil: "domcontentloaded" });
-    const homeRendered = await page.locator("#me-status").filter({ hasText: "not authenticated" }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    const homeRendered = await visible(page.locator('[data-session="signed-out"] #sign-in'));
     const review = await page.goto(`${L.APP}/review/?action=preflight`, { waitUntil: "domcontentloaded" });
-    const reviewRendered = await page.locator("#action-id").filter({ hasText: "preflight" }).waitFor({ timeout: 10000 }).then(() => true, () => false);
+    const reviewRendered = await visible(page.locator('[data-session="signed-out"] #sign-in'));
     const sessionCookie = await L.cookieInfo(ctx, L.SESSION_COOKIE);
     await ctx.close();
     const created = Number(L.sql(`select count(*) from spring_session where creation_time >= ${t0}`));
     const ok = home.status() === 200 && homeRendered && review.status() === 200 && reviewRendered && created === 0 && !sessionCookie;
-    return { layer: "browser", expected: "200 + rendered home (anonymous) and review pages; 0 sessions created; no session cookie",
+    return { layer: "browser", expected: "200 + the sign-in screen rendered on / and /review/ (anonymous); 0 sessions created; no session cookie",
       actual: { home_status: home.status(), home_rendered: homeRendered, review_status: review.status(), review_rendered: reviewRendered, sessions_created: created, session_cookie_set: !!sessionCookie },
       status: ok ? "PASS" : "FAIL" };
   });
 }
 
 const RUN_START = new Date().toISOString();
-const FNS = { P: groupP, B: groupB, C: groupC, D: groupD, E: groupE, H: groupH, R: groupR, K: groupK, M: groupM, G: groupG };
+const FNS = { P: groupP, B: groupB, C: groupC, D: groupD, E: groupE, H: groupH, U: groupU, R: groupR, K: groupK, M: groupM, G: groupG };
 (async () => {
   browser = await L.launch(BROWSER);
   try {
