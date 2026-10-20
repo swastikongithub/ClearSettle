@@ -1,7 +1,7 @@
 "use client";
 // Security and sessions (AC-163, D-SEC-13, D-SEC-17, D-SEC-18). Everything shown comes from GET /api/me and
 // GET /api/session, read when the page opens; nothing is inferred. The gaps that are not built yet (ending
-// sessions when an authenticator is reset, a list of signed-in devices) are stated, not hidden.
+// every session when an authenticator is reset, a list of signed-in devices) are stated, not hidden.
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
@@ -164,8 +164,8 @@ export default function SecurityOverview() {
               <p className={s.msgTitle}>Not available yet</p>
               <ul className={s.msgList}>
                 <li>
-                  Resetting your authenticator doesn&rsquo;t yet end the sessions that are already signed in. Until it
-                  does, your administrator has to ask the operator to end them.
+                  Resetting your authenticator ends the sessions you signed in to recently, but not always one
+                  you&rsquo;ve kept using for longer. Your administrator ends those separately.
                 </li>
                 <li>This page doesn&rsquo;t list your signed-in browsers and devices. Sign out everywhere ends all of them at once.</li>
               </ul>
