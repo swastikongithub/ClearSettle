@@ -8,7 +8,8 @@ test evidence; the status changes in the same commit as the work it describes.
 
 **Last updated:** 2026-10-20 (backend session revocation: OIDC back-channel logout, verified on two
 instances against PostgreSQL and live against Keycloak; P-09, R-02, M-07, M-08 and the wall-clock LR-05; and a
-realm correction: `amr` keeps `otp` when the code is exchanged after the OTP step, defect 14). Earlier the same
+realm correction: `amr` keeps `otp` when the code is exchanged after the OTP step, defect 14; then the results
+per browser engine on the final code). Earlier the same
 day: the application shell (sign-in states, return to the page asked for,
 the idle warning, Security and sessions, the review page; browser group U). Previously, 2026-10-19: owner approval of
 the frontend design defaults, the PostgreSQL user-provisioning fix, reviewed-version binding for sensitive
@@ -423,17 +424,33 @@ Browser runs on the final code (20 October 2026, after the `amr` correction), co
 | Engine | Groups | PASS | FAIL | ENGINE-LIMITATION | NOT-OBSERVABLE |
 |---|---|---|---|---|---|
 | Chromium | A, P, B, C, D, E, H, U, R, K, M, G | 75 | 0 | 0 | 0 |
-| Firefox | A, B, C, D, E (H, U, R, K, G still running when this was committed) | 33 | 0 | 0 | 0 |
-| WebKit (engine proxy, not Safari) | not yet run on the final code | — | — | — | — |
+| Firefox | A, B, C, D, E, H, U, R, K, G | 52 | 0 | 0 | 0 |
+| WebKit (engine proxy, not Safari) | A, B, C, D, E, H, U, R, K, G | 48 | 0 | 2 | 2 |
 
-- Chromium covers back-channel logout (P-09, R-02, M-07, M-08), step-up (H, including the delayed H-09 and
-  H-10), CSRF (E), the session timeouts (D) and the two instances (M).
-- R-02 has run in Chromium only so far. Group M (two instances, including M-07 and M-08) runs in Chromium only,
-  as the deploy README lists it.
+- All three engines cover back-channel logout on an MFA reset (R-02), step-up (H, including the delayed
+  H-09), CSRF (E) and the session timeouts (D). P-09 and group M (two instances, including M-07 and M-08) run
+  in Chromium only, as the deploy README lists them. B-06, B-11, B-12 and H-10 change the realm while they
+  run, so they are Chromium-only too.
+- WebKit's four results other than PASS are cookie checks that its Windows build cannot show. Chromium and
+  Firefox assert all four.
+  - C-01 and C-02 (ENGINE-LIMITATION): the build stores every cookie as `SameSite=None`
+    (`engine-samesite-probe.mjs`). The cookies' other attributes matched.
+  - C-05 and U-06 (NOT-OBSERVABLE): the build shows the harness neither `Set-Cookie` response headers nor
+    `Cookie` request headers. In U-06 the shell came up signed in on the linked section, so its API calls
+    carried the session cookie; whether the page request did cannot be seen.
+- The WebKit run first stopped at B-09, before any assertion. Playwright cannot fulfil an intercepted request
+  with a redirect status in WebKit, so the held redirect to the callback could not be handed back.
+  - In WebKit the held redirect is now handed over as a Keycloak-origin page with one link to the same
+    callback URL. Chromium and Firefox still get the redirect.
+  - The code still reaches ClearSettle at least 3 s after the OTP step (WebKit: B-09 held 3009 ms, H-09
+    3013 ms). The table counts the WebKit run after that change.
+- The Chromium and Firefox rows are their runs before that change. The change touches only the hold, used in
+  groups B and H, and a branch of the sign-in helper reached only from the page the hold serves in WebKit.
+  B and H then re-ran on the changed harness: Chromium 23 PASS, Firefox 19 PASS, no other result.
 - LR-05 ran once, on 20 October, on the same revocation code but before the `amr` correction. It was not
   re-run on the final code.
-- The Firefox and WebKit totals will be added when their runs finish. An earlier WebKit run, before the
-  correction, failed B-04: it found defect 14, and its results are not counted here.
+- An earlier WebKit run, before the correction, failed B-04: it found defect 14, and its results are not
+  counted here.
 
 ## Keycloak `amr` timing correction (defect 14), 2026-10-20
 
@@ -477,21 +494,17 @@ step, whatever the clock.
 | Test | What it shows | With the old value (Chromium, before the fix) | Final code |
 |---|---|---|---|
 | P-10 | The configuration: level 2 max age 0, minimum ACR `mfa`, both references valid for the code lifetime | FAIL (no max age) | PASS (reads the configuration, so it does not depend on the engine) |
-| B-09 | The redirect to the callback is held 3 s after the OTP step. The sign-in gets a session; `acr=mfa`; `amr` includes `pwd` and `otp` | FAIL (refused, `mfa_not_verified`) | PASS: Chromium, Firefox (held 3.0 s; `amr` `pwd`, `otp`) |
-| B-10 | A sign-in seconds after another, in the same Keycloak session, is asked for a code; nothing reaches the callback before it | PASS | PASS: Chromium, Firefox. `amr` also listed the earlier `pwd` |
+| B-09 | The redirect to the callback is held 3 s after the OTP step. The sign-in gets a session; `acr=mfa`; `amr` includes `pwd` and `otp` | FAIL (refused, `mfa_not_verified`) | PASS: Chromium, Firefox, WebKit (each held 3.0 s; `amr` `pwd`, `otp`) |
+| B-10 | A sign-in seconds after another, in the same Keycloak session, is asked for a code; nothing reaches the callback before it | PASS | PASS: Chromium, Firefox, WebKit. `amr` also listed the earlier `pwd` |
 | B-11 | With the old value (0), the same held sign-in is refused: `amr_insufficient`, `amr` without `otp` | PASS | PASS: Chromium |
 | B-12 | With the client's ACR requirement removed, a code issued from the Keycloak session alone is refused on `acr`; its `amr` listed `pwd` only, not the earlier `otp` | (added after that run) | PASS: Chromium (`acr=pwd`, `acr_insufficient`) |
-| H-09 | A step-up with the callback held 3 s reaches the review page with fresh evidence (`acr=mfa`, `amr` with `otp`, the step-up's own `auth_time`), and the action is confirmed once | FAIL (refused; its originating session ended, so H-04 failed too) | PASS: Chromium |
+| H-09 | A step-up with the callback held 3 s reaches the review page with fresh evidence (`acr=mfa`, `amr` with `otp`, the step-up's own `auth_time`), and the action is confirmed once | FAIL (refused; its originating session ended, so H-04 failed too) | PASS: Chromium, Firefox, WebKit (each held 3.0 s; `amr` `pwd`, `otp`) |
 | H-10 | With the old value, the held step-up is refused, its originating session ends, and the action stays pending, not run | PASS | PASS: Chromium |
 
-Final-code runs on 20 October:
-
-- **Chromium:** every group passed.
-- **Firefox:** still running when this was committed; group B had passed, including B-09 and B-10.
-- **WebKit:** not yet run on the final code.
-
-Their results will be added when the runs finish. B-11, B-12 and H-10 change the realm while they run, so they
-are Chromium-only.
+Final-code runs on 20 October: B-09, B-10 and H-09 passed in all three engines, and no engine had a FAIL or
+ERROR in any group. WebKit reported four cookie checks it cannot show as ENGINE-LIMITATION or NOT-OBSERVABLE;
+the counts and reasons are under "Backend session revocation". B-11, B-12 and H-10 change the realm while they
+run, so they are Chromium-only.
 
 ## Gap closure in this round (owner request of 17 October 2026)
 

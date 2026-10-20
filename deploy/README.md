@@ -227,7 +227,8 @@ behaviour behind defect 12; it depends on PostgreSQL's query plan, so it is not 
 
 Result statuses: `PASS`, `FAIL`, `ERROR` (the test could not run), `ENGINE-LIMITATION` (a browser-jar
 SameSite assertion in an engine shown by the probe not to implement SameSite: Playwright WebKit on
-Windows) and `NOT-OBSERVABLE` (the engine exposes no `Set-Cookie` headers to the harness). Only `PASS`
+Windows) and `NOT-OBSERVABLE` (the engine shows the harness no `Set-Cookie` response headers, or no `Cookie`
+request headers). Only `PASS`
 counts as verified.
 
 ## F-1 logging regression
