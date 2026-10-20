@@ -403,6 +403,9 @@ Most useful functional screen first; every step ships only screens whose backend
    backend show a plain not-built state, with no sample data.
 2. **Workspaces and members** (with the M1 workspace backend): create workspace, explicit switcher that
    clears client state, members, roles and invitations. Completes J1.
+   Its prerequisite, the backend session revocation, is **built (20 October 2026)**: OIDC back-channel logout
+   and a revocation service that removing a member will call (implementation status, "Backend session
+   revocation").
 3. **Imports** (M2): the first financial screen, the start of the release-gate workflow.
 4. **Reconciliation results and record trace** (M3, M4), then **exceptions** (M5).
 5. **Ledger and approvals** (M6, M7): posting approval becomes the first real sensitive operation.

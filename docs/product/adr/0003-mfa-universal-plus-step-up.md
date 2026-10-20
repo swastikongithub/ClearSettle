@@ -133,8 +133,10 @@ M1** (see below).
   through the real OIDC client with a controlled provider: `OidcCallbackValidationTest`).
 - Test enrolment (first-factor-less user is guided to enrol and cannot perform sensitive actions until
   enrolled) and the documented recovery behaviour. **Enrolment verified in M1** (B-01, B-07). **Recovery:**
-  the IdP controls that exist are verified (P-08, R-01, R-02, B-08); the identity-verification procedure,
-  an audited ClearSettle session revocation and the external review are **OUTSTANDING** (below).
+  the IdP controls that exist are verified (P-08, R-01, R-02, B-08); since 20 October 2026, the
+  administrator's Keycloak sign-out ends the user's ClearSettle sessions by back-channel logout (R-02). The
+  identity-verification procedure, the sessions back-channel logout cannot reach (below) and the external
+  review are **OUTSTANDING**.
 - Re-verify step-up (U-01…U-04 equivalents) in the product against the configured Keycloak flow.
   **Verified in M1** (H-01…H-08, LR-03, LR-04, M-02), including the `step_up_required` response and the
   single-use confirmation, **with a fixture operation**: integration with real sensitive operations is
@@ -165,10 +167,17 @@ Outstanding (not built; must not be presented as done):
 
 - The identity-verification procedure (who may reset, what evidence is required, recommended second-person
   approval) and its runbook.
-- Ending the user's **application** sessions on reset. Keycloak's logout does not reach ClearSettle (no
-  back-channel logout): R-02 shows the pre-reset application session still valid after the IdP-side reset.
-  The interim operator step (deleting the user's `spring_session` rows) ends it; the production control is
-  an audited ClearSettle administrative revocation or OIDC back-channel logout.
+- Ending the user's **application** sessions on reset: **partly built (20 October 2026).** OIDC back-channel
+  logout is in place. Removing the factor alone notifies nothing; the administrator then signs the user out
+  at Keycloak, and Keycloak's logout tokens end the ClearSettle sessions of every Keycloak session it still
+  holds (R-02, M-07). Keycloak does not report a session it has already expired, so a ClearSettle session kept
+  active past Keycloak's SSO idle timeout (30 minutes by default) survives the reset (LR-05). Until an audited
+  ClearSettle-side revocation exists, the procedure ends by checking for such sessions and deleting them (the
+  interim operator step, now needed only for them). Options to close it, for decision: an audited
+  administrative revocation in ClearSettle keyed by the user (the revocation itself, `SessionRevocation`, is
+  built; it needs the administrator role, step-up and audit, D-SEC-17); a Keycloak event listener that reports
+  factor removals; or Keycloak SSO session lifetimes at least as long as ClearSettle's (partial, and it
+  lengthens Keycloak's own sessions).
 - Carrying Keycloak admin and user events into ClearSettle's audit trail and retention (D-DAT-07/08).
   Keycloak's stored user events hold Keycloak session identifiers, usernames and IP addresses by design
   (inspected 17 October 2026; admin events store no request bodies). They are IdP-internal and readable only
