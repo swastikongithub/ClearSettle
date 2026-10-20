@@ -7,9 +7,12 @@ import com.clearsettle.auth.StepUpAuthorizationRequestResolver;
 import com.clearsettle.auth.StepUpService;
 import com.clearsettle.security.AppUserService;
 import com.clearsettle.security.CurrentUserFilter;
+import com.clearsettle.security.NonRetainingOidcSessionRegistry;
 import com.clearsettle.security.SecurityEvents;
 import com.clearsettle.session.AbsoluteTimeoutFilter;
+import com.clearsettle.session.BackChannelLogout;
 import com.clearsettle.session.LoginStateCookieRepository;
+import com.clearsettle.session.SessionRevocation;
 import com.clearsettle.session.StashingAuthorizationRequestRepository;
 import com.clearsettle.web.CorrelationIdFilter;
 import com.clearsettle.web.RequiredHeaderFilter;
@@ -18,6 +21,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
@@ -40,6 +44,8 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
  *   <li>Session: server-side (Spring Session JDBC); session-id rotation at authentication; idle timeout
  *       (Spring Session) and an absolute lifetime filter anchored to authentication time.</li>
  *   <li>Per-request re-resolution of the user and a universal-MFA gate at login.</li>
+ *   <li>OIDC back-channel logout: a signed logout token from the provider ends the matching sessions in the shared
+ *       store ({@link BackChannelLogout}).</li>
  * </ul>
  */
 @Configuration
@@ -54,7 +60,8 @@ public class SecurityConfig {
 	SecurityFilterChain securityFilterChain(HttpSecurity http, AuthProperties props,
 			ClientRegistrationProperties oidc, ClientRegistrationRepository repo, AppUserService users,
 			StepUpService stepUp, SecurityEvents events, Clock clock,
-			org.springframework.session.FindByIndexNameSessionRepository<? extends org.springframework.session.Session> sessions)
+			org.springframework.session.FindByIndexNameSessionRepository<? extends org.springframework.session.Session> sessions,
+			SessionRevocation revocation, JdbcTemplate jdbc)
 			throws Exception {
 
 		AuthorizationRequestRepository<OAuth2AuthorizationRequest> store =
@@ -81,8 +88,14 @@ public class SecurityConfig {
 				.failureHandler(new LoginHandlers.Failure(events, oidc.appBaseUrl())))
 			.logout(l -> l.logoutUrl("/logout")
 					.logoutSuccessHandler(new LoginHandlers.Logout(repo, users, events, oidc.appBaseUrl())))
+			// Back-channel logout: Spring Security verifies the provider's logout token; ClearSettle's handler ends
+			// the sessions in the shared store. No in-memory session registry (see NonRetainingOidcSessionRegistry).
+			.oidcLogout(o -> o.oidcSessionRegistry(new NonRetainingOidcSessionRegistry())
+				.backChannel(b -> b.logoutHandler(
+						new BackChannelLogout.Handler(users, revocation, events, jdbc, props, clock))))
 			.exceptionHandling(e -> e.authenticationEntryPoint(errors).accessDeniedHandler(errors))
 			.sessionManagement(sm -> sm.sessionFixation(f -> f.changeSessionId()))
+			.addFilterBefore(new BackChannelLogout.AuditFilter(events), SecurityContextHolderFilter.class)
 			.addFilterAfter(new AbsoluteTimeoutFilter(props, clock), SecurityContextHolderFilter.class)
 			.addFilterAfter(new RequiredHeaderFilter(props), CsrfFilter.class)
 			.addFilterAfter(new CurrentUserFilter(users, events), AuthorizationFilter.class);

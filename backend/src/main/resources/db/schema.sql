@@ -63,3 +63,15 @@ CREATE TABLE IF NOT EXISTS pending_action (
 CREATE INDEX IF NOT EXISTS pending_action_user ON pending_action (user_id, status);
 -- Added 19 October 2026; re-applying this file upgrades an existing database. Rows without it never confirm.
 ALTER TABLE pending_action ADD COLUMN IF NOT EXISTS reviewed_version text;
+
+-- OIDC back-channel logout tokens already accepted, so a replayed token is refused on every instance
+-- (BackChannelLogout). Only the issuer and the token's jti are kept: no token, subject or session id. A row
+-- is purged once its token is past the acceptance window, after which the token is refused for its age.
+-- Added 20 October 2026; re-applying this file upgrades an existing database.
+CREATE TABLE IF NOT EXISTS oidc_logout_token_seen (
+    iss text NOT NULL,
+    jti text NOT NULL,
+    seen_at timestamptz NOT NULL,
+    CONSTRAINT oidc_logout_token_seen_pk PRIMARY KEY (iss, jti)
+);
+CREATE INDEX IF NOT EXISTS oidc_logout_token_seen_at ON oidc_logout_token_seen (seen_at);

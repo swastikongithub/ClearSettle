@@ -9,14 +9,13 @@ import com.clearsettle.config.AuthProperties;
 import com.clearsettle.security.AppUser;
 import com.clearsettle.security.SecurityEvents;
 import com.clearsettle.security.SessionAttributes;
+import com.clearsettle.session.SessionRevocation;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.session.FindByIndexNameSessionRepository;
-import org.springframework.session.Session;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
@@ -33,14 +32,14 @@ public class AuthController {
 	private final AuthProperties props;
 	private final FreshAuthEvaluator freshAuth;
 	private final SecurityEvents events;
-	private final FindByIndexNameSessionRepository<? extends Session> sessions;
+	private final SessionRevocation revocation;
 
 	public AuthController(AuthProperties props, FreshAuthEvaluator freshAuth, SecurityEvents events,
-			FindByIndexNameSessionRepository<? extends Session> sessions) {
+			SessionRevocation revocation) {
 		this.props = props;
 		this.freshAuth = freshAuth;
 		this.events = events;
-		this.sessions = sessions;
+		this.revocation = revocation;
 	}
 
 	@GetMapping("/api/me")
@@ -81,13 +80,12 @@ public class AuthController {
 	@PostMapping("/api/session/logout-everywhere")
 	Map<String, Object> logoutEverywhere(@RequestAttribute(SessionAttributes.APP_USER) AppUser user,
 			HttpServletRequest req) {
-		Map<String, ? extends Session> found = sessions.findByPrincipalName(user.id().toString());
-		found.keySet().forEach(sessions::deleteById);
+		int deleted = revocation.revokeAll(user.id());
 		HttpSession current = req.getSession(false);
 		if (current != null) {
 			current.invalidate();
 		}
-		events.record("logout_everywhere", user.id(), "deleted=" + found.size());
-		return Map.of("deletedSessions", found.size());
+		events.record("logout_everywhere", user.id(), "deleted=" + deleted);
+		return Map.of("deletedSessions", deleted);
 	}
 }
