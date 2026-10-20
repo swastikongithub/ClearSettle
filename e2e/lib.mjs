@@ -81,10 +81,12 @@ export const contextOptions = { ...(DEVICE ? devices[DEVICE] : {}), ignoreHTTPSE
 
 // ---- docker-side helpers (admin credentials passed via env, never echoed) ----
 export function kcadm(args) {
-  // A per-process kcadm config file: concurrent runs must not race on the shared default config.
-  return execFileSync("docker", ["exec", "-e", `PW=${ENV.KEYCLOAK_ADMIN_PASSWORD}`, "-e", `CFG=/tmp/kcadm-e2e-${process.pid}.config`, "clearsettle-keycloak", "sh", "-c",
+  // A per-process kcadm config file: concurrent runs must not race on the shared default config. The admin
+  // password reaches the container through the environment (`-e PW` copies it from this process's), never through
+  // the docker command line, so it is not in the process list or in the message of a failed call.
+  return execFileSync("docker", ["exec", "-e", "PW", "-e", `CFG=/tmp/kcadm-e2e-${process.pid}.config`, "clearsettle-keycloak", "sh", "-c",
     `/opt/keycloak/bin/kcadm.sh config credentials --config "$CFG" --server http://localhost:8080 --realm master --user admin --password "$PW" >/dev/null 2>&1 && /opt/keycloak/bin/kcadm.sh ${args} --config "$CFG"; rc=$?; rm -f "$CFG"; exit $rc`],
-  { encoding: "utf8" });
+  { encoding: "utf8", env: { ...process.env, PW: ENV.KEYCLOAK_ADMIN_PASSWORD } });
 }
 export function sql(statement) {
   return execFileSync("docker", ["exec", "clearsettle-db", "psql", "-U", "postgres", "-d", "clearsettle", "-At", "-c", statement],

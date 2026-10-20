@@ -204,4 +204,14 @@ replicated on **every** logging intermediary of a real deployment (CDN/LB/WAF/AP
 
 - Secrets come from `deploy/.env` (git-ignored) and, in production, from a secret manager. The realm file
   substitutes the client secret from `CS_CLIENT_SECRET` at import.
+- `KEYCLOAK_ADMIN_PASSWORD` only bootstraps the admin when the Keycloak container first starts; editing `.env`
+  later does not change it. To rotate it on a running stack:
+  - reset it in the master realm through the admin API, passing the new value on stdin
+    (`kcadm.sh update users/<admin-id>/reset-password -r master -n -f -`), never on a command line;
+  - end the admin's sessions (`kcadm.sh create users/<admin-id>/logout -r master`);
+  - write the new value to `.env`, where `e2e/lib.mjs` reads it. The e2e helper hands it to `docker exec` through
+    the environment, so a failed call cannot print it.
+
+  Once `.env` has changed, `docker compose up` recreates the Keycloak container, which re-imports the realm and
+  discards dev users. Restart only the backend with `docker compose up -d --no-deps --build backend`.
 - Development only: do not expose it publicly; do not use real data or credentials.
