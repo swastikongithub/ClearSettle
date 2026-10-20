@@ -63,7 +63,30 @@ the `<realm>-realm.json` file name) and discards dev users.
   in once more" message; the next sign-in asks for a code from the new authenticator (Keycloak SSO covers the
   password) and creates the session. `auth_error=mfa_required` instead means the IdP performed no MFA.
 - The realm adds the AMR protocol mapper and authentication references (`pwd`, `otp`) so `amr` reflects
-  the authenticators that actually ran.
+  the authenticators that actually ran. Keycloak lists a method only while its reference is still valid when
+  the token is issued, counted in whole seconds. The references are valid for 60 seconds
+  (`default.reference.maxAge`), the realm's authorization-code lifetime (`accessCodeLifespan`), so a code
+  exchanged late still carries the factor just verified. With Keycloak's default of 0, the code had to be
+  exchanged within the same second as the OTP step: a slower redirect lost `otp` from `amr`, and a correct
+  sign-in or step-up was refused (fixed 20 October 2026; B-09, H-09; B-11 and H-10 run with the old value).
+- That window only reports methods; it does not make an earlier factor count. Level 2 (the OTP form) has a
+  max age of 0 and the client's minimum ACR is `mfa`, so Keycloak asks for a new code on every sign-in, even
+  seconds after the last one (B-04, B-10). In B-10, asked only for a code, `amr` also listed the `pwd` of the
+  sign-in seconds before; ClearSettle does not rely on `pwd`. Without the OTP form a token's `acr` is not
+  `mfa`, and ClearSettle refuses it: with the client's ACR requirement removed, a code issued from the
+  Keycloak session alone had `acr=pwd` and was refused; its `amr` listed `pwd` only, not the `otp` completed
+  seconds before (B-12). Step-up adds `prompt=login`, `max_age=0` and the backend's 5-minute `auth_time`
+  limit. P-10 checks this configuration.
+
+On a stack whose Keycloak container was created before 20 October 2026 (the realm is imported only then), set
+the window once (kcadm inside the container, as the admin):
+
+```bash
+kcadm.sh get authentication/flows/clearsettle-loa1/executions -r clearsettle   # password form: authenticationConfig
+kcadm.sh get authentication/flows/clearsettle-loa2/executions -r clearsettle   # OTP form: authenticationConfig
+kcadm.sh update authentication/config/<config-id> -r clearsettle -s 'config."default.reference.maxAge"=60'   # each
+kcadm.sh update realms/clearsettle -s accessCodeLifespan=60                     # Keycloak's default, now explicit
+```
 
 ## MFA recovery controls (D-SEC-18)
 
@@ -141,8 +164,11 @@ bash ../deploy/f1-logging-regression.sh https://localhost:8443 clearsettle-proxy
 
 Test users are created in the dev realm at runtime with random synthetic passwords; raw results go to
 `e2e/results/` (git-ignored). Run suites **one at a time**: tests count per-user sessions and events, and
-`B-06` briefly reconfigures the dev client's ACR defaults (restored in a `finally`; if a run is killed
-during `B-06`, `P-06` on the next Chromium run shows whether the client's ACR defaults need restoring).
+four Chromium-only tests briefly reconfigure the dev realm. `B-06` and `B-12` remove the client's ACR
+defaults, and `B-11` and `H-10` set the authentication references' max age to 0. Each restores the setting in
+a `finally`. If a run is killed during one, `P-06` (ACR defaults) or `P-10` (max age) on the next Chromium run
+shows whether a restore is needed. A sign-in helper retries only after the sign-in that enrols the
+authenticator, which gets no session by design; any other refused sign-in fails the test.
 Every run starts with the preflight `A-01`: the proxy serves the app shell, its script runs against the
 API and shows the sign-in screen, and anonymous visits create no server-side session. Group `U` drives the
 application shell itself: the review page, return to the page asked for after sign-in, the idle warning (the

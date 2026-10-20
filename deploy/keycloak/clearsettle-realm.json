@@ -48,6 +48,7 @@
   "attributes": {
     "acr.loa.map": "{\"pwd\":1,\"mfa\":2}"
   },
+  "accessCodeLifespan": 60,
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,
@@ -216,13 +217,15 @@
     {
       "alias": "cs-ref-pwd",
       "config": {
-        "default.reference.value": "pwd"
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "60"
       }
     },
     {
       "alias": "cs-ref-otp",
       "config": {
-        "default.reference.value": "otp"
+        "default.reference.value": "otp",
+        "default.reference.maxAge": "60"
       }
     }
   ],

@@ -23,14 +23,7 @@ const user = { username, password, totpSecret: null };
 
 async function session() {
   const ctx = await browser.newContext(L.contextOptions);
-  for (let attempt = 0; attempt < 2; attempt++) { // a new user's enrolment login gets no session; sign in again
-    const page = await ctx.newPage();
-    await page.goto(`${L.APP}/oauth2/authorization/keycloak`, { waitUntil: "domcontentloaded" });
-    await L.keycloakLogin(page, user);
-    await page.waitForLoadState("networkidle").catch(() => {});
-    if ((await L.api(page, "/api/me")).status === 200) return { ctx, page };
-  }
-  throw new Error("could not establish a session");
+  return { ctx, page: await L.signInReady(ctx, user) }; // a new user's enrolment sign-in gets no session; one more follows
 }
 
 const executions = (uid) => Number(L.sql(`select count(*) from security_event where event='dev_fixture_operation_executed' and app_user_id='${uid}'`));

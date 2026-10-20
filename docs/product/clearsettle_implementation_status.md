@@ -5,8 +5,9 @@ application shell (D-UI-07 to D-UI-13). This document records one row per
 relevant requirement, per the implementation plan §6. A requirement is marked verified only with recorded
 test evidence; the status changes in the same commit as the work it describes.
 
-**Last updated:** 2026-10-20 (the application shell: sign-in states, return to the page asked for, the idle
-warning, Security and sessions, the review page; browser group U). Previously, 2026-10-19: owner approval of
+**Last updated:** 2026-10-20 (a realm correction: `amr` keeps `otp` when the code is exchanged after the OTP
+step, defect 14). Earlier the same day: the application shell (sign-in states, return to the page asked for,
+the idle warning, Security and sessions, the review page; browser group U). Previously, 2026-10-19: owner approval of
 the frontend design defaults, the PostgreSQL user-provisioning fix, reviewed-version binding for sensitive
 actions, dev-fixture gating.
 
@@ -127,18 +128,23 @@ Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
   sign-in screen, anonymous visits create no server-side session.
 - **P** protocol and IdP configuration (Chromium only; browser-independent): authorization request; PKCE
   required; unregistered redirect URI refused; forged callback; issuer consistency; client configuration;
-  flow evidence (ACR, AMR mapper); MFA and recovery configuration (P-08).
+  flow evidence (ACR, AMR mapper); MFA and recovery configuration (P-08); the authentication-reference window
+  and the fresh-MFA settings (P-10).
 - **B** login and universal MFA: mandatory enrolment and no session for the enrolment sign-in, with the
   explanation shown (B-01); `(iss, sub)`; persisted ID-token evidence, no access/refresh token; password and
   code on every sign-in; wrong code; password-only token refused (B-06, Chromium only); a user without the
-  required action still enrols (B-07); TOTP brute-force lockout (B-08).
+  required action still enrols (B-07); TOTP brute-force lockout (B-08); a code exchanged 3 s after the OTP
+  step (B-09); a new code on every sign-in, even seconds after the last (B-10); with the old reference value,
+  that late sign-in refused (B-11, Chromium only); a factor from an earlier authentication not counted when
+  the ACR requirement is removed (B-12, Chromium only).
 - **C** cookies and storage; **D** sessions: PostgreSQL store with only the expected attributes, fixation,
   idle and absolute expiry at controlled time, logout, sign-out-everywhere, disable, cookie clearing (D-08);
   **E** CSRF (E-01…E-10).
 - **H** step-up and sensitive actions: the full sequence request → step-up → review → explicit confirmation
   (H-01); confirmation replay (H-06); six concurrent confirmations (H-07); refused confirmations (H-08);
   step-up callback replay (H-02); another user's action (H-03); a different person (H-04); a refused step-up
-  (H-05).
+  (H-05); a step-up whose code is exchanged 3 s after the OTP step (H-09), and refused with the old reference
+  value (H-10, Chromium only).
 - **U** the application shell: the review page's states and cancellation (U-01); a double press of Confirm
   (U-02); return to the page asked for after sign-in (U-03); the idle warning on an advanced browser clock
   (U-04); an external deep link under `SameSite=Strict` (U-06); sign out everywhere from the Security page
@@ -162,14 +168,14 @@ Test groups (titles and requirement links in `e2e/run.mjs`, `e2e/longrun.mjs`):
 | AC-162 rotation, logout, idle, absolute, cookie cleared; warning before expiry | Verified (unit, live, browser) | `AbsoluteTimeoutFilterTest`; D-02, D-05, D-08 (session cookie expired by the server and removed from the jar on logout and sign-out-everywhere), D-03, LR-01, D-04, M-06; the warning: `sessionClock.test.mjs`, U-04 | The 8-hour notice is unit-tested only; the idle warning in the browser runs on an advanced browser clock (U-04), not wall-clock time | D-SEC-13, D-UI-13 |
 | AC-163 sign-out everywhere; removal; two instances | Verified (live, browser) / Outstanding (workspace removal) | D-06, D-07; across two instances: M-03 (sign-out-everywhere on instance 2 refuses both browsers on both), M-04 (logout), M-05 (disable) | Removal from every workspace (workspaces not built) | D-SEC-13 |
 | AC-164 step-up; different person; review, no replay | Verified (unit, PostgreSQL, browser) with fixtures / Outstanding (real operations) | `SensitiveActionFlowTest`, `PendingActionPostgresTest`, `LoginSuccessMfaGateTest`; H-01, H-06, H-07, H-08, H-04, M-02, LR-03 | No real sensitive operation exists; each feature's integration is part of its own acceptance | D-SEC-14, D-SEC-17 |
-| AC-165 weak, old or missing claims fail closed | Verified (unit, live) | `FreshAuthEvaluatorTest`, `SensitiveActionFlowTest` (acr, amr, auth_time cases at a sensitive operation), `OidcCallbackValidationTest`; B-06, B-01, LR-02, LR-03 | — | D-SEC-14 |
+| AC-165 weak, old or missing claims fail closed | Verified (unit, live) | `FreshAuthEvaluatorTest`, `SensitiveActionFlowTest` (acr, amr, auth_time cases at a sensitive operation), `OidcCallbackValidationTest`; B-06, B-01, LR-02, LR-03; live refusals of `amr` without `otp` at sign-in and step-up (B-11, H-10) and of `acr` below `mfa` for a code issued from the Keycloak session alone (B-12) | — | D-SEC-14 |
 | AC-166 same-origin static frontend; no secrets | Verified (live) | Static export routes `/`, `/_not-found`, `/review`, `/imports`, `/reconciliation`, `/exceptions`, `/records`, `/ledger`, `/reports`, `/settings`, `/settings/security`; A-01 in all engines; bundle scan (see AC-166 note below) | — | D-SEC-11 |
 | AC-168 events with correlation ids; no secrets in logs | Verified (live) | G-01 in all three engines (proxy, backend, second instance in M runs, Keycloak and PostgreSQL logs, `security_event`); F-1 script PASS | Production logging intermediaries (CDN/LB/WAF/APM) | D-SEC-11 |
 | NFR-SEC-022 CSRF token + custom header; no state via GET | Verified (unit, browser) | as AC-160, AC-161, E-07, K-01 | — | D-SEC-15 |
 | NFR-SEC-023 session lifecycle | Verified (live, browser) / Outstanding (restore invalidation, privileged-role trigger) | as AC-162, AC-163; two instances M-01…M-06 | Invalidation of restored sessions after a database restore (no backup/restore tooling yet; the restore runbook must delete all `spring_session` rows before service resumes); workspace and role triggers | D-SEC-13 |
 | NFR-SEC-024 fresh authentication, same user, no automatic replay | Verified (unit, PostgreSQL, browser) with fixtures | as AC-164, AC-165 | Real sensitive operations | D-SEC-17 |
 | NFR-SEC-026 MFA enrolment and recovery | Verified (browser: enrolment; IdP recovery controls) / Outstanding (recovery procedure and tooling) | B-01, B-07, P-08, R-01, R-02, B-08 | Identity-verification procedure; ClearSettle session revocation on reset; audit integration and retention of Keycloak events; external security review | D-SEC-18 |
-| D-SEC-14/19 universal MFA with TOTP | Verified (unit, live, browser) | `LoginSuccessMfaGateTest`, `OidcCallbackValidationTest`; B-01, B-03, B-04, B-05, B-06, B-07, B-08, P-07, P-08 | — | D-SEC-14, D-SEC-19 |
+| D-SEC-14/19 universal MFA with TOTP | Verified (unit, live, browser) | `LoginSuccessMfaGateTest`, `OidcCallbackValidationTest`; B-01, B-03, B-04, B-05, B-06, B-07, B-08, B-09, B-10, B-11, B-12, H-09, H-10, P-07, P-08, P-10 | — | D-SEC-14, D-SEC-19 |
 | D-SEC-11 sessions in PostgreSQL | Verified (unit, live) | `sessionStoreIsTheJdbcRepository`; D-01 (row, 15-minute idle, and only `SPRING_SECURITY_CONTEXT`, `cs.authenticatedAt` and the principal index stored); M-01 | — | D-SEC-11 |
 
 AC-166 note: the rebuilt bundle was scanned again on 2026-10-17 after this round's scaffold changes: 28 files,
@@ -246,6 +252,64 @@ Accessibility (WCAG 2.2 AA is the target, D-UI-10):
 - Not done: screen-reader testing (NVDA, VoiceOver), a manual WCAG 2.2 AA review, and real Safari, iOS and
   Android (Blocked: infrastructure).
 
+## Keycloak `amr` timing correction (defect 14), 2026-10-20
+
+Found by the final WebKit run of the back-channel logout work: B-04, an ordinary password-and-code sign-in,
+got no session.
+
+- **Cause.** Keycloak lists a method in `amr` only while its authentication reference is still valid when the
+  token is issued: completed + `default.reference.maxAge` ≥ now, counted in whole seconds (Keycloak 26.8.1,
+  `AmrUtils`, read from its bytecode). The realm's references (`cs-ref-pwd`, `cs-ref-otp`) set no max age, so
+  Keycloak's default of 0 applied. `otp` therefore stayed in `amr` only if ClearSettle exchanged the code within
+  the same wall-clock second as the OTP step.
+  - In the failed B-04, Keycloak recorded the sign-in at 09:30:30.742 UTC. ClearSettle refused the token
+    0.3 s later, in the next second, with `amr=[]` (`amr_insufficient`).
+  - Step-up reads `amr` the same way.
+  - The defect failed closed, but users on slow connections would have hit it often.
+- **Reproduced before the fix.** A sign-in whose redirect to the callback was held for 1.5 s was refused
+  3 times out of 3. The same sign-in without the hold succeeded 3 times out of 3.
+- **Fix: the realm only.** Both references are valid for 60 s (`default.reference.maxAge`). That is the
+  authorization-code lifetime (`accessCodeLifespan`, Keycloak's default, now explicit). The fix was applied
+  to the running dev Keycloak with kcadm (deploy/README).
+- **Why 60 s.** A code can be redeemed only within its lifetime, so 60 s is the shortest window that keeps the
+  methods of every code still redeemable.
+  - A shorter window would still refuse correct sign-ins on slow connections.
+  - A longer one would report methods for longer than any code can use them.
+  - Keycloak checks both limits in whole seconds, so a code redeemed in its last second can still lose its
+    references. That case fails closed.
+- **What keeps MFA fresh is unchanged.**
+  - Level 2 (the OTP form) has max age 0 and the client's minimum ACR is `mfa`, so Keycloak runs the OTP form
+    on every authentication.
+  - A token that did not reach level 2 carries an `acr` other than `mfa`.
+  - Step-up adds `prompt=login`, `max_age=0` and the backend's 5-minute `auth_time` limit.
+  - ClearSettle's checks (`acr=mfa`, and `amr` containing `otp`, failing closed) did not change. No backend
+    code changed.
+- **The e2e helper could hide the defect.** `loginReady` retried any refused first sign-in. It now retries
+  only after the sign-in that enrols the authenticator, which gets no session by design, and fails the test
+  otherwise. The long-run scripts use the same rule (`signInReady` in `e2e/lib.mjs`).
+
+Regression tests. Each hold lasts at least 3 s, so the exchange always falls in a later second than the OTP
+step, whatever the clock.
+
+| Test | What it shows | With the old value (Chromium, before the fix) | Final code |
+|---|---|---|---|
+| P-10 | The configuration: level 2 max age 0, minimum ACR `mfa`, both references valid for the code lifetime | FAIL (no max age) | PASS (reads the configuration, so it does not depend on the engine) |
+| B-09 | The redirect to the callback is held 3 s after the OTP step. The sign-in gets a session; `acr=mfa`; `amr` includes `pwd` and `otp` | FAIL (refused, `mfa_not_verified`) | PASS: Chromium, Firefox (held 3.0 s; `amr` `pwd`, `otp`) |
+| B-10 | A sign-in seconds after another, in the same Keycloak session, is asked for a code; nothing reaches the callback before it | PASS | PASS: Chromium, Firefox. `amr` also listed the earlier `pwd` |
+| B-11 | With the old value (0), the same held sign-in is refused: `amr_insufficient`, `amr` without `otp` | PASS | PASS: Chromium |
+| B-12 | With the client's ACR requirement removed, a code issued from the Keycloak session alone is refused on `acr`; its `amr` listed `pwd` only, not the earlier `otp` | (added after that run) | PASS: Chromium (`acr=pwd`, `acr_insufficient`) |
+| H-09 | A step-up with the callback held 3 s reaches the review page with fresh evidence (`acr=mfa`, `amr` with `otp`, the step-up's own `auth_time`), and the action is confirmed once | FAIL (refused; its originating session ended, so H-04 failed too) | PASS: Chromium |
+| H-10 | With the old value, the held step-up is refused, its originating session ends, and the action stays pending, not run | PASS | PASS: Chromium |
+
+Final-code runs on 20 October:
+
+- **Chromium:** every group passed.
+- **Firefox:** still running when this was committed; group B had passed, including B-09 and B-10.
+- **WebKit:** not yet run on the final code.
+
+Their results will be added when the runs finish. B-11, B-12 and H-10 change the realm while they run, so they
+are Chromium-only.
+
 ## Gap closure in this round (owner request of 17 October 2026)
 
 | Area | What was missing | What closed it | Evidence |
@@ -311,6 +375,7 @@ Each fix has a regression test; commit hashes are on branch `m1/auth-foundation`
 | 11 | A refused step-up left the stored originating session alive (rotated id), and in the Strict path MFA-failure or disabled-user refusals orphaned it | every step-up refusal ends the originating session by its stored id | three unit tests; H-04, H-05 | 57a4eb4 |
 | 12 | (found 17 October by LR-03) A step-up by a user with several sessions, minutes after sign-in, was refused as `session_expired` and signed the browser out: Spring Session JDBC's principal query has no `ORDER BY` and its extractor assumes adjacent rows, so on PostgreSQL a session came back without its step-up nonce | the originating session is read by id; only ids come from the principal index | `stepUpFindsTheOriginatingSessionWhenThePrincipalIndexReturnsPartialSessions`; `StepUpOriginPostgresTest` (fails on the previous code); LR-03 | 602a24d |
 | 13 | (found 19 October by review, not observed live) User provisioning, changed in `0e5cbdd` to suit the H2 test database, caught a uniqueness violation and re-read. On PostgreSQL that violation aborts a surrounding transaction, so a concurrent first sign-in inside a transaction would fail | one atomic PostgreSQL upsert on the `(iss, sub)` constraint (`ON CONFLICT … RETURNING`); the H2 tests use a test-only stand-in, and the production statement is tested on PostgreSQL | `AppUserServicePostgresTest` (fails on the previous code with `25P02`) | (this commit) |
+| 14 | (found 20 October by the WebKit run, B-04) A correct password-and-code sign-in or step-up was refused when ClearSettle exchanged the code in a later second than the OTP step: the realm's authentication references had no max age, so Keycloak (default 0) left `otp` out of `amr` | references valid for the 60-second authorization-code lifetime; the e2e sign-in helpers no longer retry a refused sign-in except after enrolment | B-09, H-09 (fail with the old value, shown by B-11 and H-10); P-10 | (this commit) |
 
 ## Outstanding
 
