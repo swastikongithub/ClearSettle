@@ -81,10 +81,12 @@ export const contextOptions = { ...(DEVICE ? devices[DEVICE] : {}), ignoreHTTPSE
 
 // ---- docker-side helpers (admin credentials passed via env, never echoed) ----
 export function kcadm(args) {
-  // A per-process kcadm config file: concurrent runs must not race on the shared default config.
-  return execFileSync("docker", ["exec", "-e", `PW=${ENV.KEYCLOAK_ADMIN_PASSWORD}`, "-e", `CFG=/tmp/kcadm-e2e-${process.pid}.config`, "clearsettle-keycloak", "sh", "-c",
+  // A per-process kcadm config file: concurrent runs must not race on the shared default config. The admin
+  // password reaches the container through the environment (`-e PW` copies it from this process's), never through
+  // the docker command line, so it is not in the process list or in the message of a failed call.
+  return execFileSync("docker", ["exec", "-e", "PW", "-e", `CFG=/tmp/kcadm-e2e-${process.pid}.config`, "clearsettle-keycloak", "sh", "-c",
     `/opt/keycloak/bin/kcadm.sh config credentials --config "$CFG" --server http://localhost:8080 --realm master --user admin --password "$PW" >/dev/null 2>&1 && /opt/keycloak/bin/kcadm.sh ${args} --config "$CFG"; rc=$?; rm -f "$CFG"; exit $rc`],
-  { encoding: "utf8" });
+  { encoding: "utf8", env: { ...process.env, PW: ENV.KEYCLOAK_ADMIN_PASSWORD } });
 }
 export function sql(statement) {
   return execFileSync("docker", ["exec", "clearsettle-db", "psql", "-U", "postgres", "-d", "clearsettle", "-At", "-c", statement],
@@ -174,6 +176,28 @@ export async function keycloakLogin(page, user) {
     return trace;
   }
   return trace;
+}
+
+/** Where a sign-in ended, for an error message: the IdP pages seen and the app's auth_error code, if any. */
+export function signInOutcome(page, trace) {
+  return `trace ${trace.join(",") || "none"}, landed ${(page.url().match(/auth_error=[a-z_]+/) || [page.url().startsWith(KC) ? "at the IdP" : "no auth_error"])[0]}`;
+}
+
+/**
+ * Signs in in a new page of {@code context} until the app holds a session, retrying only where the flow requires
+ * it: the sign-in that enrols the authenticator gets no session by design (its amr shows no verified factor), so
+ * exactly one more sign-in follows it. Any other refused sign-in throws, so that a retry never hides an
+ * authentication failure. Returns the page.
+ */
+export async function signInReady(context, user) {
+  for (let attempt = 1; ; attempt++) {
+    const page = await context.newPage();
+    await page.goto(`${APP}/oauth2/authorization/keycloak`, { waitUntil: "domcontentloaded" });
+    const trace = await keycloakLogin(page, user);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    if ((await api(page, "/api/me")).status === 200) return page;
+    if (attempt > 1 || !trace.includes("otp-enrol")) throw new Error(`sign-in refused: ${signInOutcome(page, trace)}`);
+  }
 }
 
 /** Same-origin API call from the page, adding the CSRF header and custom header for unsafe methods. */

@@ -13,11 +13,13 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -93,6 +95,36 @@ final class StubOidcProvider implements AutoCloseable {
 				.claim("amr", List.of("otp")).claim("email", sub + "@example.test");
 	}
 
+	/**
+	 * Claims of a valid back-channel logout token for this provider and client (OpenID Connect Back-Channel Logout
+	 * 1.0, §2.4): issuer, audience, issued now, a fresh {@code jti}, the back-channel logout event, no nonce. A null
+	 * {@code sub} or {@code sid} leaves that claim out.
+	 */
+	JWTClaimsSet.Builder logoutClaims(String sub, String sid) {
+		Instant now = Instant.now();
+		JWTClaimsSet.Builder b = new JWTClaimsSet.Builder().issuer(issuer).audience(clientId)
+				.issueTime(Date.from(now)).expirationTime(Date.from(now.plusSeconds(120)))
+				.jwtID(UUID.randomUUID().toString())
+				.claim("events", Map.of("http://schemas.openid.net/event/backchannel-logout", Map.of()));
+		if (sub != null) {
+			b.subject(sub);
+		}
+		if (sid != null) {
+			b.claim("sid", sid);
+		}
+		return b;
+	}
+
+	/** A logout token as the provider sends it: signed with the provider's key and explicitly typed. */
+	String signedLogoutToken(JWTClaimsSet claims) {
+		return sign(signingKey, claims, new JOSEObjectType("logout+jwt"));
+	}
+
+	/** Signed with the provider's key, but with the given {@code typ} header (a token of another kind). */
+	String signedWithType(JWTClaimsSet claims, String typ) {
+		return sign(signingKey, claims, new JOSEObjectType(typ));
+	}
+
 	String signed(JWTClaimsSet claims) {
 		return sign(signingKey, claims);
 	}
@@ -141,8 +173,13 @@ final class StubOidcProvider implements AutoCloseable {
 	}
 
 	private static String sign(RSAKey key, JWTClaimsSet claims) {
+		return sign(key, claims, null);
+	}
+
+	private static String sign(RSAKey key, JWTClaimsSet claims, JOSEObjectType typ) {
 		try {
-			SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
+			SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).type(typ).build(),
+					claims);
 			jwt.sign(new RSASSASigner(key));
 			return jwt.serialize();
 		}

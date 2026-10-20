@@ -133,8 +133,10 @@ M1** (see below).
   through the real OIDC client with a controlled provider: `OidcCallbackValidationTest`).
 - Test enrolment (first-factor-less user is guided to enrol and cannot perform sensitive actions until
   enrolled) and the documented recovery behaviour. **Enrolment verified in M1** (B-01, B-07). **Recovery:**
-  the IdP controls that exist are verified (P-08, R-01, R-02, B-08); the identity-verification procedure,
-  an audited ClearSettle session revocation and the external review are **OUTSTANDING** (below).
+  the IdP controls that exist are verified (P-08, R-01, R-02, B-08); since 20 October 2026, the
+  administrator's Keycloak sign-out ends the user's ClearSettle sessions by back-channel logout (R-02). The
+  identity-verification procedure, the sessions back-channel logout cannot reach (below) and the external
+  review are **OUTSTANDING**.
 - Re-verify step-up (U-01…U-04 equivalents) in the product against the configured Keycloak flow.
   **Verified in M1** (H-01…H-08, LR-03, LR-04, M-02), including the `step_up_required` response and the
   single-use confirmation, **with a fixture operation**: integration with real sensitive operations is
@@ -165,10 +167,17 @@ Outstanding (not built; must not be presented as done):
 
 - The identity-verification procedure (who may reset, what evidence is required, recommended second-person
   approval) and its runbook.
-- Ending the user's **application** sessions on reset. Keycloak's logout does not reach ClearSettle (no
-  back-channel logout): R-02 shows the pre-reset application session still valid after the IdP-side reset.
-  The interim operator step (deleting the user's `spring_session` rows) ends it; the production control is
-  an audited ClearSettle administrative revocation or OIDC back-channel logout.
+- Ending the user's **application** sessions on reset: **partly built (20 October 2026).** OIDC back-channel
+  logout is in place. Removing the factor alone notifies nothing; the administrator then signs the user out
+  at Keycloak, and Keycloak's logout tokens end the ClearSettle sessions of every Keycloak session it still
+  holds (R-02, M-07). Keycloak does not report a session it has already expired, so a ClearSettle session kept
+  active past Keycloak's SSO idle timeout (30 minutes by default) survives the reset (LR-05). Until an audited
+  ClearSettle-side revocation exists, the procedure ends by checking for such sessions and deleting them (the
+  interim operator step, now needed only for them). Options to close it, for decision: an audited
+  administrative revocation in ClearSettle keyed by the user (the revocation itself, `SessionRevocation`, is
+  built; it needs the administrator role, step-up and audit, D-SEC-17); a Keycloak event listener that reports
+  factor removals; or Keycloak SSO session lifetimes at least as long as ClearSettle's (partial, and it
+  lengthens Keycloak's own sessions).
 - Carrying Keycloak admin and user events into ClearSettle's audit trail and retention (D-DAT-07/08).
   Keycloak's stored user events hold Keycloak session identifiers, usernames and IP addresses by design
   (inspected 17 October 2026; admin events store no request bodies). They are IdP-internal and readable only
@@ -197,6 +206,36 @@ Outstanding (not built; must not be presented as done):
   the user sees. Verified live (H-04, H-05) and by unit tests.
 - A user created **without** the TOTP required action must still enrol: the level-2 flow requires the OTP
   form, and Keycloak adds the enrolment itself (B-07).
+
+## Implementation note, 20 October 2026: the `amr` reference window
+
+- **Defect, found by the WebKit regression run (B-04).** Keycloak lists a method in `amr` only while its
+  authentication reference is valid when the token is issued: completed + `default.reference.maxAge` ≥ now,
+  in whole seconds (Keycloak 26.8.1, `AmrUtils`). The realm set no max age, so Keycloak's default of 0 applied.
+  `otp` survived only if ClearSettle exchanged the code within the same second as the OTP step. Otherwise a
+  correct password-and-code sign-in, or step-up, arrived with `amr=[]` and was refused (`amr_insufficient`).
+  It failed closed, but users on slow connections would have hit it often.
+- **Fix.** Both references (`pwd`, `otp`) are valid for 60 seconds. That is the realm's authorization-code
+  lifetime (`accessCodeLifespan`, now explicit), so any code that can still be redeemed carries the methods of
+  the authentication that produced it. Keycloak refuses a code redeemed later anyway. The window can also
+  report a method completed earlier in the same Keycloak session, up to 60 seconds before (B-10).
+- **Freshness is controlled elsewhere, and is unchanged.** The window decides only how long a completed method
+  is reported. Whether a factor must be performed again is decided by two settings:
+  - the level-2 condition has max age 0, so Keycloak runs the OTP form on every authentication, and the
+    `otp` in a token comes from that authentication;
+  - the client's minimum ACR is `mfa`, so every authentication must reach level 2. A token without level 2
+    has an `acr` other than `mfa`, which ClearSettle refuses whatever `amr` lists.
+
+  Step-up also sends `prompt=login` and `max_age=0`, and the backend requires `auth_time` within 5 minutes.
+  ClearSettle's validation (`acr=mfa` and `amr` containing `otp`) did not change.
+- **Evidence.**
+  - B-09 and H-09 hold the redirect to the callback for 3 seconds, so the exchange always lands in a later
+    second. Both pass now; with the old value the same sign-in and step-up are refused (B-11, H-10, Chromium).
+  - B-10: a sign-in seconds after another, in the same Keycloak session, still asks for a code. Its `amr` also
+    listed the earlier `pwd`, which ClearSettle does not rely on.
+  - B-12: with the client's ACR requirement removed, a code issued from the Keycloak session alone is refused
+    on `acr` (`acr=pwd`; its `amr` listed `pwd` only, not the `otp` completed seconds before).
+  - P-10 checks the configuration.
 
 ## Assumptions / limitations
 

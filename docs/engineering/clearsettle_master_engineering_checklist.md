@@ -156,6 +156,14 @@ This is a quality/reliability checklist only. It deliberately does **not** decid
 >      both.
 >    - Tests: across two application instances, like M-03 to M-05.
 >    - Recommended timing: with the remaining M1 backend work (workspaces, audit core).
+>    - **Update (20 October 2026): partly done.** OIDC back-channel logout is implemented: a logout token
+>      signed by Keycloak ends the matching ClearSettle sessions on every instance, with replays, forgeries
+>      and stale tokens refused (`BackChannelLogoutPostgresTest` on two instances; live P-09, R-02, M-07,
+>      M-08). Sign out everywhere and back-channel logout share one revocation service. An MFA reset now
+>      ends the user's sessions when the administrator also signs the user out at Keycloak (R-02).
+>      **Still open:** a ClearSettle session that outlives its Keycloak session (kept active past Keycloak's
+>      SSO idle timeout) is not reached (LR-05), and there is no audited ClearSettle-side administrative
+>      revocation; that needs the administrator role. The interim operator step remains for those sessions.
 > 2. **Identity verification for an MFA reset** (D-SEC-18): who may reset a factor, what evidence of
 >    identity is required, whether a second person approves, and the runbook. The owner decides this.
 > 3. **Safeguards around the reset itself:**

@@ -61,13 +61,68 @@ async function login(user, { context, start = `${L.APP}/oauth2/authorization/key
 }
 
 /**
- * For a brand-new user: the first login enrols TOTP and is refused by the app (no previously enrolled
- * factor verified: amr is empty); the second login verifies the enrolled code and gets a session.
+ * A sign-in that must end with an application session. It retries only where the flow requires it: the sign-in
+ * that enrols TOTP is refused by the app by design (no previously enrolled factor verified: amr is empty), so
+ * exactly one more sign-in follows it, verifying the enrolled code. Any other refused sign-in throws, so that a
+ * retry never hides an authentication failure.
  */
 async function loginReady(user, opts = {}) {
   const first = await login(user, opts);
   if ((await L.api(first.page, "/api/me")).status === 200) return first;
-  return login(user, { context: first.context });
+  if (!first.trace.includes("otp-enrol")) throw new Error(`sign-in refused: ${L.signInOutcome(first.page, first.trace)}`);
+  const second = await login(user, { context: first.context });
+  if ((await L.api(second.page, "/api/me")).status !== 200) throw new Error(`sign-in after enrolment refused: ${L.signInOutcome(second.page, second.trace)}`);
+  return second;
+}
+
+/**
+ * Holds Keycloak's redirect to the ClearSettle callback for {@code ms} after Keycloak has completed the sign-in,
+ * so the browser reaches the callback, and the backend exchanges the code, at least {@code ms} later: with ms of
+ * 1000 or more, always in a later second than the OTP step. (Keycloak keeps a method in amr only while it is
+ * within the authentication reference's max age, counted in whole seconds; see P-10.) Playwright does not
+ * intercept a request reached by a redirect, so the form POST that completes the sign-in is sent from here and
+ * its 302 handed to the browser once held. Returns the hold durations in ms, one per held redirect.
+ */
+async function holdCallback(context, ms) {
+  const held = [];
+  const pattern = `${L.KC}/realms/clearsettle/login-actions/**`;
+  const handler = async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch({ maxRedirects: 0 });
+    if (response.status() === 302 && (response.headers().location || "").startsWith(`${L.APP}/login/oauth2/code/`)) {
+      const at = Date.now();
+      while (Date.now() - at < ms) await L.sleep(ms - (Date.now() - at)); // a timer may fire a little early
+      held.push(Date.now() - at);
+    }
+    await route.fulfill({ response });
+  };
+  await context.route(pattern, handler);
+  return { held, release: () => context.unroute(pattern, handler) };
+}
+
+/** The authentication-reference configs of the password and OTP forms (cs-ref-pwd, cs-ref-otp) as Keycloak holds them. */
+function referenceConfigs() {
+  return [["clearsettle-loa1", "auth-username-password-form"], ["clearsettle-loa2", "auth-otp-form"]].map(([flow, provider]) => {
+    const e = JSON.parse(L.kcadm(`get authentication/flows/${flow}/executions -r clearsettle`)).find((x) => x.providerId === provider);
+    return JSON.parse(L.kcadm(`get authentication/config/${e.authenticationConfig} -r clearsettle`));
+  });
+}
+/**
+ * Runs {@code fn} with both references' max age set to Keycloak's default, 0 (the realm before 20 October 2026),
+ * then restores the values found. Returns fn's result and whether the restored values match.
+ */
+async function withReferenceMaxAgeZero(fn) {
+  const before = referenceConfigs().map((c) => ({ id: c.id, maxAge: c.config["default.reference.maxAge"] ?? "0" }));
+  const set = (id, v) => L.kcadm(`update authentication/config/${id} -r clearsettle -s 'config."default.reference.maxAge"=${v}'`);
+  let result;
+  try {
+    before.forEach((c) => set(c.id, "0"));
+    result = await fn();
+  } finally {
+    before.forEach((c) => set(c.id, c.maxAge));
+  }
+  const now = referenceConfigs().map((c) => c.config["default.reference.maxAge"] ?? "0");
+  return { result, restored: now.join(",") === before.map((c) => c.maxAge).join(","), restoredTo: now };
 }
 
 function kcUserId(user) {
@@ -120,6 +175,28 @@ async function singleAttempt(user, { code } = {}) {
 
 function sessionRows(appUserId) {
   return Number(L.sql(`select count(*) from spring_session where principal_name='${appUserId}'`));
+}
+
+const lastEventId = () => Number(L.sql("select coalesce(max(id), 0) from security_event"));
+/** Details of the security events named {@code name} recorded after event id {@code since} (no secrets are stored there). */
+function eventsSince(since, name, appUserId) {
+  const out = L.sql(`select detail from security_event where id > ${since} and event='${name}'${appUserId ? ` and app_user_id='${appUserId}'` : ""} order by id`);
+  return out ? out.split("\n") : [];
+}
+/** Polls until {@code done()} is true or {@code ms} pass. Keycloak posts back-channel logouts during the admin call. */
+async function waitUntil(done, ms = 5000) {
+  for (const end = Date.now() + ms; Date.now() < end; await L.sleep(200)) if (done()) return true;
+  return done();
+}
+/** The user's Keycloak sessions (the id is the provider session id, the ID token's sid). */
+const kcSessions = (kcId) => JSON.parse(L.kcadm(`get users/${kcId}/sessions -r clearsettle`));
+
+/** A logout token as Keycloak would send it, but signed with a fresh key of our own under Keycloak's key id. */
+function forgedLogoutToken(claims, kid) {
+  const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const part = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const input = `${part({ alg: "RS256", typ: "logout+jwt", kid })}.${part(claims)}`;
+  return `${input}.${crypto.sign("RSA-SHA256", Buffer.from(input), privateKey).toString("base64url")}`;
 }
 
 /** Decodes the ID-token claims stored in the persisted security context (the token itself is never printed). */
@@ -222,6 +299,20 @@ async function groupP() {
     return { layer: "integration", expected: "AMR mapper emits to the ID token; password ref=pwd; OTP ref=otp; level-2 subflow is condition + REQUIRED OTP form only",
       actual: { amr_mapper_id_token: amrMapper && amrMapper.config["id.token.claim"], password: pwd, otp, loa2_executions: loa2 }, status: ok ? "PASS" : "FAIL" };
   });
+  await test("P-10", "Fresh MFA and the authentication-reference window: the level-2 condition (the OTP form) has max age 0 and the client's minimum ACR is mfa, so Keycloak runs the OTP form on every authentication; the pwd and otp references are valid for 60 s, the authorization-code lifetime, so a code exchanged late still carries the methods that ran (B-09, H-09)", "D-SEC-14", async () => {
+    const r = JSON.parse(L.kcadm(`get realms/clearsettle`));
+    const loa = (flow) => {
+      const e = JSON.parse(L.kcadm(`get authentication/flows/${flow}/executions -r clearsettle`)).find((x) => x.providerId === "conditional-level-of-authentication");
+      return JSON.parse(L.kcadm(`get authentication/config/${e.authenticationConfig} -r clearsettle`)).config;
+    };
+    const loa1 = loa("clearsettle-loa1"), loa2 = loa("clearsettle-loa2");
+    const refs = referenceConfigs().map((c) => ({ alias: c.alias, value: c.config["default.reference.value"], max_age: c.config["default.reference.maxAge"] ?? null }));
+    const a = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web`))[0].attributes || {};
+    const ok = loa2["loa-condition-level"] === "2" && loa2["loa-max-age"] === "0" && loa1["loa-condition-level"] === "1" && a["minimum.acr.value"] === "mfa"
+      && r.accessCodeLifespan === 60 && refs.map((x) => x.value).join(",") === "pwd,otp" && refs.every((x) => x.max_age === String(r.accessCodeLifespan));
+    return { layer: "integration", expected: "level 2 max age 0; minimum acr mfa; code lifetime 60 s; references pwd and otp valid for that lifetime",
+      actual: { loa1, loa2, minimum_acr: a["minimum.acr.value"], code_lifetime_s: r.accessCodeLifespan, references: refs }, status: ok ? "PASS" : "FAIL" };
+  });
   await test("P-08", "IdP MFA and recovery configuration: TOTP is the only second factor (6 digits, 30 s, SHA1, no code reuse) and enrolment is a default action; no self-service credential deletion; password reset off and its flow cannot reset OTP; brute-force detection on; user and admin events recorded (admin event bodies off)", "D-SEC-14 (factor, recovery), NFR-SEC-010, NFR-SEC-026", async () => {
     const r = JSON.parse(L.kcadm(`get realms/clearsettle`));
     const ra = JSON.parse(L.kcadm(`get authentication/required-actions -r clearsettle`));
@@ -241,6 +332,17 @@ async function groupP() {
         enabled_required_actions: enabled, configure_totp_default: totp.defaultAction, reset_password_allowed: r.resetPasswordAllowed, reset_flow: r.resetCredentialsFlow, reset_flow_steps: resetSteps,
         brute_force: { on: r.bruteForceProtected, permanent: r.permanentLockout, failure_factor: r.failureFactor, wait_increment_s: r.waitIncrementSeconds, max_wait_s: r.maxFailureWaitSeconds },
         events: r.eventsEnabled, admin_events: r.adminEventsEnabled, admin_event_bodies: r.adminEventsDetailsEnabled, event_types: events.length }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("P-09", "Back-channel logout: the client tells Keycloak to post logout tokens to the backend on the internal network, with the provider session id (sid); no front-channel logout; the public origin does not serve the endpoint", "D-SEC-13, D-SEC-18, NFR-SEC-023", async () => {
+    const c = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web`))[0];
+    const a = c.attributes || {};
+    const pub = await http.post(`${L.APP}/logout/connect/back-channel/keycloak`, { form: { logout_token: "x" } });
+    const ok = a["backchannel.logout.url"] === "http://backend:8080/logout/connect/back-channel/keycloak" && a["backchannel.logout.session.required"] === "true"
+      && c.frontchannelLogout === false && pub.status() === 404;
+    return { layer: "integration", expected: "backchannel.logout.url = http://backend:8080/logout/connect/back-channel/keycloak; session required; front-channel off; public origin 404",
+      actual: { backchannel_logout_url: a["backchannel.logout.url"], session_required: a["backchannel.logout.session.required"], frontchannel: c.frontchannelLogout, public_origin_status: pub.status() },
+      status: ok ? "PASS" : "FAIL" };
   });
   await http.dispose();
 }
@@ -363,6 +465,48 @@ async function groupB() {
       status: ok ? "PASS" : "FAIL" };
   });
 
+  await test("B-09", "Late code exchange: the browser reaches ClearSettle's callback 3 s after Keycloak completed the OTP step, so the code is exchanged in a later second (with the realm before 20 October, Keycloak then left otp out of amr and the sign-in was refused, B-11); the sign-in gets a session whose ID token has acr=mfa and amr with pwd and otp", "D-SEC-14", async () => {
+    const ctx = await browser.newContext(L.contextOptions);
+    const hold = await holdCallback(ctx, 3000);
+    let s;
+    try { s = await login(S.alice, { context: ctx }); } finally { await hold.release(); }
+    const landed = s.page.url();
+    const me = await L.api(s.page, "/api/me");
+    const claims = me.status === 200 ? (persistedIdTokenClaims(me.data.appUserId) || {}).claims || {} : {};
+    await ctx.close();
+    const amr = Array.isArray(claims.amr) ? claims.amr : [];
+    const ok = hold.held.length === 1 && hold.held[0] >= 3000 && s.trace.join(",") === "password,otp" && !/auth_error=/.test(landed)
+      && me.status === 200 && me.data.acr === "mfa" && me.data.freshAuth?.ok === true && claims.acr === "mfa" && amr.includes("pwd") && amr.includes("otp");
+    return { layer: "browser", expected: "callback held once for >= 3 s; trace password,otp; session; ID token acr=mfa, amr with pwd and otp; fresh-auth evidence ok",
+      actual: { held_ms: hold.held, trace: s.trace, landed_error: (landed.match(/auth_error=[a-z_]+/) || [null])[0], me_status: me.status, acr: claims.acr, amr: claims.amr, fresh_auth: me.data?.freshAuth ?? null },
+      status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("B-10", "A new code on every sign-in, even inside the 60-second reference window: seconds after a completed sign-in, a new sign-in in the same browser (its Keycloak session open, so the password is not asked again) is asked for a one-time code, and Keycloak sends nothing to ClearSettle's callback until it is entered; entering it gives a session with otp in amr", "D-SEC-14", async () => {
+    const first = await login(S.alice);
+    const signedInAt = Date.now();
+    const firstMe = await L.api(first.page, "/api/me");
+    const page = await first.context.newPage();
+    let callbacks = 0;
+    page.on("request", (r) => { if (r.url().startsWith(`${L.APP}/login/oauth2/code/`)) callbacks++; });
+    await page.goto(`${L.APP}/oauth2/authorization/keycloak`, { waitUntil: "domcontentloaded" });
+    const askedAfterMs = Date.now() - signedInAt;
+    const atIdp = page.url().startsWith(L.KC);
+    const codeAsked = (await page.locator("#otp").count()) > 0;
+    const passwordAsked = (await page.locator("#password").count()) > 0;
+    const callbacksBeforeCode = callbacks;
+    const trace = await L.keycloakLogin(page, S.alice);
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const me = await L.api(page, "/api/me");
+    const claims = me.status === 200 ? (persistedIdTokenClaims(me.data.appUserId) || {}).claims || {} : {};
+    await first.context.close();
+    const ok = firstMe.status === 200 && askedAfterMs < 60000 && atIdp && codeAsked && !passwordAsked && callbacksBeforeCode === 0
+      && trace.join(",") === "otp" && me.status === 200 && Array.isArray(claims.amr) && claims.amr.includes("otp");
+    return { layer: "browser", expected: "first sign-in has a session; the next one, started < 60 s later in the same browser, stops at the code form (no password form, no callback yet); after the code: session, amr with otp",
+      actual: { first_me: firstMe.status, second_started_after_ms: askedAfterMs, at_idp: atIdp, code_asked: codeAsked, password_asked: passwordAsked, callbacks_before_code: callbacksBeforeCode, trace, me_status: me.status, amr: claims.amr },
+      status: ok ? "PASS" : "FAIL" };
+  });
+
   if (BROWSER === "chromium") {
     await test("B-06", "Misconfigured IdP issues a password-only token (acr=pwd): the app's MFA gate refuses the session", "D-SEC-14 (fail closed)", async () => {
       const cid = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web --fields id`))[0].id;
@@ -382,6 +526,57 @@ async function groupB() {
         L.kcadm(`update clients/${cid} -r clearsettle -s 'attributes."default.acr.values"=mfa' -s 'attributes."minimum.acr.value"=mfa'`);
       }
       return result;
+    });
+
+    await test("B-11", "Fail closed without the reference window: with the references' max age at Keycloak's default (0), as in the realm before 20 October, the late code exchange of B-09 gets an ID token whose amr lacks otp, and ClearSettle refuses the sign-in (mfa_not_verified, reason amr_insufficient, no session)", "D-SEC-14 (fail closed)", async () => {
+      const since = Number(L.sql("select coalesce(max(id), 0) from security_event"));
+      const { result: r, restored, restoredTo } = await withReferenceMaxAgeZero(async () => {
+        const ctx = await browser.newContext(L.contextOptions);
+        const hold = await holdCallback(ctx, 3000);
+        let s;
+        try { s = await login(S.alice, { context: ctx }); } finally { await hold.release(); }
+        const landed = s.page.url();
+        const me = await L.api(s.page, "/api/me");
+        await ctx.close();
+        return { held: hold.held, trace: s.trace, landed, me: me.status };
+      });
+      const refusal = L.sql(`select detail from security_event where id > ${since} and event='login_refused_mfa_required' order by id desc limit 1`);
+      const amr = (refusal.match(/ amr=(\S*)/) || [null, null])[1];
+      const ok = r.held.length === 1 && r.held[0] >= 3000 && r.trace.join(",") === "password,otp" && /auth_error=mfa_not_verified/.test(r.landed) && r.me === 401
+        && /reason=amr_insufficient/.test(refusal) && amr !== null && !amr.includes("otp") && restored;
+      return { layer: "browser", expected: "with max age 0: callback held >= 3 s; password and OTP entered; refused (mfa_not_verified, amr_insufficient, amr without otp), no session; max age restored",
+        actual: { held_ms: r.held, trace: r.trace, landed_error: (r.landed.match(/auth_error=[a-z_]+/) || [null])[0], me_status: r.me, refusal_reason: (refusal.match(/reason=\S+/) || [null])[0], amr, restored_max_age: restoredTo },
+        status: ok ? "PASS" : "FAIL" };
+    });
+
+    await test("B-12", "A factor from an earlier authentication does not count: with the client's ACR requirement removed (the misconfiguration of B-06), a sign-in seconds after a completed one, in the same browser, gets its code from Keycloak's session alone, with no new one-time code; Keycloak may still list the earlier otp in amr (completed under 60 s before), but acr shows that level 2 was not reached, and ClearSettle refuses the sign-in (mfa_required)", "D-SEC-14 (fail closed)", async () => {
+      const cid = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web --fields id`))[0].id;
+      const first = await login(S.alice);
+      const signedInAt = Date.now();
+      const firstMe = (await L.api(first.page, "/api/me")).status;
+      const since = Number(L.sql("select coalesce(max(id), 0) from security_event"));
+      L.kcadm(`update clients/${cid} -r clearsettle -s 'attributes."default.acr.values"=' -s 'attributes."minimum.acr.value"='`);
+      let r;
+      try {
+        const page = await first.context.newPage();
+        await page.goto(`${L.APP}/oauth2/authorization/keycloak`, { waitUntil: "domcontentloaded" });
+        const trace = await L.keycloakLogin(page, S.alice);
+        await page.waitForLoadState("networkidle").catch(() => {});
+        r = { trace, after_ms: Date.now() - signedInAt, landed: page.url(), me: (await L.api(page, "/api/me")).status };
+      } finally {
+        L.kcadm(`update clients/${cid} -r clearsettle -s 'attributes."default.acr.values"=mfa' -s 'attributes."minimum.acr.value"=mfa'`);
+      }
+      await first.context.close();
+      const a = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web`))[0].attributes || {};
+      const restored = a["default.acr.values"] === "mfa" && a["minimum.acr.value"] === "mfa";
+      const refusal = L.sql(`select detail from security_event where id > ${since} and event='login_refused_mfa_required' order by id desc limit 1`);
+      const acr = (refusal.match(/ acr=(\S*)/) || [null, null])[1], amr = (refusal.match(/ amr=(\S*)/) || [null, null])[1];
+      const ok = firstMe === 200 && r.trace.length === 0 && r.after_ms < 60000 && /auth_error=mfa_required/.test(r.landed) && r.me === 401
+        && /reason=acr_insufficient/.test(refusal) && acr !== null && acr !== "mfa" && restored;
+      return { layer: "browser", expected: "first sign-in has a session; with the ACR requirement removed, the next sign-in (< 60 s later) shows no form; refused: mfa_required, acr_insufficient, acr not mfa; no session; ACR requirement restored",
+        actual: { first_me: firstMe, trace: r.trace, completed_after_ms: r.after_ms, landed_error: (r.landed.match(/auth_error=[a-z_]+/) || [null])[0], me_status: r.me,
+          refusal_reason: (refusal.match(/reason=\S+/) || [null])[0], acr, amr, earlier_otp_listed_in_amr: amr !== null && amr.includes("otp"), acr_requirement_restored: restored },
+        status: ok ? "PASS" : "FAIL" };
     });
   }
 }
@@ -825,6 +1020,34 @@ async function groupH() {
       actual: r, status: ok ? "PASS" : "FAIL" };
   });
 
+  await test("H-09", "Late code exchange on step-up: the step-up's callback is held 3 s after Keycloak completed the OTP step; the step-up still succeeds with fresh MFA evidence (acr=mfa, amr with otp, auth_time of this step-up), the review page shows the action, and Confirm runs it once", "AC-164, D-SEC-14, NFR-SEC-024", async () => {
+    const before = fixtureExecutions(uid);
+    const req = await requestFixtureAction(s.page);
+    const id = req.data && req.data.actionId;
+    const startedAt = Number(L.sql("select extract(epoch from now())::bigint")); // the containers' clock, which Keycloak uses
+    const hold = await holdCallback(s.context, 3000);
+    let step;
+    try { step = await login(alice, { context: s.context, start: `${L.APP}/oauth2/authorization/keycloak?step_up=${id}` }); } finally { await hold.release(); }
+    const q = step.net.authUrl ? new URL(step.net.authUrl).searchParams : new URLSearchParams();
+    const reviewRendered = await visible(step.page.locator("#action-summary"));
+    const landed = new URL(step.page.url());
+    const after = await L.api(step.page, "/api/me");
+    const claims = (persistedIdTokenClaims(uid) || {}).claims || {};
+    const amr = Array.isArray(claims.amr) ? claims.amr : [];
+    let result = { outcome: null, httpStatus: null };
+    if (reviewRendered) { await step.page.click("#confirm"); result = await confirmResult(step.page); }
+    await step.page.close();
+    const executed = fixtureExecutions(uid) - before;
+    const ok = [202, 401].includes(req.status) && typeof id === "string" && q.get("prompt") === "login" && q.get("max_age") === "0" && q.get("acr_values") === "mfa"
+      && step.trace.includes("otp") && hold.held.length === 1 && hold.held[0] >= 3000
+      && landed.pathname.startsWith("/review") && landed.searchParams.get("action") === id && reviewRendered && after.data?.freshAuth?.ok === true
+      && claims.acr === "mfa" && amr.includes("otp") && claims.auth_time >= startedAt && result.outcome === "executed" && executed === 1 && pendingStatus(id) === "EXECUTED";
+    return { layer: "browser", expected: "step-up params; OTP re-entered; callback held once for >= 3 s; review page for the action; fresh-auth evidence ok; ID token acr=mfa, amr with otp, auth_time >= the step-up's start; Confirm -> executed once",
+      actual: { request_status: req.status, prompt: q.get("prompt"), max_age: q.get("max_age"), acr_values: q.get("acr_values"), trace: step.trace, held_ms: hold.held,
+        landed: landed.pathname, action_matches: landed.searchParams.get("action") === id, review_rendered: reviewRendered, fresh_auth: after.data?.freshAuth ?? null,
+        acr: claims.acr, amr: claims.amr, auth_time_after_start: claims.auth_time >= startedAt, confirm_result: result, executions: executed, status: id && pendingStatus(id) }, status: ok ? "PASS" : "FAIL" };
+  });
+
   await test("H-02", "Replay of the step-up callback is rejected", "AC-157, AC-164", async () => {
     const ctx = await browser.newContext(L.contextOptions); const page = await ctx.newPage();
     await page.goto(S.stepUpCallback, { waitUntil: "domcontentloaded" }).catch(() => {});
@@ -891,6 +1114,35 @@ async function groupH() {
     return { layer: "browser", expected: "precondition 1 session; step-up started; auth_error=account_disabled; browser signed out; 0 server-side sessions; action PENDING",
       actual: { session_rows_before: before, step_up_started: Boolean(stepUp), trace, landed_error: (landed.match(/auth_error=[a-z_]+/) || [null])[0], me_status: me.status, session_rows_after: rows, pending_status: status }, status: ok ? "PASS" : "FAIL" };
   });
+
+  if (BROWSER === "chromium") {
+    await test("H-10", "Fail closed on step-up without the reference window: with the references' max age at Keycloak's default (0), the late code exchange of H-09 gets an ID token whose amr lacks otp; the step-up is refused (mfa_not_verified), its originating session ends, and the action stays pending, not run", "AC-164, D-SEC-14 (fail closed)", async () => {
+      const user = createUser("stepuplate");
+      const t = await loginReady(user);
+      const tuid = (await L.api(t.page, "/api/me")).data.appUserId;
+      const req = await requestFixtureAction(t.page);
+      const id = req.data && req.data.actionId;
+      const rowsBefore = sessionRows(tuid);
+      const since = Number(L.sql("select coalesce(max(id), 0) from security_event"));
+      const { result: r, restored, restoredTo } = await withReferenceMaxAgeZero(async () => {
+        const hold = await holdCallback(t.context, 3000);
+        let step;
+        try { step = await login(user, { context: t.context, start: `${L.APP}/oauth2/authorization/keycloak?step_up=${id}` }); } finally { await hold.release(); }
+        const q = step.net.authUrl ? new URL(step.net.authUrl).searchParams : new URLSearchParams();
+        return { held: hold.held, trace: step.trace, prompt: q.get("prompt"), landed: step.page.url(), me: (await L.api(step.page, "/api/me")).status };
+      });
+      const refusal = L.sql(`select detail from security_event where id > ${since} and event='login_refused_mfa_required' order by id desc limit 1`);
+      const amr = (refusal.match(/ amr=(\S*)/) || [null, null])[1];
+      const rows = sessionRows(tuid), status = pendingStatus(id), executions = fixtureExecutions(tuid);
+      await t.context.close();
+      const ok = rowsBefore === 1 && typeof id === "string" && r.prompt === "login" && r.trace.includes("otp") && r.held.length === 1 && r.held[0] >= 3000
+        && /auth_error=mfa_not_verified/.test(r.landed) && r.me === 401 && /reason=amr_insufficient/.test(refusal) && amr !== null && !amr.includes("otp")
+        && rows === 0 && status === "PENDING" && executions === 0 && restored;
+      return { layer: "browser", expected: "with max age 0: step-up started; OTP entered; callback held >= 3 s; refused (mfa_not_verified, amr_insufficient, amr without otp); 0 sessions; action PENDING, not run; max age restored",
+        actual: { session_rows_before: rowsBefore, prompt: r.prompt, trace: r.trace, held_ms: r.held, landed_error: (r.landed.match(/auth_error=[a-z_]+/) || [null])[0], me_status: r.me,
+          refusal_reason: (refusal.match(/reason=\S+/) || [null])[0], amr, session_rows_after: rows, pending_status: status, executions, restored_max_age: restoredTo }, status: ok ? "PASS" : "FAIL" };
+    });
+  }
 }
 
 // ---------- R: MFA recovery controls (no self-service reset; administrator-assisted reset) ----------
@@ -926,7 +1178,7 @@ async function groupR() {
       status: ok ? "PASS" : "FAIL" };
   });
 
-  await test("R-02", "Administrator-assisted MFA reset: the factor removal is an admin event naming the administrator; the user must enrol a new authenticator (the old code is not accepted); the enrolment sign-in gets no session and the next sign-in with the new code does, on the same account. The pre-reset application session survives the IdP-side reset and is ended by the interim operator step", "D-SEC-14 (recovery), NFR-SEC-026, NFR-SEC-023", async () => {
+  await test("R-02", "Administrator-assisted MFA reset: the factor removal is an admin event naming the administrator; removing the factor alone does not end the user's ClearSettle session, and the administrator's sign-out of the user at Keycloak does (back-channel logout, no operator step); the user must enrol a new authenticator (the old code is not accepted); the enrolment sign-in gets no session and the next sign-in with the new code does, on the same account", "D-SEC-14 (recovery), D-SEC-18, NFR-SEC-026, NFR-SEC-023", async () => {
     const u = createUser("recover");
     const before = await loginReady(u);
     const uid = (await L.api(before.page, "/api/me")).data.appUserId;
@@ -937,14 +1189,16 @@ async function groupR() {
     // Administrator actions after the (manual, out-of-band) identity verification.
     L.kcadm(`delete users/${id}/credentials/${otp.id} -r clearsettle`);
     L.kcadm(`update users/${id} -r clearsettle -s 'requiredActions=["CONFIGURE_TOTP"]'`);
-    L.kcadm(`create users/${id}/logout -r clearsettle`);
+    const afterRemoval = (await L.api(before.page, "/api/me")).status; // Keycloak notifies no client of a factor removal
+    const since = lastEventId();
+    L.kcadm(`create users/${id}/logout -r clearsettle`); // ends the user's Keycloak sessions: a logout token per session
+    await waitUntil(() => sessionRows(uid) === 0);
+    const afterSignOut = (await L.api(before.page, "/api/me")).status;
+    const logouts = eventsSince(since, "backchannel_logout", uid);
+    const revoked = logouts.reduce((n, d) => n + Number((d.match(/revoked=(\d+)/) || [0, 0])[1]), 0);
     const adminEvents = JSON.parse(L.kcadm(`get admin-events -r clearsettle`)).filter((e) => e.time >= t0 && (e.resourcePath || "").includes(id));
     // Keycloak records the credential removal as an ACTION admin event on the credential's resource path.
     const removal = adminEvents.find((e) => e.resourcePath === `users/${id}/credentials/${otp.id}`);
-    const preResetSession = (await L.api(before.page, "/api/me")).status; // no back-channel logout: expected to still be 200
-    // Interim operator step (until an audited admin session revocation or back-channel logout exists).
-    L.sql(`delete from spring_session where principal_name='${uid}'`);
-    const preResetAfterOperator = (await L.api(before.page, "/api/me")).status;
     await before.context.close();
     u.totpSecret = null;
     const first = await login(u);
@@ -957,10 +1211,10 @@ async function groupR() {
     const ok = removal && removal.authDetails && removal.authDetails.userId && removal.authDetails.realmId
       && first.trace.includes("otp-enrol") && first.trace.indexOf("otp") === -1 && /auth_error=mfa_not_verified/.test(landed) && firstMe.status === 401
       && u.totpSecret && u.totpSecret !== oldSecret && me.status === 200 && me.data.appUserId === uid && oldCode.otpShown && oldCode.onIdp && oldCode.me === 401
-      && preResetAfterOperator === 401;
-    return { layer: "browser", expected: "admin event on the removed credential with the administrator's identity; re-enrolment forced (no OTP prompt for the old factor); enrolment sign-in refused; next sign-in -> same app user; old code refused; operator step ends the pre-reset session",
+      && afterRemoval === 200 && afterSignOut === 401 && revoked === 1 && logouts.every((d) => d.includes("scope=provider_session"));
+    return { layer: "browser", expected: "admin event on the removed credential with the administrator's identity; the pre-reset session still valid after the factor removal alone, refused after the administrator's Keycloak sign-out (back-channel logout of its provider session, 1 session revoked); re-enrolment forced (no OTP prompt for the old factor); enrolment sign-in refused; next sign-in -> same app user; old code refused",
       actual: { admin_event: removal ? { operation: removal.operationType, resource: "users/<id>/credentials/<cred>", admin_user_present: Boolean(removal.authDetails && removal.authDetails.userId), admin_realm: removal.authDetails && removal.authDetails.realmId } : null,
-        pre_reset_session_after_idp_reset: preResetSession, pre_reset_session_after_operator_step: preResetAfterOperator,
+        pre_reset_session_after_factor_removal: afterRemoval, pre_reset_session_after_admin_sign_out: afterSignOut, backchannel_logout_events: logouts, sessions_revoked: revoked,
         reenrol_trace: first.trace, reenrol_landed_error: (landed.match(/auth_error=[a-z_]+/) || [null])[0], new_factor_differs: Boolean(u.totpSecret && u.totpSecret !== oldSecret),
         after_reenrol_me: me.status, same_app_user: me.data && me.data.appUserId === uid, old_code_attempt: oldCode },
       status: ok ? "PASS" : "FAIL" };
@@ -1062,6 +1316,53 @@ async function groupM() {
     await d.context.close();
     const ok = idle.status === 401 && abs.status === 401 && abs.data && abs.data.error === "session_expired";
     return { layer: "integration", expected: "idle > 15 min -> 401 on instance 2; past 8 h -> 401 session_expired on instance 2", actual: { idle_on_2: idle.status, absolute_on_2: abs.status, absolute_error: abs.data && abs.data.error }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  const kcId = kcUserId(user);
+  /** Signs in in a new browser (so a new Keycloak session) and returns it with that session's id. */
+  const signInNewBrowser = async () => {
+    const known = new Set(kcSessions(kcId).map((s) => s.id));
+    const browserSession = await login(user);
+    return { ...browserSession, sid: (kcSessions(kcId).find((s) => !known.has(s.id)) || {}).id };
+  };
+
+  await test("M-07", "Back-channel logout across instances: Keycloak ends one of the user's two provider sessions and posts the logout token to instance 1; that browser's session is refused on both instances, the other browser's session is kept on both", "D-SEC-13, D-SEC-18, AC-163, NFR-SEC-023", async () => {
+    const c = await signInNewBrowser();
+    const d = await signInNewBrowser();
+    const cCookies = await appCookies(c.context); const dCookies = await appCookies(d.context);
+    const before = [(await onInstance2(cCookies, "/api/me")).status, (await onInstance2(dCookies, "/api/me")).status];
+    const since = lastEventId();
+    L.kcadm(`delete sessions/${c.sid} -r clearsettle`); // the administrator ends that one Keycloak session
+    await waitUntil(() => eventsSince(since, "backchannel_logout", uid).length > 0);
+    const r = { c_on_2: (await onInstance2(cCookies, "/api/me")).status, c_on_1: (await L.api(c.page, "/api/me")).status,
+      d_on_2: (await onInstance2(dCookies, "/api/me")).status, d_on_1: (await L.api(d.page, "/api/me")).status };
+    const logouts = eventsSince(since, "backchannel_logout", uid);
+    await c.context.close(); await d.context.close();
+    const ok = Boolean(c.sid && d.sid && c.sid !== d.sid) && before.every((s) => s === 200) && r.c_on_2 === 401 && r.c_on_1 === 401
+      && r.d_on_2 === 200 && r.d_on_1 === 200 && logouts.length === 1 && /scope=provider_session/.test(logouts[0]) && /revoked=1/.test(logouts[0]);
+    return { layer: "integration+browser", expected: "two Keycloak sessions; both app sessions 200 on instance 2; after Keycloak ends the first: it is 401 on both instances, the second 200 on both; one backchannel_logout event, provider session scope, 1 revoked",
+      actual: { distinct_provider_sessions: Boolean(c.sid && d.sid && c.sid !== d.sid), before_on_2: before, ...r, backchannel_logout_events: logouts }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("M-08", "A forged logout token posted straight to an instance (Keycloak's issuer, audience and key id, naming a live session, but signed with another key) is refused with 400 and recorded, and the session is kept on both instances", "D-SEC-13, NFR-SEC-025", async () => {
+    const e = await signInNewBrowser();
+    const cookies = await appCookies(e.context);
+    const jwks = await fetch(`${KC_DIRECT}/realms/clearsettle/protocol/openid-connect/certs`).then((x) => x.json());
+    const kid = (jwks.keys.find((k) => k.use === "sig" && k.alg === "RS256") || {}).kid;
+    const now = Math.floor(Date.now() / 1000);
+    const token = forgedLogoutToken({ iss: L.ISSUER, aud: "clearsettle-web", sub: kcId, sid: e.sid, iat: now, exp: now + 120, jti: crypto.randomUUID(),
+      events: { "http://schemas.openid.net/event/backchannel-logout": {} } }, kid);
+    L.remember("jwt", token); // G-01 then checks that no log contains it
+    const since = lastEventId();
+    const res = await fetch(`${INSTANCE_2}/logout/connect/back-channel/keycloak`, { method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ logout_token: token }) });
+    const rejected = eventsSince(since, "backchannel_logout_rejected");
+    const r = { on_2: (await onInstance2(cookies, "/api/me")).status, on_1: (await L.api(e.page, "/api/me")).status };
+    await e.context.close();
+    const ok = Boolean(kid && e.sid) && res.status === 400 && r.on_2 === 200 && r.on_1 === 200 && rejected.length === 1 && /status=400/.test(rejected[0])
+      && eventsSince(since, "backchannel_logout", uid).length === 0;
+    return { layer: "integration", expected: "400 from instance 2; one backchannel_logout_rejected event; the session still 200 on both instances; no logout recorded",
+      actual: { status: res.status, rejected_events: rejected, ...r }, status: ok ? "PASS" : "FAIL" };
   });
 }
 

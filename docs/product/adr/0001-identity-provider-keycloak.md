@@ -70,6 +70,12 @@ documentation-verified (report §6, accessed 2026-10-16).
   recovery controls that exist are verified (P-08, R-01, R-02; D-SEC-18). Back-channel logout is **not
   implemented**: an IdP-side logout or MFA reset does not end ClearSettle sessions (R-02), which the recovery
   procedure must cover until it is.
+  **Update (20 October 2026):** OIDC back-channel logout is implemented and verified against Keycloak 26.8.1
+  (P-09, R-02, M-07, M-08; `BackChannelLogoutPostgresTest`). When a Keycloak session ends, its ClearSettle
+  sessions end on every instance. Keycloak reports only sessions it still holds: a ClearSettle session kept
+  active past Keycloak's SSO idle timeout outlives its Keycloak session and is not reached (LR-05). A factor
+  removal alone sends nothing, so the reset procedure must sign the user out at Keycloak. Details in the
+  implementation status, "Backend session revocation".
 - ID-token and callback validation (AC-157) — wrong signature, `alg=none`, HS256 with the client secret,
   wrong issuer or audience, expired token, missing or mismatched `nonce`, wrong `state`, missing or tampered
   login-state cookie, a code from another login (PKCE verifier mismatch), a replayed code — is **verified in

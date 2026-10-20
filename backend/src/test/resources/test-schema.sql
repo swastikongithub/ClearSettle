@@ -26,3 +26,9 @@ create table if not exists pending_action (
     created_at timestamp with time zone not null default current_timestamp,
     executed_at timestamp with time zone
 );
+create table if not exists oidc_logout_token_seen (
+    iss varchar(500) not null,
+    jti varchar(500) not null,
+    seen_at timestamp with time zone not null,
+    constraint oidc_logout_token_seen_pk primary key (iss, jti)
+);

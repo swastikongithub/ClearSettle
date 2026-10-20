@@ -48,6 +48,7 @@
   "attributes": {
     "acr.loa.map": "{\"pwd\":1,\"mfa\":2}"
   },
+  "accessCodeLifespan": 60,
   "otpPolicyType": "totp",
   "otpPolicyAlgorithm": "HmacSHA1",
   "otpPolicyDigits": 6,
@@ -216,13 +217,15 @@
     {
       "alias": "cs-ref-pwd",
       "config": {
-        "default.reference.value": "pwd"
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "60"
       }
     },
     {
       "alias": "cs-ref-otp",
       "config": {
-        "default.reference.value": "otp"
+        "default.reference.value": "otp",
+        "default.reference.maxAge": "60"
       }
     }
   ],
@@ -246,7 +249,9 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "https://localhost:8443/",
+        "backchannel.logout.url": "http://backend:8080/logout/connect/back-channel/keycloak",
         "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
         "default.acr.values": "mfa",
         "minimum.acr.value": "mfa"
       },

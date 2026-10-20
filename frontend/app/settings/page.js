@@ -11,7 +11,7 @@ const LATER = [
   { title: "Workspace profile", text: "The business name, base currency and time zone of the workspace.",
     waits: "Needs workspaces" },
   { title: "Members and roles", text: "Invite people, give them roles, and remove access, ending their sessions when you do.",
-    waits: "Needs workspaces and administrator session sign-out" },
+    waits: "Needs workspaces" },
   { title: "Source accounts", text: "The gateway merchant accounts and bank accounts whose files you import.",
     waits: "Needs workspaces" },
   { title: "Financial year and cutover", text: "When your financial year starts, and the date from which ClearSettle keeps your books.",
