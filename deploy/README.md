@@ -104,14 +104,50 @@ Administrator-assisted reset in the dev stack (after verifying the person's iden
 # as the Keycloak admin (kcadm inside the container)
 kcadm.sh delete users/<user-id>/credentials/<otp-credential-id> -r clearsettle
 kcadm.sh update users/<user-id> -r clearsettle -s 'requiredActions=["CONFIGURE_TOTP"]'
-kcadm.sh create users/<user-id>/logout -r clearsettle
-# interim, until ClearSettle has an audited session revocation or back-channel logout:
-psql -c "delete from spring_session where principal_name = '<app_user id>'"
+kcadm.sh create users/<user-id>/logout -r clearsettle   # required: ends the user's ClearSettle sessions (below)
+# interim, until ClearSettle has an audited administrative revocation: sessions the logout could not reach
+psql -c "select count(*) from spring_session where principal_name = (select id::text from app_user where sub = '<user-id>')"
+psql -c "delete from spring_session where principal_name = (select id::text from app_user where sub = '<user-id>')"
 ```
 
-Keycloak's logout does not end ClearSettle sessions; without the last step the user's existing application
-session stays valid (R-02 shows this). The identity-verification procedure, the ClearSettle-side revocation
-and the external review are not built; this is not a production recovery process.
+Removing the factor notifies no client, so the logout step is required: Keycloak then posts a logout token for
+each of the user's Keycloak sessions, and back-channel logout ends the matching ClearSettle sessions (R-02).
+Keycloak reports only the sessions it still holds: a ClearSettle session kept in use past Keycloak's SSO idle
+timeout (30 minutes in this realm) has outlived its Keycloak session and is not reached (LR-05). The last two
+commands find and end those. The identity-verification procedure, an audited ClearSettle-side revocation and
+the external review are not built; this is not a production recovery process.
+
+## OIDC back-channel logout (D-SEC-13, D-SEC-18)
+
+When a user's Keycloak session ends (the user signs out at Keycloak, an administrator signs the user out, or
+ends one session in the admin console), Keycloak posts a signed logout token to the client's back-channel
+logout URL. The realm file sets it to `http://backend:8080/logout/connect/back-channel/keycloak`, on the
+compose network, with the session id (`sid`) required. The backend verifies the token (signature against the
+realm's keys, issuer, audience, the logout event, issued at most 2 minutes ago, each `jti` accepted once on
+every instance) and deletes the matching sessions from the shared store, so every instance refuses them.
+
+- The endpoint is for Keycloak only. The proxy answers 404 for `/logout/connect/` on the public origin; a real
+  deployment must likewise let only the identity provider reach it.
+- Keycloak does not report a session it has already expired (see the reset procedure above).
+- Security events: `backchannel_logout` (scope, sessions ended) and `backchannel_logout_rejected` (reason). No
+  token, `sid` or `jti` is recorded.
+
+On a stack created before 20 October 2026 (the schema is applied when the database is created, and the realm
+is imported when Keycloak's container is), apply it once:
+
+```bash
+MSYS_NO_PATHCONV=1 docker exec clearsettle-db psql -v ON_ERROR_STOP=1 -U postgres -d clearsettle -f /schema/schema.sql
+docker exec clearsettle-db psql -v ON_ERROR_STOP=1 -U postgres -d clearsettle \
+  -c "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rw"   # as db/init.sh does
+# Keycloak (kcadm inside the container, logged in as the admin): find the client's id, then set the URL
+kcadm.sh get clients -r clearsettle -q clientId=clearsettle-web --fields id
+kcadm.sh update clients/<id> -r clearsettle \
+  -s 'attributes."backchannel.logout.url"=http://backend:8080/logout/connect/back-channel/keycloak' \
+  -s 'attributes."backchannel.logout.revoke.offline.tokens"=false'
+docker compose up -d --no-deps --build backend && docker compose restart proxy
+```
+
+(Recreating the Keycloak container instead re-imports the realm, but discards dev users.)
 
 ## Sensitive actions (D-SEC-17) and the dev fixture
 
@@ -155,9 +191,11 @@ node run.mjs firefox  B,C,D,E,H,U,R,K,G
 node run.mjs webkit   B,C,D,E,H,U,R,K,G   # Playwright WebKit = engine proxy, NOT Safari/iOS
 E2E_DEVICE="Pixel 7"   node run.mjs chromium B,C,E,H   # device EMULATION (viewport/UA/touch), not a real device
 E2E_DEVICE="iPhone 15" node run.mjs webkit   B,C,E,H
-node run.mjs chromium M,G              # two instances (start backend-2 first, see above)
+node run.mjs chromium M,G              # two instances (start backend-2 first, see above), including
+                                       # back-channel logout across instances and a forged logout token
 node longrun.mjs chromium              # ~17 min: 15-min idle, 5-min freshness, step-up and expiry of
                                        # sensitive actions, production values
+node longrun-provider.mjs chromium     # ~35 min: a ClearSettle session outliving its Keycloak session (LR-05)
 node engine-samesite-probe.mjs        # which engines enforce SameSite (no stack needed)
 bash ../deploy/f1-logging-regression.sh https://localhost:8443 clearsettle-proxy clearsettle-backend --with-upstream-failure
 ```
@@ -177,7 +215,8 @@ everywhere from the Security page. `B-08` locks a dedicated test user at the IdP
 clears the lockout afterwards.
 
 The backend's PostgreSQL tests (user provisioning under concurrent first sign-ins; single-use confirmation
-under concurrency; the step-up's session lookup on the real Spring Session repository) run only against a
+under concurrency; the step-up's session lookup on the real Spring Session repository; back-channel logout on
+two application instances) run only against a
 disposable database named by `CS_TEST_PG_URL`, `CS_TEST_PG_USER` and `CS_TEST_PG_PASSWORD` (the production
 schema is applied to it); without them `mvn test` reports them as skipped. Never point them at this stack's
 database. `CS_TEST_PG_DIAGNOSTICS=true` additionally runs a diagnostic reproduction of the Spring Session JDBC

@@ -249,7 +249,9 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "https://localhost:8443/",
+        "backchannel.logout.url": "http://backend:8080/logout/connect/back-channel/keycloak",
         "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false",
         "default.acr.values": "mfa",
         "minimum.acr.value": "mfa"
       },

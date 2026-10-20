@@ -177,6 +177,28 @@ function sessionRows(appUserId) {
   return Number(L.sql(`select count(*) from spring_session where principal_name='${appUserId}'`));
 }
 
+const lastEventId = () => Number(L.sql("select coalesce(max(id), 0) from security_event"));
+/** Details of the security events named {@code name} recorded after event id {@code since} (no secrets are stored there). */
+function eventsSince(since, name, appUserId) {
+  const out = L.sql(`select detail from security_event where id > ${since} and event='${name}'${appUserId ? ` and app_user_id='${appUserId}'` : ""} order by id`);
+  return out ? out.split("\n") : [];
+}
+/** Polls until {@code done()} is true or {@code ms} pass. Keycloak posts back-channel logouts during the admin call. */
+async function waitUntil(done, ms = 5000) {
+  for (const end = Date.now() + ms; Date.now() < end; await L.sleep(200)) if (done()) return true;
+  return done();
+}
+/** The user's Keycloak sessions (the id is the provider session id, the ID token's sid). */
+const kcSessions = (kcId) => JSON.parse(L.kcadm(`get users/${kcId}/sessions -r clearsettle`));
+
+/** A logout token as Keycloak would send it, but signed with a fresh key of our own under Keycloak's key id. */
+function forgedLogoutToken(claims, kid) {
+  const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const part = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const input = `${part({ alg: "RS256", typ: "logout+jwt", kid })}.${part(claims)}`;
+  return `${input}.${crypto.sign("RSA-SHA256", Buffer.from(input), privateKey).toString("base64url")}`;
+}
+
 /** Decodes the ID-token claims stored in the persisted security context (the token itself is never printed). */
 function persistedIdTokenClaims(appUserId) {
   const hex = L.sql(`select encode(a.attribute_bytes,'hex') from spring_session_attributes a join spring_session s on s.primary_id=a.session_primary_id where s.principal_name='${appUserId}' and a.attribute_name='SPRING_SECURITY_CONTEXT' order by s.last_access_time desc limit 1`);
@@ -310,6 +332,17 @@ async function groupP() {
         enabled_required_actions: enabled, configure_totp_default: totp.defaultAction, reset_password_allowed: r.resetPasswordAllowed, reset_flow: r.resetCredentialsFlow, reset_flow_steps: resetSteps,
         brute_force: { on: r.bruteForceProtected, permanent: r.permanentLockout, failure_factor: r.failureFactor, wait_increment_s: r.waitIncrementSeconds, max_wait_s: r.maxFailureWaitSeconds },
         events: r.eventsEnabled, admin_events: r.adminEventsEnabled, admin_event_bodies: r.adminEventsDetailsEnabled, event_types: events.length }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("P-09", "Back-channel logout: the client tells Keycloak to post logout tokens to the backend on the internal network, with the provider session id (sid); no front-channel logout; the public origin does not serve the endpoint", "D-SEC-13, D-SEC-18, NFR-SEC-023", async () => {
+    const c = JSON.parse(L.kcadm(`get clients -r clearsettle -q clientId=clearsettle-web`))[0];
+    const a = c.attributes || {};
+    const pub = await http.post(`${L.APP}/logout/connect/back-channel/keycloak`, { form: { logout_token: "x" } });
+    const ok = a["backchannel.logout.url"] === "http://backend:8080/logout/connect/back-channel/keycloak" && a["backchannel.logout.session.required"] === "true"
+      && c.frontchannelLogout === false && pub.status() === 404;
+    return { layer: "integration", expected: "backchannel.logout.url = http://backend:8080/logout/connect/back-channel/keycloak; session required; front-channel off; public origin 404",
+      actual: { backchannel_logout_url: a["backchannel.logout.url"], session_required: a["backchannel.logout.session.required"], frontchannel: c.frontchannelLogout, public_origin_status: pub.status() },
+      status: ok ? "PASS" : "FAIL" };
   });
   await http.dispose();
 }
@@ -1145,7 +1178,7 @@ async function groupR() {
       status: ok ? "PASS" : "FAIL" };
   });
 
-  await test("R-02", "Administrator-assisted MFA reset: the factor removal is an admin event naming the administrator; the user must enrol a new authenticator (the old code is not accepted); the enrolment sign-in gets no session and the next sign-in with the new code does, on the same account. The pre-reset application session survives the IdP-side reset and is ended by the interim operator step", "D-SEC-14 (recovery), NFR-SEC-026, NFR-SEC-023", async () => {
+  await test("R-02", "Administrator-assisted MFA reset: the factor removal is an admin event naming the administrator; removing the factor alone does not end the user's ClearSettle session, and the administrator's sign-out of the user at Keycloak does (back-channel logout, no operator step); the user must enrol a new authenticator (the old code is not accepted); the enrolment sign-in gets no session and the next sign-in with the new code does, on the same account", "D-SEC-14 (recovery), D-SEC-18, NFR-SEC-026, NFR-SEC-023", async () => {
     const u = createUser("recover");
     const before = await loginReady(u);
     const uid = (await L.api(before.page, "/api/me")).data.appUserId;
@@ -1156,14 +1189,16 @@ async function groupR() {
     // Administrator actions after the (manual, out-of-band) identity verification.
     L.kcadm(`delete users/${id}/credentials/${otp.id} -r clearsettle`);
     L.kcadm(`update users/${id} -r clearsettle -s 'requiredActions=["CONFIGURE_TOTP"]'`);
-    L.kcadm(`create users/${id}/logout -r clearsettle`);
+    const afterRemoval = (await L.api(before.page, "/api/me")).status; // Keycloak notifies no client of a factor removal
+    const since = lastEventId();
+    L.kcadm(`create users/${id}/logout -r clearsettle`); // ends the user's Keycloak sessions: a logout token per session
+    await waitUntil(() => sessionRows(uid) === 0);
+    const afterSignOut = (await L.api(before.page, "/api/me")).status;
+    const logouts = eventsSince(since, "backchannel_logout", uid);
+    const revoked = logouts.reduce((n, d) => n + Number((d.match(/revoked=(\d+)/) || [0, 0])[1]), 0);
     const adminEvents = JSON.parse(L.kcadm(`get admin-events -r clearsettle`)).filter((e) => e.time >= t0 && (e.resourcePath || "").includes(id));
     // Keycloak records the credential removal as an ACTION admin event on the credential's resource path.
     const removal = adminEvents.find((e) => e.resourcePath === `users/${id}/credentials/${otp.id}`);
-    const preResetSession = (await L.api(before.page, "/api/me")).status; // no back-channel logout: expected to still be 200
-    // Interim operator step (until an audited admin session revocation or back-channel logout exists).
-    L.sql(`delete from spring_session where principal_name='${uid}'`);
-    const preResetAfterOperator = (await L.api(before.page, "/api/me")).status;
     await before.context.close();
     u.totpSecret = null;
     const first = await login(u);
@@ -1176,10 +1211,10 @@ async function groupR() {
     const ok = removal && removal.authDetails && removal.authDetails.userId && removal.authDetails.realmId
       && first.trace.includes("otp-enrol") && first.trace.indexOf("otp") === -1 && /auth_error=mfa_not_verified/.test(landed) && firstMe.status === 401
       && u.totpSecret && u.totpSecret !== oldSecret && me.status === 200 && me.data.appUserId === uid && oldCode.otpShown && oldCode.onIdp && oldCode.me === 401
-      && preResetAfterOperator === 401;
-    return { layer: "browser", expected: "admin event on the removed credential with the administrator's identity; re-enrolment forced (no OTP prompt for the old factor); enrolment sign-in refused; next sign-in -> same app user; old code refused; operator step ends the pre-reset session",
+      && afterRemoval === 200 && afterSignOut === 401 && revoked === 1 && logouts.every((d) => d.includes("scope=provider_session"));
+    return { layer: "browser", expected: "admin event on the removed credential with the administrator's identity; the pre-reset session still valid after the factor removal alone, refused after the administrator's Keycloak sign-out (back-channel logout of its provider session, 1 session revoked); re-enrolment forced (no OTP prompt for the old factor); enrolment sign-in refused; next sign-in -> same app user; old code refused",
       actual: { admin_event: removal ? { operation: removal.operationType, resource: "users/<id>/credentials/<cred>", admin_user_present: Boolean(removal.authDetails && removal.authDetails.userId), admin_realm: removal.authDetails && removal.authDetails.realmId } : null,
-        pre_reset_session_after_idp_reset: preResetSession, pre_reset_session_after_operator_step: preResetAfterOperator,
+        pre_reset_session_after_factor_removal: afterRemoval, pre_reset_session_after_admin_sign_out: afterSignOut, backchannel_logout_events: logouts, sessions_revoked: revoked,
         reenrol_trace: first.trace, reenrol_landed_error: (landed.match(/auth_error=[a-z_]+/) || [null])[0], new_factor_differs: Boolean(u.totpSecret && u.totpSecret !== oldSecret),
         after_reenrol_me: me.status, same_app_user: me.data && me.data.appUserId === uid, old_code_attempt: oldCode },
       status: ok ? "PASS" : "FAIL" };
@@ -1281,6 +1316,53 @@ async function groupM() {
     await d.context.close();
     const ok = idle.status === 401 && abs.status === 401 && abs.data && abs.data.error === "session_expired";
     return { layer: "integration", expected: "idle > 15 min -> 401 on instance 2; past 8 h -> 401 session_expired on instance 2", actual: { idle_on_2: idle.status, absolute_on_2: abs.status, absolute_error: abs.data && abs.data.error }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  const kcId = kcUserId(user);
+  /** Signs in in a new browser (so a new Keycloak session) and returns it with that session's id. */
+  const signInNewBrowser = async () => {
+    const known = new Set(kcSessions(kcId).map((s) => s.id));
+    const browserSession = await login(user);
+    return { ...browserSession, sid: (kcSessions(kcId).find((s) => !known.has(s.id)) || {}).id };
+  };
+
+  await test("M-07", "Back-channel logout across instances: Keycloak ends one of the user's two provider sessions and posts the logout token to instance 1; that browser's session is refused on both instances, the other browser's session is kept on both", "D-SEC-13, D-SEC-18, AC-163, NFR-SEC-023", async () => {
+    const c = await signInNewBrowser();
+    const d = await signInNewBrowser();
+    const cCookies = await appCookies(c.context); const dCookies = await appCookies(d.context);
+    const before = [(await onInstance2(cCookies, "/api/me")).status, (await onInstance2(dCookies, "/api/me")).status];
+    const since = lastEventId();
+    L.kcadm(`delete sessions/${c.sid} -r clearsettle`); // the administrator ends that one Keycloak session
+    await waitUntil(() => eventsSince(since, "backchannel_logout", uid).length > 0);
+    const r = { c_on_2: (await onInstance2(cCookies, "/api/me")).status, c_on_1: (await L.api(c.page, "/api/me")).status,
+      d_on_2: (await onInstance2(dCookies, "/api/me")).status, d_on_1: (await L.api(d.page, "/api/me")).status };
+    const logouts = eventsSince(since, "backchannel_logout", uid);
+    await c.context.close(); await d.context.close();
+    const ok = Boolean(c.sid && d.sid && c.sid !== d.sid) && before.every((s) => s === 200) && r.c_on_2 === 401 && r.c_on_1 === 401
+      && r.d_on_2 === 200 && r.d_on_1 === 200 && logouts.length === 1 && /scope=provider_session/.test(logouts[0]) && /revoked=1/.test(logouts[0]);
+    return { layer: "integration+browser", expected: "two Keycloak sessions; both app sessions 200 on instance 2; after Keycloak ends the first: it is 401 on both instances, the second 200 on both; one backchannel_logout event, provider session scope, 1 revoked",
+      actual: { distinct_provider_sessions: Boolean(c.sid && d.sid && c.sid !== d.sid), before_on_2: before, ...r, backchannel_logout_events: logouts }, status: ok ? "PASS" : "FAIL" };
+  });
+
+  await test("M-08", "A forged logout token posted straight to an instance (Keycloak's issuer, audience and key id, naming a live session, but signed with another key) is refused with 400 and recorded, and the session is kept on both instances", "D-SEC-13, NFR-SEC-025", async () => {
+    const e = await signInNewBrowser();
+    const cookies = await appCookies(e.context);
+    const jwks = await fetch(`${KC_DIRECT}/realms/clearsettle/protocol/openid-connect/certs`).then((x) => x.json());
+    const kid = (jwks.keys.find((k) => k.use === "sig" && k.alg === "RS256") || {}).kid;
+    const now = Math.floor(Date.now() / 1000);
+    const token = forgedLogoutToken({ iss: L.ISSUER, aud: "clearsettle-web", sub: kcId, sid: e.sid, iat: now, exp: now + 120, jti: crypto.randomUUID(),
+      events: { "http://schemas.openid.net/event/backchannel-logout": {} } }, kid);
+    L.remember("jwt", token); // G-01 then checks that no log contains it
+    const since = lastEventId();
+    const res = await fetch(`${INSTANCE_2}/logout/connect/back-channel/keycloak`, { method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ logout_token: token }) });
+    const rejected = eventsSince(since, "backchannel_logout_rejected");
+    const r = { on_2: (await onInstance2(cookies, "/api/me")).status, on_1: (await L.api(e.page, "/api/me")).status };
+    await e.context.close();
+    const ok = Boolean(kid && e.sid) && res.status === 400 && r.on_2 === 200 && r.on_1 === 200 && rejected.length === 1 && /status=400/.test(rejected[0])
+      && eventsSince(since, "backchannel_logout", uid).length === 0;
+    return { layer: "integration", expected: "400 from instance 2; one backchannel_logout_rejected event; the session still 200 on both instances; no logout recorded",
+      actual: { status: res.status, rejected_events: rejected, ...r }, status: ok ? "PASS" : "FAIL" };
   });
 }
 
