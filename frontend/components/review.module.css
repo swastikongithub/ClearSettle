@@ -1,0 +1,24 @@
+/* The review-and-confirm page: one action, what it will do, and the two choices. */
+
+.wrap { display: grid; gap: var(--s3); max-width: 640px; }
+.head { display: grid; gap: var(--s2); padding-top: var(--s5); }
+
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-sm); font-weight: 500; color: var(--petrol-ink); }
+.state-executed, .state-cancelled { color: var(--ok); }
+.state-expired, .state-not-pending { color: var(--ink-2); }
+.state-changed, .state-unsupported { color: #6d3a05; }
+
+/* The statement being confirmed is the page's centre of gravity. */
+.summary { font-size: var(--t-lg); font-weight: 600; line-height: 1.4; max-width: 52ch; overflow-wrap: anywhere; }
+
+.left { color: var(--ink-3); }
+/* Focus moves to the outcome so it is announced; only keyboard focus draws a ring. */
+.result:focus { outline: none; }
+.result:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.buttons { padding-top: var(--s1); }
+.footnote { color: var(--ink-3); font-size: var(--t-xs); max-width: 62ch; }
+
+@media (max-width: 420px) {
+  .buttons { flex-direction: column; }
+  .buttons > * { width: 100%; }
+}
