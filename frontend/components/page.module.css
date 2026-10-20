@@ -1,0 +1,81 @@
+/* Page building blocks: header, panels, facts, empty states. Left-aligned; panels only where content is a unit. */
+
+.header { display: grid; gap: var(--s1); margin-bottom: var(--s5); max-width: 72ch; }
+.title { font-size: var(--t-xl); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+.subtitle { color: var(--ink-2); font-size: var(--t-sm); }
+
+.stack { display: grid; gap: var(--s5); max-width: 880px; }
+
+.panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.panelHead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s1) var(--s3); padding: var(--s4) var(--s5) var(--s3); }
+.panelTitle { font-size: var(--t-lg); font-weight: 600; }
+.panelNote { color: var(--ink-3); font-size: var(--t-xs); }
+.headAction { margin-left: auto; min-height: 28px; padding: 3px 10px; font-size: var(--t-xs); }
+.panelBody { display: grid; gap: var(--s4); padding: 0 var(--s5) var(--s5); }
+.panelText { color: var(--ink-2); font-size: var(--t-sm); max-width: 66ch; }
+
+/* Label and value pairs */
+.facts { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr); margin: 0; font-size: var(--t-sm); }
+.facts dt, .facts dd { margin: 0; padding: 9px 0; border-top: 1px solid var(--rule-2); }
+.facts dt { color: var(--ink-2); padding-right: var(--s4); }
+.facts dd { overflow-wrap: anywhere; }
+.facts dt:first-of-type, .facts dt:first-of-type + dd { border-top: 0; }
+
+.actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+
+/* Rows that each lead somewhere (settings index) */
+.rows { list-style: none; margin: 0; padding: 0; }
+.row { border-top: 1px solid var(--rule-2); }
+.row:first-child { border-top: 0; }
+.rowLink, .rowStatic { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--s1) var(--s4); padding: var(--s4) var(--s5); }
+.rowLink { color: inherit; text-decoration: none; }
+.rowLink:hover { background: #f7f9f8; }
+.rowLink:hover .rowTitle { color: var(--petrol-ink); }
+.rowTitle { font-weight: 500; }
+.rowText { grid-column: 1; color: var(--ink-2); font-size: var(--t-sm); }
+.rowStatic .rowTitle { color: var(--ink-2); }
+.rowAside { grid-row: 1 / span 2; grid-column: 2; color: var(--ink-3); font-size: var(--t-xs); display: inline-flex; align-items: center; gap: var(--s1); }
+.rowLink .rowAside { color: var(--petrol); }
+
+/* Not built yet: an honest empty state, never sample data */
+.empty { display: grid; gap: var(--s3); justify-items: start; padding: var(--s6) var(--s5); }
+.emptyTitle { font-size: var(--t-lg); font-weight: 600; }
+.emptyText { color: var(--ink-2); font-size: var(--t-sm); max-width: 62ch; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 6px; border-radius: var(--r-control);
+  background: var(--rule-2); color: var(--ink-2); font-size: var(--t-xs); font-weight: 500;
+}
+
+/* The settlement chain without figures: what the overview will show, once there is data */
+.chain { list-style: none; margin: 0; padding: var(--s2) 0 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.stage { position: relative; display: grid; gap: var(--s2); justify-items: start; padding-right: var(--s3); }
+.stage::before {
+  content: ""; position: absolute; left: 32px; right: 0; top: 15px; border-top: 2px dashed var(--rule);
+}
+.stage:last-child::before { display: none; }
+.stageDot {
+  position: relative; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--rule); background: var(--sheet); color: var(--ink-3);
+}
+.stageName { font-size: var(--t-sm); font-weight: 500; color: var(--ink-2); }
+.stageValue { font-size: var(--t-sm); color: var(--ink-3); }
+
+@media (max-width: 1100px) {
+  .chain { grid-template-columns: 1fr; gap: 0; }
+  .stage { grid-template-columns: 32px 1fr; column-gap: var(--s3); align-items: center; padding: 0 0 var(--s4); }
+  .stage::before { left: 15px; right: auto; top: 32px; bottom: 0; border-top: 0; border-left: 2px dashed var(--rule); }
+  .stageDot { grid-row: 1 / span 2; }
+}
+@media (max-width: 640px) {
+  .facts { grid-template-columns: 1fr; }
+  .facts dt { padding-bottom: 0; }
+  .facts dd { border-top: 0; padding-top: 2px; }
+  .panelHead, .panelBody { padding-left: var(--s4); padding-right: var(--s4); }
+  .rowLink, .rowStatic { padding-left: var(--s4); padding-right: var(--s4); }
+}
+
+/* Loading placeholder and message internals shared by pages */
+.loading { padding: var(--s5); }
+.msgBody { display: grid; gap: var(--s2); min-width: 0; }
+.msgTitle { font-weight: 600; }
+.msgList { margin: 0; padding-left: 1.1em; display: grid; gap: var(--s1); }

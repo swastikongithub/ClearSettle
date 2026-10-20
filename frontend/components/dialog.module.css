@@ -1,0 +1,22 @@
+/* Dialogs (Radix AlertDialog): confirmation and short focused tasks only (proposal §4). */
+
+.overlay { position: fixed; inset: 0; z-index: 60; background: rgba(23, 35, 43, 0.45); }
+.content {
+  position: fixed; z-index: 61; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+  padding: var(--s5); background: var(--sheet); border-radius: var(--r-panel); box-shadow: var(--shadow-dialog);
+}
+.content:focus { outline: none; }
+.title { font-size: var(--t-lg); font-weight: 600; }
+.description { margin-top: var(--s2); color: var(--ink-2); font-size: var(--t-sm); }
+.countdown {
+  display: flex; align-items: baseline; gap: var(--s2); margin-top: var(--s4); padding: var(--s3) var(--s4);
+  border-radius: var(--r-control); background: var(--paper); font-size: var(--t-sm); color: var(--ink-2);
+}
+.countdown strong { font-size: var(--t-xl); font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.error { margin-top: var(--s4); }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s2); margin-top: var(--s5); }
+@media (max-width: 420px) {
+  .actions { flex-direction: column-reverse; }
+  .actions > * { width: 100%; }
+}

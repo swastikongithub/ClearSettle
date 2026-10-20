@@ -64,7 +64,15 @@ including same-site cookie-tossing rejected by the CSRF layer, not by content-ty
   an explicit validation gap until tested; do not claim those environments pass. **M1:** Playwright's
   WebKit engine was tested (see the notes below); real Safari and iOS/Android browsers remain
   **unverified**.
-- Decide and implement the external-deep-link re-entry UX under `SameSite=Strict`. **OUTSTANDING.**
+- Decide and implement the external-deep-link re-entry UX under `SameSite=Strict`. **Done (20 October
+  2026), with no extra re-entry step.** The frontend is a static export that learns the session from its own
+  API requests. The page request that follows a link from another site arrives without the session cookie,
+  but the page's API requests are same-site and carry it, so the user lands on the linked page still signed
+  in. When there is no session, the sign-in screen remembers the page and returns the user to it after
+  sign-in. Evidence: U-06 in Chromium and Firefox (the page request carried no session cookie, the API
+  request did, and the section was shown signed in); U-03 (return after sign-in). In Playwright WebKit the
+  user also lands signed in, but the engine hides request cookies (`NOT-OBSERVABLE`). Real Safari and
+  mobile browsers remain unverified.
 
 ## Implementation notes from M1 integration testing (2026-10-16)
 

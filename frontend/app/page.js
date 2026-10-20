@@ -1,48 +1,56 @@
-"use client";
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import Link from "next/link";
+import AppShell from "../components/AppShell";
+import Icon from "../components/Icon";
+import { PageHeader, Panel } from "../components/Page";
+import s from "../components/page.module.css";
 
-// Minimal home: shows authentication status and a sign-in link. Login is initiated by navigating to the
-// backend's OIDC authorization endpoint (same origin); the backend owns the flow (D-SEC-11).
-export default function Home() {
-  const [me, setMe] = useState({ status: "loading" });
-  const [authError, setAuthError] = useState(null);
+export const metadata = { title: "Overview" };
 
-  useEffect(() => {
-    setAuthError(new URLSearchParams(window.location.search).get("auth_error"));
-    api("/api/me").then(setMe);
-  }, []);
+const STAGES = [
+  { name: "Merchant orders", icon: "rows" },
+  { name: "Successful payments", icon: "link" },
+  { name: "Settlement lines", icon: "rows" },
+  { name: "Payouts", icon: "upload" },
+  { name: "Bank credits", icon: "book" },
+  { name: "Posted journals", icon: "book" },
+];
 
+export default function OverviewPage() {
   return (
-    <main>
-      <h1>ClearSettle</h1>
-      <p id="auth-error">{authError ? `auth_error=${authError}` : "no auth error"}</p>
-      {authError === "mfa_not_verified" && (
-        // The approved first-login behaviour (D-SEC-14): the sign-in that enrols the authenticator does not
-        // itself verify a factor, so no session is created; the next sign-in with a code does.
-        <p id="auth-help">
-          Your authenticator app is set up. For your security, sign in once more and enter a code from it.
-        </p>
-      )}
-      <p id="me-status">session: {me.status === 200 ? "authenticated" : "not authenticated"}</p>
-      <p>
-        <a id="login" href="/oauth2/authorization/keycloak">Sign in</a>
-      </p>
-      {me.status === 200 && (
-        <button
-          id="logout"
-          onClick={async () => {
-            const r = await api("/logout", { method: "POST" });
-            if (r.data && r.data.providerLogoutUrl) {
-              window.location.href = r.data.providerLogoutUrl;
-            } else {
-              window.location.reload();
-            }
-          }}
-        >
-          Sign out
-        </button>
-      )}
-    </main>
+    <AppShell>
+      <PageHeader title="Overview" subtitle="Where the money is for a period, and what stops you from closing it." />
+      <div className={s.stack}>
+        <Panel title="No period data yet" labelledBy="chain-title">
+          <p className={s.panelText}>
+            The overview follows each period&rsquo;s money from merchant orders to the bank and the ledger, and shows every
+            gap between them. It fills in once files are imported and reconciled. Importing isn&rsquo;t available in this
+            build yet, so there are no figures to show.
+          </p>
+          <ol className={s.chain} aria-label="Settlement chain, no data yet">
+            {STAGES.map((stage) => (
+              <li key={stage.name} className={s.stage}>
+                <span className={s.stageDot}><Icon name={stage.icon} size={14} /></span>
+                <span className={s.stageName}>{stage.name}</span>
+                <span className={s.stageValue}>No data</span>
+              </li>
+            ))}
+          </ol>
+        </Panel>
+        <section className={s.panel} aria-labelledby="available-title">
+          <div className={s.panelHead}>
+            <h2 className={s.panelTitle} id="available-title">Available now</h2>
+          </div>
+          <ul className={s.rows}>
+            <li className={s.row}>
+              <Link href="/settings/security/" className={s.rowLink}>
+                <span className={s.rowTitle}>Security and sessions</span>
+                <span className={s.rowText}>See how you&rsquo;re signed in, and sign out of other browsers and devices.</span>
+                <span className={s.rowAside}><Icon name="chevron" /></span>
+              </Link>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </AppShell>
   );
 }

@@ -64,7 +64,9 @@ const stepLanded = new URL(stepPage.url());
 const reviewed = await stepPage.locator("#action-summary").waitFor({ timeout: 10000 }).then(() => true, () => false);
 const execAfterStepUp = executions(cMe.appUserId);
 await stepPage.click("#confirm").catch(() => {});
-const confirmResult = await stepPage.locator("#confirm-result").innerText({ timeout: 10000 }).catch(() => "");
+const resultEl = stepPage.locator("#confirm-result");
+const confirmResult = await resultEl.waitFor({ timeout: 10000 }).then(async () => ({ outcome: await resultEl.getAttribute("data-outcome"),
+  httpStatus: await resultEl.getAttribute("data-http-status") }), () => ({ outcome: null, httpStatus: null }));
 const execAfterConfirm = executions(cMe.appUserId);
 const x2replay = await L.api(stepPage, `/api/sensitive-actions/${x2id}/confirm`, { method: "POST" });
 const cAfter = (await L.api(stepPage, "/api/me")).data;
@@ -96,7 +98,7 @@ rec.add({ id: "LR-03", title: "Sensitive action after 5 min (wall clock): the re
   actual: lr3,
   status: lr3.request === "401:step_up_required" && lr3.step_up_url && lr3.confirm_before_step_up === "401:step_up_required" && lr3.executions_before_step_up === 0
     && stepTrace.includes("otp") && lr3.landed.startsWith("/review") && lr3.landed_action_matches && reviewed && execAfterStepUp === 0
-    && /result: 200 executed/.test(confirmResult) && execAfterConfirm === 1 && lr3.replay === "409:action_not_pending" && lr3.absolute_anchor_unchanged ? "PASS" : "FAIL" });
+    && confirmResult.outcome === "executed" && confirmResult.httpStatus === "200" && execAfterConfirm === 1 && lr3.replay === "409:action_not_pending" && lr3.absolute_anchor_unchanged ? "PASS" : "FAIL" });
 rec.add({ id: "LR-04", title: "A sensitive action left unconfirmed for 5 min (wall clock) has expired and is refused", requirement: "D-SEC-14, NFR-SEC-024", layer: "integration+browser",
   expected: "requested fresh at t<0 (202); confirm after 5.5 min -> 410 action_expired; never executed",
   actual: { request: x1.status, confirm_after_5_5min: `${x1confirm.status}:${x1confirm.data && x1confirm.data.error}` },
