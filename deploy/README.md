@@ -197,6 +197,7 @@ node longrun.mjs chromium              # ~17 min: 15-min idle, 5-min freshness, 
                                        # sensitive actions, production values
 node longrun-provider.mjs chromium     # ~35 min: a ClearSettle session outliving its Keycloak session (LR-05)
 node engine-samesite-probe.mjs        # which engines enforce SameSite (no stack needed)
+node landing.mjs chromium             # the landing page /welcome/ (D-UI-15), any engine; no sign-in, no realm change
 bash ../deploy/f1-logging-regression.sh https://localhost:8443 clearsettle-proxy clearsettle-backend --with-upstream-failure
 ```
 
@@ -216,6 +217,13 @@ application shell itself: the review page, return to the page asked for after si
 browser clock is advanced, so it takes seconds), an external deep link under `SameSite=Strict`, and sign out
 everywhere from the Security page. `B-08` locks a dedicated test user at the IdP and
 clears the lockout afterwards.
+`landing.mjs` (`I-01` to `I-12`) checks the public landing page, the Intaglio prototype: loads and reloads,
+keyboard order, a first frame complete before WebGL, exploring the seal by keyboard, an open difference that
+cannot be closed and an explained one that closes with its evidence, choosing a ring by pointer and by touch,
+reduced motion, no rendering while idle, the 2D still carrying every state without WebGL, the contrast of
+every line of text over the steel as the light moves (at two window sizes), the pinned stage on a phone, and
+the plain statement of what exists today. It needs only the proxy serving `frontend/out`. In Chromium on Windows it asks for Direct3D (`--use-angle=d3d11`),
+because headless Chromium otherwise draws WebGL in software, which the page deliberately refuses.
 
 The backend's PostgreSQL tests (user provisioning under concurrent first sign-ins; single-use confirmation
 under concurrency; the step-up's session lookup on the real Spring Session repository; back-channel logout on
@@ -227,8 +235,9 @@ behaviour behind defect 12; it depends on PostgreSQL's query plan, so it is not 
 
 Result statuses: `PASS`, `FAIL`, `ERROR` (the test could not run), `ENGINE-LIMITATION` (a browser-jar
 SameSite assertion in an engine shown by the probe not to implement SameSite: Playwright WebKit on
-Windows) and `NOT-OBSERVABLE` (the engine shows the harness no `Set-Cookie` response headers, or no `Cookie`
-request headers). Only `PASS`
+Windows; and `I-02` in WebKit, whose Tab key skips links by default, as Safari's does) and `NOT-OBSERVABLE`
+(the engine shows the harness no `Set-Cookie` response headers, or no `Cookie` request headers; or, for the
+landing checks, the engine cannot run, or cannot be denied, GPU WebGL here). Only `PASS`
 counts as verified.
 
 ## F-1 logging regression

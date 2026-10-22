@@ -32,6 +32,6 @@ The authentication implementation lives under `backend/` (Spring Boot OIDC + ses
 - Supported file formats and import validation — specification §4; provider formats still open (OQ-07, OQ-08)
 - Architecture decisions and data model — authentication session architecture approved as D-SEC-11, with the identity provider (D-SEC-12), session policy (D-SEC-13), MFA (D-SEC-14) and SameSite strategy (D-SEC-15) approved 16 October 2026 and captured as ADRs in `product/adr/`; other architecture decisions and the data model still to develop
 - API contracts
-- UI specification (marketing site, authentication, and application separately) — application and authentication proposal in `design/` (pending owner approval); marketing site deferred (D-DEF-01)
+- UI specification (marketing site, authentication, and application separately) — application and authentication proposal in `design/` (pending owner approval); marketing landing page authorized 20 October 2026 (owner waived the D-DEF-01 condition); its direction is "Intaglio" (D-UI-15, 21 October 2026), built as a prototype at `/welcome/` for review
 - Test and verification plan — outline in specification §12.3
 - Deployment and operations runbook
