@@ -1,14 +1,15 @@
 # ClearSettle — Implementation Status
 
 **Scope so far:** M1 authentication foundation (D-SEC-11 to D-SEC-19), the first frontend increment, the
-application shell (D-UI-07 to D-UI-13), and the backend session revocation (OIDC back-channel logout, step 2
-of D-UI-13). This document records one row per
+application shell (D-UI-07 to D-UI-13), the backend session revocation (OIDC back-channel logout, step 2
+of D-UI-13), and a prototype of the public landing page at `/welcome/` (D-UI-15). This document records one row per
 relevant requirement, per the implementation plan §6. A requirement is marked verified only with recorded
 test evidence; the status changes in the same commit as the work it describes.
 
-**Last updated:** 2026-10-20 (backend session revocation: OIDC back-channel logout, verified on two
+**Last updated:** 2026-10-22 (the landing page prototype at `/welcome/`, D-UI-15, built on 21 and 22 October, and its checks rerun on the code as committed; before it, on 2026-10-20, backend session revocation: OIDC back-channel logout, verified on two
 instances against PostgreSQL and live against Keycloak; P-09, R-02, M-07, M-08 and the wall-clock LR-05; and a
-realm correction: `amr` keeps `otp` when the code is exchanged after the OTP step, defect 14). Earlier the same
+realm correction: `amr` keeps `otp` when the code is exchanged after the OTP step, defect 14; then the results
+per browser engine on the final code). Earlier the same
 day: the application shell (sign-in states, return to the page asked for,
 the idle warning, Security and sessions, the review page; browser group U). Previously, 2026-10-19: owner approval of
 the frontend design defaults, the PostgreSQL user-provisioning fix, reviewed-version binding for sensitive
@@ -423,17 +424,33 @@ Browser runs on the final code (20 October 2026, after the `amr` correction), co
 | Engine | Groups | PASS | FAIL | ENGINE-LIMITATION | NOT-OBSERVABLE |
 |---|---|---|---|---|---|
 | Chromium | A, P, B, C, D, E, H, U, R, K, M, G | 75 | 0 | 0 | 0 |
-| Firefox | A, B, C, D, E (H, U, R, K, G still running when this was committed) | 33 | 0 | 0 | 0 |
-| WebKit (engine proxy, not Safari) | not yet run on the final code | — | — | — | — |
+| Firefox | A, B, C, D, E, H, U, R, K, G | 52 | 0 | 0 | 0 |
+| WebKit (engine proxy, not Safari) | A, B, C, D, E, H, U, R, K, G | 48 | 0 | 2 | 2 |
 
-- Chromium covers back-channel logout (P-09, R-02, M-07, M-08), step-up (H, including the delayed H-09 and
-  H-10), CSRF (E), the session timeouts (D) and the two instances (M).
-- R-02 has run in Chromium only so far. Group M (two instances, including M-07 and M-08) runs in Chromium only,
-  as the deploy README lists it.
+- All three engines cover back-channel logout on an MFA reset (R-02), step-up (H, including the delayed
+  H-09), CSRF (E) and the session timeouts (D). P-09 and group M (two instances, including M-07 and M-08) run
+  in Chromium only, as the deploy README lists them. B-06, B-11, B-12 and H-10 change the realm while they
+  run, so they are Chromium-only too.
+- WebKit's four results other than PASS are cookie checks that its Windows build cannot show. Chromium and
+  Firefox assert all four.
+  - C-01 and C-02 (ENGINE-LIMITATION): the build stores every cookie as `SameSite=None`
+    (`engine-samesite-probe.mjs`). The cookies' other attributes matched.
+  - C-05 and U-06 (NOT-OBSERVABLE): the build shows the harness neither `Set-Cookie` response headers nor
+    `Cookie` request headers. In U-06 the shell came up signed in on the linked section, so its API calls
+    carried the session cookie; whether the page request did cannot be seen.
+- The WebKit run first stopped at B-09, before any assertion. Playwright cannot fulfil an intercepted request
+  with a redirect status in WebKit, so the held redirect to the callback could not be handed back.
+  - In WebKit the held redirect is now handed over as a Keycloak-origin page with one link to the same
+    callback URL. Chromium and Firefox still get the redirect.
+  - The code still reaches ClearSettle at least 3 s after the OTP step (WebKit: B-09 held 3009 ms, H-09
+    3013 ms). The table counts the WebKit run after that change.
+- The Chromium and Firefox rows are their runs before that change. The change touches only the hold, used in
+  groups B and H, and a branch of the sign-in helper reached only from the page the hold serves in WebKit.
+  B and H then re-ran on the changed harness: Chromium 23 PASS, Firefox 19 PASS, no other result.
 - LR-05 ran once, on 20 October, on the same revocation code but before the `amr` correction. It was not
   re-run on the final code.
-- The Firefox and WebKit totals will be added when their runs finish. An earlier WebKit run, before the
-  correction, failed B-04: it found defect 14, and its results are not counted here.
+- An earlier WebKit run, before the correction, failed B-04: it found defect 14, and its results are not
+  counted here.
 
 ## Keycloak `amr` timing correction (defect 14), 2026-10-20
 
@@ -477,21 +494,121 @@ step, whatever the clock.
 | Test | What it shows | With the old value (Chromium, before the fix) | Final code |
 |---|---|---|---|
 | P-10 | The configuration: level 2 max age 0, minimum ACR `mfa`, both references valid for the code lifetime | FAIL (no max age) | PASS (reads the configuration, so it does not depend on the engine) |
-| B-09 | The redirect to the callback is held 3 s after the OTP step. The sign-in gets a session; `acr=mfa`; `amr` includes `pwd` and `otp` | FAIL (refused, `mfa_not_verified`) | PASS: Chromium, Firefox (held 3.0 s; `amr` `pwd`, `otp`) |
-| B-10 | A sign-in seconds after another, in the same Keycloak session, is asked for a code; nothing reaches the callback before it | PASS | PASS: Chromium, Firefox. `amr` also listed the earlier `pwd` |
+| B-09 | The redirect to the callback is held 3 s after the OTP step. The sign-in gets a session; `acr=mfa`; `amr` includes `pwd` and `otp` | FAIL (refused, `mfa_not_verified`) | PASS: Chromium, Firefox, WebKit (each held 3.0 s; `amr` `pwd`, `otp`) |
+| B-10 | A sign-in seconds after another, in the same Keycloak session, is asked for a code; nothing reaches the callback before it | PASS | PASS: Chromium, Firefox, WebKit. `amr` also listed the earlier `pwd` |
 | B-11 | With the old value (0), the same held sign-in is refused: `amr_insufficient`, `amr` without `otp` | PASS | PASS: Chromium |
 | B-12 | With the client's ACR requirement removed, a code issued from the Keycloak session alone is refused on `acr`; its `amr` listed `pwd` only, not the earlier `otp` | (added after that run) | PASS: Chromium (`acr=pwd`, `acr_insufficient`) |
-| H-09 | A step-up with the callback held 3 s reaches the review page with fresh evidence (`acr=mfa`, `amr` with `otp`, the step-up's own `auth_time`), and the action is confirmed once | FAIL (refused; its originating session ended, so H-04 failed too) | PASS: Chromium |
+| H-09 | A step-up with the callback held 3 s reaches the review page with fresh evidence (`acr=mfa`, `amr` with `otp`, the step-up's own `auth_time`), and the action is confirmed once | FAIL (refused; its originating session ended, so H-04 failed too) | PASS: Chromium, Firefox, WebKit (each held 3.0 s; `amr` `pwd`, `otp`) |
 | H-10 | With the old value, the held step-up is refused, its originating session ends, and the action stays pending, not run | PASS | PASS: Chromium |
 
-Final-code runs on 20 October:
+Final-code runs on 20 October: B-09, B-10 and H-09 passed in all three engines, and no engine had a FAIL or
+ERROR in any group. WebKit reported four cookie checks it cannot show as ENGINE-LIMITATION or NOT-OBSERVABLE;
+the counts and reasons are under "Backend session revocation". B-11, B-12 and H-10 change the realm while they
+run, so they are Chromium-only.
 
-- **Chromium:** every group passed.
-- **Firefox:** still running when this was committed; group B had passed, including B-09 and B-10.
-- **WebKit:** not yet run on the final code.
+## Landing page (`/welcome/`): the Intaglio prototype, 2026-10-21
 
-Their results will be added when the runs finish. B-11, B-12 and H-10 change the realm while they run, so they
-are Chromium-only.
+The public landing page, at prototype scope, built to D-UI-15 ("Intaglio"). The owner withdrew the first
+direction (D-UI-14) on 21 October 2026; its page was never committed and is no longer in the working tree. The
+prototype is the hero, the chapters "the seal" and "a difference", and the printed section on what exists today;
+the rest of the page waits for the owner's review. Every figure is illustrative and labelled so. No route, sign-in
+flow, session handling or security control changed: `/` is still the application.
+
+| Part | What it does | Status and evidence |
+|---|---|---|
+| Route (`app/welcome/page.js`) | A static page in the existing export; `/welcome` redirects to `/welcome/`. Its links do not prefetch the application; Bodoni Moda is preloaded and loaded on this route only | Verified (browser): `I-01` (load, reload, the address without its slash; `/` still shows the sign-in) |
+| Hero | "Six records. One seal.", "Inspect the seal" (in page), "Sign in" (`/`), and the illustrative note, over the steel seal | Verified (browser): `I-02` (keyboard order, visible focus, the skip link), `I-10` (contrast) |
+| The seal (`components/intaglio/gl/`) | One illustrative payment's six records as six steel rings and a medallion, drawn with `three` and three custom shaders: guilloché computed per pixel from each record's own figures, microtext of the record, its divisions by amount, a latent reference that shows only in low light, numerals in colour-shifting ink, analytic shadows. An opening sequence: the engraving is cut, the rings turn into register outermost first, the notches light | Verified (browser): `I-03` (the first frame before WebGL, then the scene), `I-08` (no frames while idle) |
+| Explore the seal | The ring list (pressed state) opens a ring's record in its source's format with its arithmetic; a loupe reads the microtext; a lamp (two sliders, or the pointer) rakes the steel. Pointer and touch on the rings choose them | Verified (browser): `I-04` (keyboard), `I-06` (pointer and touch) |
+| Investigate a difference | Six cases. An open one stays out of register, its engraving in moiré, and "Try to close it" is refused with the reason; an explained one closes when "Apply the evidence" applies the report's own lines | Verified (browser): `I-05` |
+| Engraving into evidence | "Read the evidence" unrolls the two compared rings into flat strips engraved with their records | Verified (browser): `I-05` (the view opens and closes) |
+| The 2D still (`still.js`) | The same geometry in two dimensions: the first frame, the whole experience without WebGL or after a lost context (every state, including the strips), and, in ink on the tint, the printed impression | Verified (browser): `I-03`, `I-09` |
+| Reduced motion | No opening sequence, no drift, no camera travel: states change directly | Verified (browser): `I-07` |
+| Phone | The steel pinned across the top half; the text scrolls beneath it | Verified (browser): `I-11` |
+| What exists today | Works today, next and planned, as this document states them; the review step is described as guarding only a development fixture | Verified (browser): `I-12`; text checked against this document |
+| Example data (`lib/landingExample.mjs`, `lib/intaglioSeal.mjs`) | Whole paise. Each ring's divisions are its record's own amounts and must sum to it; each case's offset follows from its difference | Verified (unit): `landingExample.test.mjs` 9 tests, `intaglioSeal.test.mjs` 10 tests |
+
+- Frontend unit tests: 43, all passing (24 earlier; `landingExample.test.mjs` 9 and `intaglioSeal.test.mjs` 10,
+  new). `npm run build` passes.
+- Landing checks (`e2e/landing.mjs`, `I-01` to `I-12`; run on 21 October and again on 22 October on the code as
+  committed, with the same results): Chromium 12 PASS;
+  Firefox 12 PASS (the touch half of `I-06` not run: Playwright has no touch emulation for Firefox); WebKit 10 PASS,
+  `I-02` ENGINE-LIMITATION (WebKit's Tab skips links by default, as Safari's does; the same order passes in Chromium
+  and Firefox) and `I-09` NOT-OBSERVABLE (WebGL cannot be turned off for WebKit here).
+- What the checks found on their first run, all fixed: the opening's lamp drift started even when the reader had
+  already scrolled past the hero, so the scene kept drawing 30 frames a second elsewhere (`I-08`); the leader line
+  to a lifted outer ring ended under the text column, where a click reached the list instead of the ring (`I-06`);
+  and, measured line by line instead of per block, the right end of the hero headline (2.49:1 against 3:1) and the
+  ring list's amounts beside a lifted outer ring (3.53:1 against 4.5:1) fell short. The scrim now follows the text
+  column's own edge rather than a share of the window; the lowest measured since, in any engine, is 4.20:1 for the
+  headline (needs 3:1) and 5.38:1 for body text (1280 × 640, needs 4.5:1); the values move a little with the light
+  from run to run. Also found in review and fixed: the loupe on the outer
+  ring's front was half outside the frame.
+- Accessibility: axe-core 4.10.3 (WCAG 2.0 to 2.2 A and AA, and best practices), run from outside the repository, in
+  four states (the hero; a ring chosen; the evidence of an explained case; a phone in "a difference"): 0 violations,
+  on 21 October and again on 22 October on the code as committed.
+  axe leaves contrast over the canvas to manual review; `I-10` measures it from pixels in all three engines. Every
+  action in the artwork also exists as a button or a slider, with its state written out.
+- Application regression: `node run.mjs chromium A,U` (`A-01` and the application shell): 7 PASS, 21 October. On
+  22 October, on the code as committed, the full documented Chromium suite, `node run.mjs chromium
+  P,B,C,D,E,H,U,R,K,G`: 66 PASS, no FAIL or ERROR.
+- Rendered and reviewed (Chromium): 1440 × 900 in every state, 2560 × 1080, 1280 × 640, 820 × 1180 and 390 × 844;
+  no horizontal overflow at any size; contrast also measured at 1366 × 768 and 1920 × 1080. Firefox and WebKit
+  render the same scene.
+- Bundle (production export, gzip): `/welcome/` loads 187.6 KB of script at first, 15.0 KB of it its own; the
+  scene is a separate 141.9 KB chunk (561 KB uncompressed), fetched after the first paint and only where WebGL 2
+  is drawn by a GPU; Bodoni Moda is 45.2 KB. No application route loads any of them. Measured with Python's `gzip`
+  at its default level, and confirmed on the code as committed. The local proxy (`deploy/nginx/nginx.conf`) does
+  not compress responses, so locally it sends the scene as its full 561 KB.
+
+Performance, measured (Chromium with Direct3D, on one laptop: NVIDIA GeForce RTX 4060 Laptop and, forced with
+`--force_low_power_gpu`, Intel UHD Graphics; on mains power, 22 October; GPU time from timer queries on the page's
+own context; harness outside the repository). Frames per second while something moves, and GPU milliseconds per
+frame (median / 95th percentile):
+
+| | RTX 4060, 1440 × 900 | Intel UHD, 1440 × 900 | Intel UHD, 1440 × 900 at 2x | Intel UHD, 390 × 844 at 3x |
+|---|---|---|---|---|
+| Opening sequence | 60.0 fps; 0.8 / 0.8 ms | 47.4 fps; 16.7 / 34.9 ms | 55.0 fps; 16.6 / 18.7 ms | 60.1 fps; 6.1 / 8.2 ms |
+| Scrolling to the seal | 59.8; 0.7 / 0.8 | 57.9; 13.8 / 18.4 | 58.4; 13.5 / 16.7 | 59.7; 7.1 / 9.6 |
+| A ring chosen (lift and loupe) | 59.0; 1.4 / 2.5 | 49.2; 19.2 / 21.7 | 49.3; 19.3 / 21.5 | 59.7; 10.2 / 15.4 |
+| The loupe following the pointer | 59.7; 0.9 / 3.7 | 46.8; 19.1 / 21.3 | 46.9; 19.1 / 21.2 | (no pointer on a phone) |
+| A difference (moiré) | 58.0; 2.9 / 3.5 | 50.3; 16.0 / 20.7 | 50.7; 16.0 / 20.7 | 56.9; 7.3 / 10.8 |
+| The evidence unrolling (GPU only) | 3.9 / 4.2 ms | 14.7 / 16.9 ms | 14.7 / 16.8 ms | 7.7 / 9.4 ms |
+| Nothing changing | 0 frames | 0 frames | 0 frames | 0 frames |
+| First paint; first 3D frame | 0.28 s; 0.74 s | 0.35 s; 0.77 s | 0.29 s; 0.70 s | 0.59 s; 1.01 s |
+| Longest task before the 3D frame | 93 ms | 88 ms | 69 ms | 80 ms |
+
+- The same code on battery (24% charge, 21 October) was slower on the integrated GPU (a ring chosen 42.6 to 45.2
+  frames a second, first 3D frame 1.6 to 1.8 s, longest task before it 233 ms): the figures move with the machine's
+  power state. On the integrated GPU the timer values sit near 16.7 ms and probably include waiting for the display,
+  so they are upper bounds. The lamp drifting on its own is capped at 30 frames a second; integrated GPUs draw at 1x,
+  and every GPU steps its resolution down when frames are slow.
+- With the CPU slowed four times on the integrated GPU: on mains power 46.7 to 57.7 frames a second, first 3D frame
+  1.71 s, longest task 318 ms; on battery the scene fell to 8 to 25 frames a second and, as designed, handed over to
+  the 2D still, and the rest of that run used the still.
+- The still's cost, measured: drawn at 2x on the integrated GPU it took 0.3 to 1.5 s to rasterize in most runs of
+  a benchmark, and the next WebGL call waited for it (one 834 ms task before the scene's first frame); drawn at 1x,
+  under 30 ms. It is now drawn at 1x as the first frame and at full resolution only as the fallback; the printed
+  impression is drawn only as it nears the window.
+- Memory: 12.8 to 17.4 MB of JavaScript heap with the scene running.
+
+Known limitations:
+
+- Real Safari, iOS and Android remain untested (D-UI-10). Playwright's WebKit on Windows stands in for Safari's
+  engine and is slow here (on battery: interactive after about 2 s, the scene at 9 to 20 frames a second, the
+  evidence unrolling in about 6 s; on mains power, in about 2 s).
+- Performance was measured on one laptop; no phone GPU was measured (the phone column is the laptop's integrated
+  GPU at a phone's size and density). Load times were measured from the local proxy over loopback, so they include
+  no network transfer.
+- The slow-device hand-over was seen only under artificial CPU slowing; the threshold (fewer than 20 frames a second
+  at the lowest resolution) is a judgement, not yet checked on a real slow device.
+- Without WebGL the still shows the microtext as texture; the legible microtext is the scene's, read in the loupe.
+  The pointer-following loupe needs a mouse; on touch the loupe shows the chosen ring.
+- On a phone the evidence strips' lettering is small; the same figures are in the text below the stage.
+- At 1440 × 900 the "Read the evidence" button sits below the fold of the "a difference" panel; scrolled to it, the
+  lower strip can sit close to the printed section's edge.
+- A signed-out visitor's console shows two 401 responses from the existing session check in the root layout
+  (`/api/me`, `/api/session`), as on every page.
 
 ## Gap closure in this round (owner request of 17 October 2026)
 

@@ -81,23 +81,33 @@ async function loginReady(user, opts = {}) {
  * 1000 or more, always in a later second than the OTP step. (Keycloak keeps a method in amr only while it is
  * within the authentication reference's max age, counted in whole seconds; see P-10.) Playwright does not
  * intercept a request reached by a redirect, so the form POST that completes the sign-in is sent from here and
- * its 302 handed to the browser once held. Returns the hold durations in ms, one per held redirect.
+ * its 302 handed to the browser once held. Playwright cannot fulfill a request with a redirect status in WebKit,
+ * so there the held redirect is handed over as a Keycloak-origin page linking to the same callback URL, which
+ * keycloakLogin follows (the response's cookies are already in the context: route.fetch shares its cookie jar).
+ * Returns the hold durations in ms, one per held redirect; release() throws the first error the handler met.
  */
 async function holdCallback(context, ms) {
-  const held = [];
+  const held = [], errors = [];
   const pattern = `${L.KC}/realms/clearsettle/login-actions/**`;
   const handler = async (route) => {
-    if (route.request().method() !== "POST") return route.continue();
-    const response = await route.fetch({ maxRedirects: 0 });
-    if (response.status() === 302 && (response.headers().location || "").startsWith(`${L.APP}/login/oauth2/code/`)) {
-      const at = Date.now();
-      while (Date.now() - at < ms) await L.sleep(ms - (Date.now() - at)); // a timer may fire a little early
-      held.push(Date.now() - at);
+    try {
+      if (route.request().method() !== "POST") return await route.continue();
+      const response = await route.fetch({ maxRedirects: 0 });
+      const location = response.headers().location || "";
+      if (response.status() === 302 && location.startsWith(`${L.APP}/login/oauth2/code/`)) {
+        const at = Date.now();
+        while (Date.now() - at < ms) await L.sleep(ms - (Date.now() - at)); // a timer may fire a little early
+        held.push(Date.now() - at);
+        if (BROWSER === "webkit") return await route.fulfill({ status: 200, contentType: "text/html", body: L.heldRedirectPage(location) });
+      }
+      await route.fulfill({ response });
+    } catch (e) {
+      errors.push(e);
+      await route.abort().catch(() => {});
     }
-    await route.fulfill({ response });
   };
   await context.route(pattern, handler);
-  return { held, release: () => context.unroute(pattern, handler) };
+  return { held, release: async () => { await context.unroute(pattern, handler); if (errors.length) throw errors[0]; } };
 }
 
 /** The authentication-reference configs of the password and OTP forms (cs-ref-pwd, cs-ref-otp) as Keycloak holds them. */

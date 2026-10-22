@@ -1,0 +1,657 @@
+/* Intaglio (D-UI-15). Two material worlds: the die (steel, under a lamp) and the impression (ink on a security tint).
+   The steel seal is a fixed stage behind the first three chapters; the print section rises over it. */
+
+.page {
+  --night: #0b0e11;
+  --die: #1e252b;
+  --burnish-hi: #e2e8eb;   /* text on steel: 15.6:1 on night */
+  --burnish: #cdd5da;      /* body on steel: 13.0:1 */
+  --burnish-2: #a3aeb5;    /* secondary on steel: 8.4:1 */
+  --hair: rgba(205, 213, 218, 0.2);
+  --hair-strong: rgba(205, 213, 218, 0.42);
+  --ink: #0e3d35;          /* text on tint: 9.8:1 */
+  --ink-2: #3c5a53;        /* secondary on tint: 6.3:1 */
+  --tint: #e3e9e5;
+  --underprint: #c5d3cb;
+  --ovi: #5fbf97;          /* explained, on steel: 9.6:1 */
+  --open: #d9a441;         /* open differences, on steel: 9.0:1 */
+  --display: "Bodoni Moda", "Bodoni 72", Didot, Georgia, serif;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", sans-serif;
+  --gutter: max(20px, 4.5vw);
+  background: var(--night);
+  color: var(--burnish-hi);
+  font-family: var(--sans);
+  overflow-x: clip;
+}
+
+.page :focus-visible {
+  outline: 2px solid var(--burnish-hi);
+  outline-offset: 3px;
+}
+
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 10;
+  padding: 10px 14px;
+  background: var(--burnish-hi);
+  color: var(--night);
+  font-weight: 600;
+}
+.skip:focus { top: 12px; }
+
+/* ------------------------------------------------------------------ the stage */
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(120% 90% at 70% 55%, #1a2026 0%, var(--night) 70%);
+}
+.still,
+.gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.still { transition: opacity 900ms cubic-bezier(0.2, 0, 0, 1); }
+.still[data-hidden="true"] { opacity: 0; }
+.gl {
+  opacity: 0;
+  transition: opacity 900ms cubic-bezier(0.2, 0, 0, 1);
+  touch-action: pan-y;
+}
+.gl[data-live="true"] { opacity: 1; }
+.leaders {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.leaders[data-on="true"] { opacity: 1; }
+.leaders line {
+  stroke: rgba(205, 213, 218, 0.26);
+  stroke-width: 1;
+  transition: stroke 200ms ease;
+}
+.leaders line[data-active="true"] { stroke: rgba(226, 232, 235, 0.9); }
+.evidenceTag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  gap: 4px;
+  width: max-content;
+  max-width: 16rem;
+  padding-right: 14px;
+  border-right: 1px solid var(--hair-strong);
+  text-align: right;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.evidenceTag[data-on="true"] { opacity: 1; }
+.evidenceAmount {
+  font-family: var(--display);
+  font-variation-settings: "opsz" 48;
+  font-weight: 600;
+  font-size: 1.9rem;
+  line-height: 1;
+  font-variant-numeric: lining-nums;
+}
+.evidenceStatus { font-size: 0.82rem; line-height: 1.4; color: var(--burnish); }
+.vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* Dense over the text column (the gutter and the 31rem panel), then falling off across the steel. */
+    linear-gradient(90deg, rgba(11, 14, 17, 0.9) 0, rgba(11, 14, 17, 0.82) calc(var(--gutter) + 31rem),
+      rgba(11, 14, 17, 0.4) calc(var(--gutter) + 31rem + 12vw), rgba(11, 14, 17, 0) calc(var(--gutter) + 31rem + 26vw)),
+    linear-gradient(180deg, rgba(11, 14, 17, 0.7) 0, rgba(11, 14, 17, 0) 120px);
+}
+
+/* ------------------------------------------------------------------ header */
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 22px var(--gutter);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--burnish-hi);
+  text-decoration: none;
+  font-family: var(--display);
+  font-variation-settings: "opsz" 28;
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: 0.005em;
+}
+.mark { width: 26px; height: 26px; flex: none; }
+.nav {
+  display: flex;
+  gap: 28px;
+  margin-left: auto;
+}
+.nav a,
+.signIn {
+  color: var(--burnish);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.nav a:hover { color: var(--burnish-hi); text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 1px; }
+.signIn {
+  border: 1px solid var(--hair-strong);
+  padding: 8px 16px;
+  color: var(--burnish-hi);
+}
+.signIn:hover { border-color: var(--burnish-hi); }
+
+/* ------------------------------------------------------------------ hero */
+.hero {
+  position: relative;
+  z-index: 1;
+  min-height: 100svh;
+  display: grid;
+  align-items: end;
+  padding: 120px var(--gutter) clamp(48px, 9vh, 110px);
+  pointer-events: none;
+}
+.heroText {
+  pointer-events: auto;
+  max-width: min(44rem, 50vw);
+}
+.display {
+  font-family: var(--display);
+  font-weight: 500;
+  font-variation-settings: "opsz" 96;
+  font-size: clamp(3.6rem, 0.6rem + 8.8vw, 10.8rem);
+  line-height: 0.88;
+  letter-spacing: -0.028em;
+  margin: 0 0 clamp(24px, 4vh, 44px);
+  color: var(--burnish-hi);
+}
+.display span { display: block; }
+.display span + span { padding-left: 0.62em; }
+.lead {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--burnish);
+  max-width: 33rem;
+  margin: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+.primary,
+.secondary,
+.primaryButton,
+.secondaryButton,
+.printSignIn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 22px;
+  font: 600 1rem/1 var(--sans);
+  text-decoration: none;
+  border-radius: 1px;
+  cursor: pointer;
+}
+.primary,
+.primaryButton {
+  background: var(--burnish-hi);
+  color: var(--night);
+  border: 1px solid var(--burnish-hi);
+}
+.primary:hover,
+.primaryButton:hover { background: #ffffff; }
+.secondary,
+.secondaryButton {
+  background: transparent;
+  color: var(--burnish-hi);
+  border: 1px solid var(--hair-strong);
+}
+.secondary:hover,
+.secondaryButton:hover { border-color: var(--burnish-hi); }
+.note {
+  margin: 18px 0 0;
+  font-size: 0.875rem;
+  color: var(--burnish-2);
+}
+
+/* ------------------------------------------------------------------ chapters over the steel */
+.chapter {
+  position: relative;
+  z-index: 1;
+  min-height: 200vh;
+  padding: 0 var(--gutter);
+  pointer-events: none;
+}
+.panel {
+  position: sticky;
+  top: max(64px, 8vh);
+  max-width: 31rem;
+  padding: 28px 0 48px;
+  pointer-events: auto;
+}
+.heading {
+  font-family: var(--display);
+  font-weight: 500;
+  font-variation-settings: "opsz" 72;
+  font-size: clamp(2.1rem, 1.3rem + 2.3vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: -0.018em;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+.body {
+  margin: 0;
+  color: var(--burnish);
+  line-height: 1.6;
+}
+
+/* the six rings */
+.rings,
+.cases {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--hair);
+}
+.ring {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name amount" "ref amount";
+  column-gap: 16px;
+  width: 100%;
+  padding: 9px 0 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+}
+.ring::before,
+.case::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 6px;
+  height: 1px;
+  background: var(--hair-strong);
+  transition: width 200ms ease, background 200ms ease;
+}
+.ring:hover::before,
+.ring[data-hover="true"]::before,
+.case:hover::before { width: 10px; background: var(--burnish-hi); }
+.ring[aria-pressed="true"]::before,
+.case[aria-pressed="true"]::before { width: 10px; height: 2px; background: var(--burnish-hi); }
+.ringName { grid-area: name; font-weight: 600; font-size: 0.98rem; }
+.ringRef { grid-area: ref; font-family: var(--cond); font-weight: 500; font-size: 0.86rem; color: var(--burnish-2); }
+.ringAmount {
+  grid-area: amount;
+  align-self: center;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.98rem;
+  color: var(--burnish);
+}
+
+.record {
+  margin-top: 18px;
+  min-height: 9.5rem;
+}
+.hint {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--burnish-2);
+}
+.recordSource {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: var(--burnish-2);
+}
+.fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 18px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.fields > div { display: contents; }
+.fields dt { font-family: var(--cond); color: var(--burnish-2); }
+.fields dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.code {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--hair);
+  background: rgba(11, 14, 17, 0.6);
+  font: 0.8rem/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  color: var(--burnish);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.journal {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+.journal caption { text-align: left; font-size: 0.82rem; color: var(--burnish-2); padding-bottom: 6px; }
+.journal th,
+.journal td { padding: 4px 0; border-bottom: 1px solid var(--hair); text-align: right; font-weight: 400; }
+.journal th[scope="row"],
+.journal thead th:first-child { text-align: left; }
+.journal thead th { font-family: var(--cond); color: var(--burnish-2); }
+.recordNote {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--burnish);
+}
+.textButton {
+  margin-top: 10px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--burnish-hi);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
+
+/* the lamp */
+.lamp {
+  margin: 22px 0 0;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--hair);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 18px;
+}
+.lamp legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  color: var(--burnish-2);
+}
+.lamp label { display: grid; gap: 6px; font-size: 0.82rem; color: var(--burnish); }
+.lamp input[type="range"] {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  accent-color: var(--burnish-hi);
+  cursor: pointer;
+}
+
+/* the cases */
+.case {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 0 9px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--hair);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+}
+.case[aria-pressed="true"] { font-weight: 600; }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.status[data-status="explained"] { color: var(--ovi); }
+.status[data-status="agrees"] { color: var(--burnish); }
+.status[data-status="open"] { color: var(--open); }
+
+.detail { margin-top: 18px; }
+.compare { margin: 0; display: grid; gap: 0; }
+.compare > div {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label amount" "meta amount";
+  column-gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hair);
+}
+.compare dt { grid-area: label; font-weight: 600; font-size: 0.95rem; }
+.compare .meta { grid-area: meta; margin: 0; font-family: var(--cond); font-size: 0.84rem; color: var(--burnish-2); }
+.compare .amount {
+  grid-area: amount;
+  align-self: center;
+  margin: 0;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 1rem;
+}
+.part dt { font-weight: 400; color: var(--burnish); padding-left: 14px; }
+.part[data-applied="true"] .amount { color: var(--ovi); }
+.difference dt { font-family: var(--display); font-variation-settings: "opsz" 36; font-weight: 600; font-size: 1.15rem; }
+.difference .amount { font-family: var(--display); font-variation-settings: "opsz" 36; font-weight: 600; font-size: 1.3rem; }
+.why {
+  margin: 14px 0 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--burnish);
+}
+.why .status { margin-right: 6px; vertical-align: -2px; }
+.caseActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.message {
+  min-height: 2.6em;
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--burnish-hi);
+}
+
+/* ------------------------------------------------------------------ the print */
+.print {
+  position: relative;
+  z-index: 2;
+  background:
+    repeating-linear-gradient(0deg, rgba(14, 61, 53, 0.035) 0 1px, transparent 1px 5px),
+    var(--tint);
+  color: var(--ink);
+  padding: clamp(56px, 10vh, 120px) var(--gutter);
+}
+.plateMark {
+  position: relative;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 72px);
+  /* An intaglio plate presses its edge into the paper: a debossed rectangle around the print. */
+  box-shadow:
+    inset 1px 1px 0 rgba(14, 61, 53, 0.16),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.85),
+    1px 1px 0 rgba(255, 255, 255, 0.85),
+    -1px -1px 0 rgba(14, 61, 53, 0.1);
+}
+.plateMark::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+.impression {
+  float: right;
+  width: min(52vw, 620px);
+  aspect-ratio: 1;
+  shape-outside: circle(50%);
+  shape-margin: 24px;
+  margin: 0 calc(-1 * clamp(28px, 5vw, 72px)) 24px 32px;
+  display: block;
+}
+.printHeading {
+  font-family: var(--display);
+  font-weight: 500;
+  font-variation-settings: "opsz" 72;
+  font-size: clamp(2rem, 1.2rem + 2.4vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.018em;
+  margin: 0 0 20px;
+  text-wrap: balance;
+  max-width: 16ch;
+}
+.printLead {
+  margin: 0 0 28px;
+  max-width: 34rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+.todayGroup { margin-bottom: 26px; max-width: 34rem; }
+.todayGroup h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.todayGroup h3::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(14, 61, 53, 0.3);
+}
+.todayGroup ul { margin: 0; padding-left: 18px; line-height: 1.55; }
+.todayGroup li { margin-bottom: 4px; }
+.todayGroup li::marker { color: var(--ink-2); }
+.printActions { margin-top: 30px; }
+.printSignIn {
+  background: var(--ink);
+  color: var(--tint);
+  border: 1px solid var(--ink);
+}
+.printSignIn:hover { background: #082a24; }
+.print :focus-visible { outline-color: var(--ink); }
+
+.footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  padding: 28px var(--gutter) 40px;
+  background: var(--tint);
+  color: var(--ink-2);
+  border-top: 1px solid rgba(14, 61, 53, 0.18);
+  font-size: 0.9rem;
+}
+.footer p { margin: 0; }
+.footerBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-variation-settings: "opsz" 28;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+.footerBrand .mark { width: 20px; height: 20px; }
+
+/* ------------------------------------------------------------------ narrow screens: the seal above, text below */
+/* Narrow screens: the steel is pinned across the top half and the chapters scroll beneath it, so the artwork stays in
+   view while it is being used and no text ever sits on the engraving. */
+@media (max-width: 860px), (max-aspect-ratio: 19/20) {
+  .stage {
+    bottom: auto;
+    height: 50svh;
+    z-index: 2;
+    border-bottom: 1px solid var(--hair);
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+  }
+  .vignette {
+    background:
+      linear-gradient(180deg, rgba(11, 14, 17, 0.7) 0, rgba(11, 14, 17, 0) 96px),
+      linear-gradient(0deg, rgba(11, 14, 17, 0.55) 0, rgba(11, 14, 17, 0) 64px);
+  }
+  .leaders { display: none; }
+  .header { z-index: 4; }
+  .nav { display: none; }
+  .signIn { margin-left: auto; }
+  .hero {
+    min-height: auto;
+    align-items: start;
+    padding-top: calc(50svh + 32px);
+  }
+  .heroText { max-width: 40rem; }
+  .chapter {
+    min-height: auto;
+    padding-top: 0;
+    scroll-margin-top: 50svh;
+  }
+  .panel {
+    position: relative;
+    top: 0;
+    max-width: none;
+    padding: 40px 0 72px;
+    border-top: 1px solid var(--hair);
+  }
+  .print,
+  .footer { z-index: 3; }
+  .impression {
+    float: none;
+    width: min(100%, 520px);
+    margin: 0 auto 28px;
+    shape-outside: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .display { font-size: clamp(3rem, 15vw, 4.6rem); }
+  .display span + span { padding-left: 0.4em; }
+  .lamp { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .still,
+  .gl,
+  .leaders,
+  .leaders line,
+  .ring::before,
+  .case::before { transition: none; }
+}

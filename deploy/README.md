@@ -197,6 +197,7 @@ node longrun.mjs chromium              # ~17 min: 15-min idle, 5-min freshness, 
                                        # sensitive actions, production values
 node longrun-provider.mjs chromium     # ~35 min: a ClearSettle session outliving its Keycloak session (LR-05)
 node engine-samesite-probe.mjs        # which engines enforce SameSite (no stack needed)
+node landing.mjs chromium             # the landing page /welcome/ (D-UI-15), any engine; no sign-in, no realm change
 bash ../deploy/f1-logging-regression.sh https://localhost:8443 clearsettle-proxy clearsettle-backend --with-upstream-failure
 ```
 
@@ -207,12 +208,22 @@ defaults, and `B-11` and `H-10` set the authentication references' max age to 0.
 a `finally`. If a run is killed during one, `P-06` (ACR defaults) or `P-10` (max age) on the next Chromium run
 shows whether a restore is needed. A sign-in helper retries only after the sign-in that enrols the
 authenticator, which gets no session by design; any other refused sign-in fails the test.
+`B-09`, `B-11`, `H-09` and `H-10` hold Keycloak's redirect to the callback for 3 s. Playwright cannot fulfil an
+intercepted request with a redirect status in WebKit, so there the held redirect is handed over as a page with
+one link to the same callback URL, which the sign-in helper follows.
 Every run starts with the preflight `A-01`: the proxy serves the app shell, its script runs against the
 API and shows the sign-in screen, and anonymous visits create no server-side session. Group `U` drives the
 application shell itself: the review page, return to the page asked for after sign-in, the idle warning (the
 browser clock is advanced, so it takes seconds), an external deep link under `SameSite=Strict`, and sign out
 everywhere from the Security page. `B-08` locks a dedicated test user at the IdP and
 clears the lockout afterwards.
+`landing.mjs` (`I-01` to `I-12`) checks the public landing page, the Intaglio prototype: loads and reloads,
+keyboard order, a first frame complete before WebGL, exploring the seal by keyboard, an open difference that
+cannot be closed and an explained one that closes with its evidence, choosing a ring by pointer and by touch,
+reduced motion, no rendering while idle, the 2D still carrying every state without WebGL, the contrast of
+every line of text over the steel as the light moves (at two window sizes), the pinned stage on a phone, and
+the plain statement of what exists today. It needs only the proxy serving `frontend/out`. In Chromium on Windows it asks for Direct3D (`--use-angle=d3d11`),
+because headless Chromium otherwise draws WebGL in software, which the page deliberately refuses.
 
 The backend's PostgreSQL tests (user provisioning under concurrent first sign-ins; single-use confirmation
 under concurrency; the step-up's session lookup on the real Spring Session repository; back-channel logout on
@@ -224,7 +235,9 @@ behaviour behind defect 12; it depends on PostgreSQL's query plan, so it is not 
 
 Result statuses: `PASS`, `FAIL`, `ERROR` (the test could not run), `ENGINE-LIMITATION` (a browser-jar
 SameSite assertion in an engine shown by the probe not to implement SameSite: Playwright WebKit on
-Windows) and `NOT-OBSERVABLE` (the engine exposes no `Set-Cookie` headers to the harness). Only `PASS`
+Windows; and `I-02` in WebKit, whose Tab key skips links by default, as Safari's does) and `NOT-OBSERVABLE`
+(the engine shows the harness no `Set-Cookie` response headers, or no `Cookie` request headers; or, for the
+landing checks, the engine cannot run, or cannot be denied, GPU WebGL here). Only `PASS`
 counts as verified.
 
 ## F-1 logging regression

@@ -36,7 +36,7 @@
 | M8 | Reporting, exports and notifications | M5, M6 (M7 for event-based reports) | Parts of M9 |
 | M9 | Data lifecycle, security hardening, operational recovery | M2 (storage), M8 | Parts of M8 |
 | M10 | Release verification against the MVP release gate | M1 to M9 | — |
-| (later) | Marketing landing page (D-DEF-01) | M10 and separate authorization | — |
+| (authorized 20 October 2026) | Marketing landing page (D-DEF-01; the owner waived its end-to-end condition) | The owner's brief | — |
 
 **Dependency chain:**
 - **Main path:** M0 → M1, then two parallel branches that rejoin at M7:
@@ -513,7 +513,7 @@ These rules preserve `CLAUDE.md` L21–47:
 - **Approval first:** a concrete design proposal is presented and approved before the first screens are built (M1).
 - **Approved specifications win:** approved UI specifications override the skill's general recommendations, and visual changes need approval (D-UI-05).
 - **Validation:** completed UI is checked for usability, responsiveness, accessibility (target per OQ-46) and every workflow state (NFR-UX-005).
-- **Landing page:** it is not built before the core application works end-to-end and the owner gives separate authorization (D-DEF-01).
+- **Landing page:** on 20 October 2026 the owner waived the end-to-end condition and authorized it (D-DEF-01). On 21 October 2026 the owner withdrew the first direction (D-UI-14) and approved "Intaglio" (D-UI-15), built so far as a prototype at `/welcome/` for the owner's review; the rest of the page waits for that review. It changes neither the application's routes nor its sign-in.
 
 ## 9. Repository workflow
 

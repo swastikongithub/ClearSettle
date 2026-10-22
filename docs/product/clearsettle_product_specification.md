@@ -105,7 +105,7 @@ These personas are an **INFERENCE** derived from the five approved roles (D-SEC-
 | Exceptions, manual match and unmatch, risk-based approval | FX conversion reconciliation and FX accounting (D-DEF-06) | Records outside gateway flows (OQ-02) |
 | The accounting foundation: double-entry accrual ledger, Chart of Accounts, templates, journals with independent approval, periods, opening balances, cutover. Posting is limited to approved, evidence-backed payment-related workflows and explicitly supported manual-journal purposes (D-PRD-08). | Full GST calculation, returns and filing (D-DEF-04) | Integration with external accounting software (none approved; treat as out of scope unless approved) |
 | Core accounting and operational reports with coverage disclosures; CSV and XLSX exports | Cash-flow statements, budgeting, forecasting, analytics (D-DEF-07) | — |
-| Five roles, managed OIDC with server-side sessions on one origin (D-SEC-11), MFA for privileged users, tenant isolation, audit trail | Marketing landing page until the core application works end-to-end (D-DEF-01) | — |
+| Five roles, managed OIDC with server-side sessions on one origin (D-SEC-11), MFA for privileged users, tenant isolation, audit trail | Marketing landing page until the core application works end-to-end (D-DEF-01; the owner waived this condition on 20 October 2026, so the landing page is authorized) | — |
 | Background jobs, in-app and email notifications, backups, monitoring, three environments | — | — |
 
 AI/LLM features are excluded by the engineering rule D-PRD-07. They are not one of the seed's deferred items.
@@ -1116,7 +1116,7 @@ Criteria marked (U) test a value or policy that is still open; they are revised 
 ### 13.1 Deferred features
 
 As listed in register §2.13:
-- D-DEF-01: marketing landing page;
+- D-DEF-01: marketing landing page (end-to-end condition waived by the owner, 20 October 2026);
 - D-DEF-02: direct gateway integrations;
 - D-DEF-03: public API;
 - D-DEF-04: full GST compliance;
