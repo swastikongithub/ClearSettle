@@ -6,7 +6,7 @@ of D-UI-13), and a prototype of the public landing page at `/welcome/` (D-UI-15)
 relevant requirement, per the implementation plan §6. A requirement is marked verified only with recorded
 test evidence; the status changes in the same commit as the work it describes.
 
-**Last updated:** 2026-10-22 (the landing page prototype at `/welcome/`, D-UI-15, built on 21 and 22 October, and its checks rerun on the code as committed; before it, on 2026-10-20, backend session revocation: OIDC back-channel logout, verified on two
+**Last updated:** 2026-10-22 (the landing page prototype at `/welcome/`, D-UI-15, built on 21 and 22 October, and its checks rerun on the code as committed; then its portrait and intermediate compositions reworked, and the desktop headline's size and scrim corrected above 1440 pixels, with the checks rerun; before it, on 2026-10-20, backend session revocation: OIDC back-channel logout, verified on two
 instances against PostgreSQL and live against Keycloak; P-09, R-02, M-07, M-08 and the wall-clock LR-05; and a
 realm correction: `amr` keeps `otp` when the code is exchanged after the OTP step, defect 14; then the results
 per browser engine on the final code). Earlier the same
@@ -517,14 +517,14 @@ flow, session handling or security control changed: `/` is still the application
 | Part | What it does | Status and evidence |
 |---|---|---|
 | Route (`app/welcome/page.js`) | A static page in the existing export; `/welcome` redirects to `/welcome/`. Its links do not prefetch the application; Bodoni Moda is preloaded and loaded on this route only | Verified (browser): `I-01` (load, reload, the address without its slash; `/` still shows the sign-in) |
-| Hero | "Six records. One seal.", "Inspect the seal" (in page), "Sign in" (`/`), and the illustrative note, over the steel seal | Verified (browser): `I-02` (keyboard order, visible focus, the skip link), `I-10` (contrast) |
+| Hero | "Six records. One seal.", "Inspect the seal" (in page), "Sign in" (`/`), and the illustrative note, over the steel seal. The headline keeps to two lines at every width | Verified (browser): `I-02` (keyboard order, visible focus, the skip link), `I-10` (contrast) |
 | The seal (`components/intaglio/gl/`) | One illustrative payment's six records as six steel rings and a medallion, drawn with `three` and three custom shaders: guilloché computed per pixel from each record's own figures, microtext of the record, its divisions by amount, a latent reference that shows only in low light, numerals in colour-shifting ink, analytic shadows. An opening sequence: the engraving is cut, the rings turn into register outermost first, the notches light | Verified (browser): `I-03` (the first frame before WebGL, then the scene), `I-08` (no frames while idle) |
 | Explore the seal | The ring list (pressed state) opens a ring's record in its source's format with its arithmetic; a loupe reads the microtext; a lamp (two sliders, or the pointer) rakes the steel. Pointer and touch on the rings choose them | Verified (browser): `I-04` (keyboard), `I-06` (pointer and touch) |
 | Investigate a difference | Six cases. An open one stays out of register, its engraving in moiré, and "Try to close it" is refused with the reason; an explained one closes when "Apply the evidence" applies the report's own lines | Verified (browser): `I-05` |
 | Engraving into evidence | "Read the evidence" unrolls the two compared rings into flat strips engraved with their records | Verified (browser): `I-05` (the view opens and closes) |
 | The 2D still (`still.js`) | The same geometry in two dimensions: the first frame, the whole experience without WebGL or after a lost context (every state, including the strips), and, in ink on the tint, the printed impression | Verified (browser): `I-03`, `I-09` |
 | Reduced motion | No opening sequence, no drift, no camera travel: states change directly | Verified (browser): `I-07` |
-| Phone | The steel pinned across the top half; the text scrolls beneath it | Verified (browser): `I-11` |
+| Portrait screens (phones, portrait tablets, near-square windows) | The seal as a vignette: in the opening view the headline is printed over the steel, the seal is cut larger than the screen between the headline and the copy, and the steel fades into the night at the copy's top edge. Scrolling, the steel's lower edge rises with the copy until the seal keeps a window across the top 46% of the screen, and the copy and the chapters pass beneath its soft edge. Portrait tablets set the copy beside its actions | Verified (browser): `I-11` (390 × 844 and 360 × 640), `I-10` (contrast at 390 × 844) |
 | What exists today | Works today, next and planned, as this document states them; the review step is described as guarding only a development fixture | Verified (browser): `I-12`; text checked against this document |
 | Example data (`lib/landingExample.mjs`, `lib/intaglioSeal.mjs`) | Whole paise. Each ring's divisions are its record's own amounts and must sum to it; each case's offset follows from its difference | Verified (unit): `landingExample.test.mjs` 9 tests, `intaglioSeal.test.mjs` 10 tests |
 
@@ -554,7 +554,95 @@ flow, session handling or security control changed: `/` is still the application
   P,B,C,D,E,H,U,R,K,G`: 66 PASS, no FAIL or ERROR.
 - Rendered and reviewed (Chromium): 1440 × 900 in every state, 2560 × 1080, 1280 × 640, 820 × 1180 and 390 × 844;
   no horizontal overflow at any size; contrast also measured at 1366 × 768 and 1920 × 1080. Firefox and WebKit
-  render the same scene.
+  render the same scene. (The portrait rework below was reviewed at more sizes.)
+
+### Portrait and intermediate screens, 22 October
+
+The owner found that the page deteriorated as the window narrowed: on a phone the seal filled a separate box across
+the top half, the headline started below it on plain black, and the steel looked pale and nearly white. The desktop
+composition was to be kept as it is.
+
+What caused the pale steel, found by comparing renders rather than by changing a colour:
+
+- **Resolution.** The guilloché is filtered to the pixel, so it reads only when the seal has enough pixels. A phone
+  showed the seal small and drew it at 1.5x, and its engraving faded to bare polished steel. Compared at 1.5x, 2x
+  and 3x on a 390-pixel phone, it returns from 2x. Portrait screens now draw at up to 2x (wide screens unchanged,
+  at up to 1.6x), and the opening view shows the seal larger than the screen, as the desktop does.
+- **The plate.** Framed for a phone, the turned plate around the seal carried the softbox as a white cone above the
+  seal and the lamp as a hot spot before it. On wide screens the close crop keeps both mostly out of frame. On
+  portrait screens the plate now keeps 30% of the light and falls into the dark room just past the seal's rim. The
+  shader takes this as a uniform; wide screens keep their values.
+- **The scroll mapping.** On portrait screens the opening view was already about 40% of the way to the next
+  chapter's camera when the page was at the top: the first keyframe ignored the offset applied to the scroll
+  position. This dated from the first phone layout. It made the seal small and its 2D still a poor match.
+  Portrait screens now have their own keyframes; wide screens' are unchanged.
+- **Timing.** In the first 1.5 seconds the engraving has not yet been cut, so the rings are bare polished steel. A
+  screenshot taken then shows the seal paler than its settled state. That is the opening sequence, and unchanged.
+
+The camera poses take a zoom, fitted to the layout at run time: the opening view's seal is sized and centred on the
+free band between the headline and the copy, and the chapters' framing fills the seal's window. The 2D still uses
+the same fitting. On wide screens between the layouts (900 × 844 and similar) the headline steps down to keep
+"Six records." on one line of half the window; before, it wrapped to three lines at 900 pixels. (Above 1440 pixels
+this pass first capped it too; see the second pass below.) On portrait screens a ring chosen in "the seal" stays chosen when the reader moves on:
+its record is in the page's flow above the reader, and closing it pulled the text being read up under the window.
+
+Checks on this rework (production build served by the local proxy; on mains power):
+
+- Frontend unit tests: 43 PASS. `npm run build` passes.
+- Landing checks: Chromium 12 PASS; Firefox 12 PASS (touch not emulated); WebKit 10 PASS, `I-02`
+  ENGINE-LIMITATION and `I-09` NOT-OBSERVABLE, as before. `I-11` was rewritten for the new composition, and `I-10`
+  now also measures the header and a 390 × 844 phone, skipping text that has scrolled under the steel. Lowest
+  contrast in Chromium: on the phone, 4.66:1 for the headline over the steel (needs 3:1) and 15.76:1 for "Sign
+  in"; at 1440 × 900, 4.22:1 for the headline and 4.95:1 for the header's links; at 1280 × 640, 4.82:1 for the
+  header's links and 5.45:1 for body text.
+- axe-core 4.10.3, eight states (the three desktop states and the phone in "a difference" as before; a phone's
+  opening view and a chosen ring; a 360 × 640 phone; a 768 × 1024 tablet): 0 violations.
+- Application regression: `node run.mjs chromium A,U`: 7 PASS.
+- Desktop unchanged: with reduced motion (no drift, so frames repeat), the committed build and this one were
+  compared pixel by pixel at 1024 × 844, 1152 × 844, 1280 × 844, 1440 × 900 and 1280 × 640. The opening view is
+  identical. The chapters differ in at most 0.24% of pixels, as sparse specks in the engraving, as much as two runs
+  of the committed build differ from each other (up to 0.19%).
+- Rendered and reviewed after the scene had settled (Chromium; the opening sequence separately): 360, 375, 390 and
+  430 × 844; 360 × 640 and 390 × 664; 768 × 844, 768 × 1024, 820 × 1180 and 1024 × 1366; 900, 1024, 1152 and
+  1280 × 844; 1024 × 640, 1440 × 900, 1920 × 1080, 2560 × 1080 and 844 × 390: the opening view, each chapter, a
+  chosen ring, the evidence, and the printed section on phones and tablets; without WebGL and with reduced motion
+  on a phone. No horizontal overflow at any size.
+
+### Desktop text position, 22 October (second pass)
+
+The owner found the opening view's text a little low on desktop. Against the checkpoint (34028d1), the first pass
+had changed two wide-screen rules, both on the headline: its size was capped to fit a 44rem column, and its lines no
+longer wrapped. At 1440 × 900 and narrower the cap equals the checkpoint's size, and those widths were unchanged.
+From about 1460 pixels the cap held the headline at 138 pixels while the window kept growing. The hero sets its text
+from the bottom, so the smaller block sat lower: at 1920 × 1080 its top fell to 43% of the height, with the block's
+centre 120 pixels below the seal's (62 at 1440).
+
+The rule now: the headline keeps the checkpoint's size, which grows with the window's width up to 10.8rem, and its
+column widens to hold "Six records." on one line, never past half the window. A wider headline reached past the
+scrim, which follows only the chapters' 31rem panel: measured line by line it fell to 1.99:1 at 1920 × 945 (needs
+3:1). So while the opening view is on screen the scrim's edge follows the headline's column; up to 44rem the two are
+the same, the chapters keep the checkpoint's scrim, and the edge eases between them as the reader scrolls.
+
+| Window | Checkpoint | First pass | Now |
+|---|---|---|---|
+| 1440 × 900 | 2 lines, 136 px; top at 35%; block centre +62 px from the seal's | the same | the same |
+| 1536 × 864 | 3 lines, 145 px; 16%; −21 px | 2 lines, 138 px; 32%; +49 px | 2 lines, 145 px; 31%; +43 px |
+| 1680 × 900 | 4 lines, 157 px; 13%; the note below the fold | 2 lines, 138 px; 34%; +61 px | 2 lines, 157 px; 31%; +44 px |
+| 1920 × 945 | 4 lines, 173 px; 13%; the note below the fold | 2 lines, 138 px; 37%; +76 px | 2 lines, 173 px; 30.5%; +45 px |
+| 1920 × 1080, 2560 × 1080 | 4 lines, 173 px; 11%; −44 px | 2 lines, 138 px; 43%; +120 px | 2 lines, 173 px; 37.5%; +89 px |
+
+(The checkpoint and the first pass were measured on the current build with their own headline and column rules
+restored; at 1440 × 900 and 1920 × 1080 that reproduces the checkpoint's own measurements.)
+
+- Unchanged: the opening view at 1024 × 844, 1152 × 844, 1280 × 844, 1440 × 900 and 1280 × 640 is pixel-identical
+  to the checkpoint (reduced motion); the chapters differ only by the usual run-to-run specks (at most 0.21%). The
+  phone compositions at 390 × 844 and 360 × 640 keep the same positions for the headline, the copy and the actions.
+- Contrast of the headline, measured line by line in Chromium: 4.20 to 4.22:1 at 1440 × 900 (as before), 4.56:1 at
+  1536 × 864, 4.65:1 at 1680 × 900, 4.54:1 at 1920 × 945, and 4.97:1 (Firefox 5.00:1, WebKit 4.99:1) at 1920 × 1080 (needs 3:1). `I-10`
+  now also runs at 1920 × 1080.
+- Landing checks on this build: Chromium 12 PASS; Firefox 12 PASS (touch not emulated); WebKit 10 PASS, `I-02` ENGINE-LIMITATION and `I-09` NOT-OBSERVABLE, as before.
+  Re-run on 16 November on a fresh build of the same uncommitted code, with the same results in every engine (and
+  the same `I-10` contrast figures); frontend unit tests 43 PASS.
 - Bundle (production export, gzip): `/welcome/` loads 187.6 KB of script at first, 15.0 KB of it its own; the
   scene is a separate 141.9 KB chunk (561 KB uncompressed), fetched after the first paint and only where WebGL 2
   is drawn by a GPU; Bodoni Moda is 45.2 KB. No application route loads any of them. Measured with Python's `gzip`
@@ -568,16 +656,22 @@ frame (median / 95th percentile):
 
 | | RTX 4060, 1440 × 900 | Intel UHD, 1440 × 900 | Intel UHD, 1440 × 900 at 2x | Intel UHD, 390 × 844 at 3x |
 |---|---|---|---|---|
-| Opening sequence | 60.0 fps; 0.8 / 0.8 ms | 47.4 fps; 16.7 / 34.9 ms | 55.0 fps; 16.6 / 18.7 ms | 60.1 fps; 6.1 / 8.2 ms |
-| Scrolling to the seal | 59.8; 0.7 / 0.8 | 57.9; 13.8 / 18.4 | 58.4; 13.5 / 16.7 | 59.7; 7.1 / 9.6 |
-| A ring chosen (lift and loupe) | 59.0; 1.4 / 2.5 | 49.2; 19.2 / 21.7 | 49.3; 19.3 / 21.5 | 59.7; 10.2 / 15.4 |
+| Opening sequence | 60.0 fps; 0.8 / 0.8 ms | 47.4 fps; 16.7 / 34.9 ms | 55.0 fps; 16.6 / 18.7 ms | 60.1 fps; 7.5 / 8.5 ms |
+| Scrolling to the seal | 59.8; 0.7 / 0.8 | 57.9; 13.8 / 18.4 | 58.4; 13.5 / 16.7 | 59.7; 7.2 / 10.9 |
+| A ring chosen (lift and loupe) | 59.0; 1.4 / 2.5 | 49.2; 19.2 / 21.7 | 49.3; 19.3 / 21.5 | 59.4; 10.7 / 16.3 |
 | The loupe following the pointer | 59.7; 0.9 / 3.7 | 46.8; 19.1 / 21.3 | 46.9; 19.1 / 21.2 | (no pointer on a phone) |
-| A difference (moiré) | 58.0; 2.9 / 3.5 | 50.3; 16.0 / 20.7 | 50.7; 16.0 / 20.7 | 56.9; 7.3 / 10.8 |
-| The evidence unrolling (GPU only) | 3.9 / 4.2 ms | 14.7 / 16.9 ms | 14.7 / 16.8 ms | 7.7 / 9.4 ms |
+| A difference (moiré) | 58.0; 2.9 / 3.5 | 50.3; 16.0 / 20.7 | 50.7; 16.0 / 20.7 | 56.9; 6.6 / 12.6 |
+| The evidence unrolling (GPU only) | 3.9 / 4.2 ms | 14.7 / 16.9 ms | 14.7 / 16.8 ms | 8.3 / 9.2 ms |
 | Nothing changing | 0 frames | 0 frames | 0 frames | 0 frames |
-| First paint; first 3D frame | 0.28 s; 0.74 s | 0.35 s; 0.77 s | 0.29 s; 0.70 s | 0.59 s; 1.01 s |
-| Longest task before the 3D frame | 93 ms | 88 ms | 69 ms | 80 ms |
+| First paint; first 3D frame | 0.28 s; 0.74 s | 0.35 s; 0.77 s | 0.29 s; 0.70 s | 0.30 to 0.46 s; 0.68 to 0.86 s |
+| Longest task before the 3D frame | 93 ms | 88 ms | 69 ms | 77 to 80 ms |
 
+- The phone column was measured again on the portrait composition (four runs, medians shown; 22 October, mains
+  power): its canvas now covers the whole screen instead of the top half, so each frame costs about 10 to 40% more
+  GPU time than before (for example, the drifting lamp 9.7 to 10.6 ms against 7.6 ms), still at about 60 frames
+  a second. Integrated GPUs still draw at 1x. One run, the first after the build, had a 223 ms task before the
+  first 3D frame; the other three had 77 to 80 ms. On the RTX 4060 at the same size, now drawn at 2x: 2.1 to 4.3 ms
+  per frame (medians).
 - The same code on battery (24% charge, 21 October) was slower on the integrated GPU (a ring chosen 42.6 to 45.2
   frames a second, first 3D frame 1.6 to 1.8 s, longest task before it 233 ms): the figures move with the machine's
   power state. On the integrated GPU the timer values sit near 16.7 ms and probably include waiting for the display,
@@ -604,7 +698,13 @@ Known limitations:
   at the lowest resolution) is a judgement, not yet checked on a real slow device.
 - Without WebGL the still shows the microtext as texture; the legible microtext is the scene's, read in the loupe.
   The pointer-following loupe needs a mouse; on touch the loupe shows the chosen ring.
-- On a phone the evidence strips' lettering is small; the same figures are in the text below the stage.
+- On a phone the evidence strips' lettering is small; the same figures are in the text below the seal's window.
+- Phone GPUs named as integrated (Mali, Adreno, PowerVR) start the scene at 1x. At 1x on a dense phone screen the
+  guilloché reads finer and paler than at 2x; untested on a real device.
+- On portrait screens a control that has scrolled under the seal's window cannot be tapped until it is scrolled
+  back below it (as with the earlier pinned stage).
+- A landscape phone (844 × 390) gets the wide composition; its opening view shows the headline and the start of
+  the copy, and the rest scrolls. It was reviewed but not separately art-directed.
 - At 1440 × 900 the "Read the evidence" button sits below the fold of the "a difference" panel; scrolled to it, the
   lower strip can sit close to the printed section's edge.
 - A signed-out visitor's console shows two 401 responses from the existing session check in the root layout

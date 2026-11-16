@@ -11,7 +11,7 @@ import { MEDALLION, OPENING_OFFSETS, REGISTER, RINGS, caseSeal } from "../../../
 import { medallionProfile, plateGeometry, revolve, ringProfile } from "./geometry";
 import { LOUPE_FRAGMENT, LOUPE_VERTEX, PLATE_FRAGMENT, PLATE_VERTEX, RING_FRAGMENT, RING_VERTEX, SHADER_COMMON } from "./shaders";
 import { latentMask, microAtlas, numerals, recordStrip } from "./textures";
-import { FOV, POSES, isNarrow } from "../poses";
+import { FOV, fitPose } from "../poses";
 
 const DEFINES = "#ifndef PI\n#define PI 3.141592653589793\n#endif\n#define TAU 6.283185307179586\n";
 const FRAGMENT_HEAD = "#include <common>\n#include <dithering_pars_fragment>\n";
@@ -55,7 +55,7 @@ class Spring {
   }
 }
 
-const POSE_KEYS = ["dist", "elev", "az", "sx", "sy", "tx", "ty", "tz"];
+const POSE_KEYS = ["dist", "elev", "az", "sx", "sy", "tx", "ty", "tz", "zoom"];
 const CHAPTERS = ["hero", "seal", "difference", "print"];
 
 const steel = new Color(0.62, 0.64, 0.67);
@@ -96,7 +96,7 @@ export function createSealScene(canvas, options = {}) {
 
   // The plate.
   const plateMat = new ShaderMaterial({
-    uniforms: { ...shared, uSteel: { value: steel.clone().multiplyScalar(0.62) }, uWell: { value: 0.985 }, uUnderprint: { value: 1 } },
+    uniforms: { ...shared, uSteel: { value: steel.clone().multiplyScalar(0.62) }, uWell: { value: 0.985 }, uUnderprint: { value: 1 }, uRoom: { value: new Vector4() } },
     vertexShader: PLATE_VERTEX,
     fragmentShader: FRAGMENT_HEAD + SHADER_COMMON + PLATE_FRAGMENT,
     dithering: true,
@@ -228,8 +228,8 @@ export function createSealScene(canvas, options = {}) {
   const medallion = pieces[0];
 
   // Scene-wide springs.
-  const POSE_EPS = { dist: 1e-3, elev: 0.02, az: 0.02, sx: 2e-4, sy: 2e-4, tx: 2e-4, ty: 2e-4, tz: 2e-4 };
-  const pose = Object.fromEntries(POSE_KEYS.map((k) => [k, new Spring(POSES.wide.hero[k], 10, POSE_EPS[k])]));
+  const POSE_EPS = { dist: 1e-3, elev: 0.02, az: 0.02, sx: 2e-4, sy: 2e-4, tx: 2e-4, ty: 2e-4, tz: 2e-4, zoom: 1e-4 };
+  const pose = Object.fromEntries(POSE_KEYS.map((k) => [k, new Spring(fitPose("hero")[k], 10, POSE_EPS[k])]));
   const explode = new Spring(0, 12, 5e-4);
   const lamp = { az: new Spring(212, 22, 0.05), el: new Spring(34, 22, 0.05) };
   let lampDriftUntil = 0;
@@ -262,7 +262,8 @@ export function createSealScene(canvas, options = {}) {
   loupe.scene.add(loupeMesh);
 
   // State from the page.
-  const state = { chapter: "hero", scroll: 0, selected: null, hovered: null, caseId: null, applied: false, evidence: false, narrow: false };
+  const state = { chapter: "hero", scroll: 0, selected: null, hovered: null, caseId: null, applied: false, evidence: false, narrow: false, layout: null };
+  let framed = false; // the camera starts on its first framing instead of travelling to it
   let width = 1;
   let height = 1;
   let opening = reducedMotion ? null : { start: -1 };
@@ -287,7 +288,7 @@ export function createSealScene(canvas, options = {}) {
   }
 
   function poseFor(name) {
-    return (state.narrow ? POSES.narrow : POSES.wide)[name];
+    return fitPose(name, state.layout);
   }
 
   /** Targets from the page's state: what the seal should look like now. */
@@ -405,6 +406,7 @@ export function createSealScene(canvas, options = {}) {
     camera.up.set(0, topDown, 1 - topDown).normalize();
     camera.lookAt(tx, ty, tz);
     camera.aspect = width / height;
+    camera.zoom = pose.zoom.x;
     camera.updateProjectionMatrix();
     camera.projectionMatrix.elements[8] = -pose.sx.x;
     camera.projectionMatrix.elements[9] = -pose.sy.x;
@@ -556,6 +558,7 @@ export function createSealScene(canvas, options = {}) {
     if (loupe.opacity.x < 0.01) return moving;
     loupe.cam.position.copy(camera.position);
     loupe.cam.up.copy(camera.up);
+    loupe.cam.zoom = camera.zoom;
     loupe.cam.lookAt(loupe.point);
     loupe.cam.updateProjectionMatrix();
     renderer.setRenderTarget(loupe.rt);
@@ -770,14 +773,24 @@ export function createSealScene(canvas, options = {}) {
 
   // ---------------------------------------------------------------- public API
   return {
-    resize(w, h, dpr) {
-      width = Math.max(1, w);
-      height = Math.max(1, h);
-      state.narrow = isNarrow(width, height);
+    /** The window's size and composition: { narrow, w, h, band } (see fitPose). */
+    resize(layout, dpr) {
+      width = Math.max(1, layout.w);
+      height = Math.max(1, layout.h);
+      state.narrow = layout.narrow;
+      state.layout = layout;
+      // Wide screens crop the plate close around the seal. A portrait frame shows the plate all around it, where its
+      // turned surface would carry the softbox and the lamp as broad white glares above and before the seal: there
+      // the plate keeps less of the light and falls into the dark room sooner, so the seal's steel keeps the light.
+      plateMat.uniforms.uRoom.value.set(...(layout.narrow ? [1.0, 1.5, 0.97, 0.3] : [1.6, 5.5, 0.88, 1]));
       pixelRatio = pixelRatio === null ? (integrated ? Math.min(dpr, 1) : dpr) : Math.min(pixelRatio, dpr);
       renderer.setPixelRatio(pixelRatio);
       renderer.setSize(width, height, false);
       retarget();
+      if (!framed) {
+        framed = true;
+        for (const key of POSE_KEYS) pose[key].jump(pose[key].target);
+      }
       wake();
     },
     setScroll(value) {

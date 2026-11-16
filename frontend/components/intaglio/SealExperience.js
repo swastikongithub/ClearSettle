@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CASES, caseDifference, inr } from "../../lib/landingExample.mjs";
 import { RINGS, RING_NOTES, caseSeal } from "../../lib/intaglioSeal.mjs";
 import { webglTier } from "./gl/probe";
-import { stillFrame } from "./poses";
+import { NARROW_QUERY, WINDOW_SHARE, stillFrame } from "./poses";
 import { RecordView } from "./records";
 import { drawSeal } from "./still";
 import s from "./intaglio.module.css";
@@ -35,24 +35,44 @@ function Status({ status }) {
 }
 
 const prefersReduced = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const dpr = (narrow) => Math.min(window.devicePixelRatio || 1, narrow ? 1.5 : 1.6);
+// Drawing resolution. The guilloché is filtered to the pixel, so it reads only when the seal has enough pixels: a
+// portrait screen shows the seal smaller than a wide one, and at 1.5x its engraving fades to bare polished steel
+// (compared at 1.5x, 2x and 3x on a 390-pixel phone), so it is drawn at up to 2x there. Slow GPUs still step down.
+const dpr = (narrow) => Math.min(window.devicePixelRatio || 1, narrow ? 2 : 1.6);
 const stageBox = (el) => {
   const r = el?.getBoundingClientRect();
   return r && r.width > 0 ? { w: r.width, h: r.height } : { w: window.innerWidth, h: window.innerHeight };
 };
-// The stage covers the whole window on wide screens and only its top on narrow ones (see the CSS).
-const pinnedTop = (el) => {
-  const { h } = stageBox(el);
-  return h < window.innerHeight - 1 ? h : 0;
-};
-// Leader lines run from the ring list to the rings and end at least this far right, clear of the text. (On narrow
-// screens there are none: the list is below the stage.)
-const leaderEdge = (stage, row) => (stage && row && !pinnedTop(stage) ? row.getBoundingClientRect().right + 34 - stage.getBoundingClientRect().left : 0);
+const isNarrow = () => window.matchMedia(NARROW_QUERY).matches;
+// Leader lines run from the ring list to the rings and end at least this far right, clear of the text. (On portrait
+// screens there are none: the list is below the seal.)
+const leaderEdge = (stage, row) => (stage && row && !isNarrow() ? row.getBoundingClientRect().right + 34 - stage.getBoundingClientRect().left : 0);
 
-/** Scroll position → a continuous chapter value (0 hero, 1 seal, 2 difference, 3 print), with holds while reading. */
-function chapterValue(vh, stageTop) {
-  // On narrow screens the stage covers the top of the window, so reading happens below it.
-  const y = window.scrollY + stageTop;
+/**
+ * The layout the seal is framed for: the composition, the window's size and, on portrait screens, the opening view's
+ * free band between the headline's last line and the copy (CSS pixels from the top, measured at the top of the page).
+ */
+function measureLayout(stage) {
+  const { w, h } = stageBox(stage);
+  const narrow = isNarrow();
+  let band = null;
+  if (narrow) {
+    const title = document.getElementById("hero-title");
+    const lead = title?.nextElementSibling;
+    if (title && lead) {
+      const y = window.scrollY;
+      band = [title.getBoundingClientRect().bottom + y, lead.getBoundingClientRect().top + y];
+    }
+  }
+  return { narrow, w, h, band };
+}
+
+/**
+ * Scroll position → a continuous chapter value (0 hero, 1 seal, 2 difference, 3 print), with holds while reading. On
+ * portrait screens the chapters are read below the seal's window, so each one arrives as its text reaches the window.
+ */
+function chapterValue(vh, narrow) {
+  const y = window.scrollY;
   const at = (id) => {
     const el = document.getElementById(id);
     return el ? el.getBoundingClientRect().top + y : Infinity;
@@ -60,14 +80,10 @@ function chapterValue(vh, stageTop) {
   const seal = at("seal");
   const diff = at("difference");
   const print = at("today");
-  const keys = [
-    [0, 0],
-    [seal - vh * 0.42, 1],
-    [diff - vh * 0.8, 1],
-    [diff - vh * 0.32, 2],
-    [print - vh * 1.0, 2],
-    [print - vh * 0.1, 3],
-  ];
+  const line = vh * WINDOW_SHARE;
+  const keys = narrow
+    ? [[0, 0], [seal - line, 1], [diff - line - vh * 0.48, 1], [diff - line, 2], [print - vh * 1.0, 2], [print - vh * 0.1, 3]]
+    : [[0, 0], [seal - vh * 0.42, 1], [diff - vh * 0.8, 1], [diff - vh * 0.32, 2], [print - vh * 1.0, 2], [print - vh * 0.1, 3]];
   if (y <= keys[0][0]) return 0;
   for (let i = 1; i < keys.length; i++) {
     const [y1, v1] = keys[i];
@@ -112,7 +128,8 @@ export default function SealExperience() {
     if (!canvas || tierRef.current.live) return;
     const { chapter: ch, selected: sel, caseId: id, applied: ap, evidence: ev } = stateRef.current;
     const pose = ch === "difference" ? "difference" : ch === "seal" ? "seal" : ch === "print" ? "print" : "hero";
-    const { w, h } = stageBox(stageRef.current);
+    const layout = measureLayout(stageRef.current);
+    const { w, h } = layout;
     const state = {
       caseId: ch === "difference" ? id : null,
       applied: ap,
@@ -123,10 +140,10 @@ export default function SealExperience() {
     // on screen for about a second before the scene replaces it, so it is drawn at 1x: at 2x an integrated GPU takes
     // 0.3 to 1.5 s to rasterize its engraving (measured), which holds up the scene behind it.
     const res = tierRef.current.tier === "still" ? 2 : 1;
-    const key = JSON.stringify([pose, w, h, res, state, document.fonts?.status]);
+    const key = JSON.stringify([pose, layout, res, state, document.fonts?.status]);
     if (key === drawnRef.current) return;
     drawnRef.current = key;
-    drawSeal(canvas, stillFrame(pose === "seal" ? "difference" : pose, w, h), state, "steel", res);
+    drawSeal(canvas, stillFrame(pose === "seal" ? "difference" : pose, w, h, layout), state, "steel", res);
   }, []);
 
   useEffect(() => {
@@ -229,8 +246,8 @@ export default function SealExperience() {
       performance.mark("seal:created");
       sceneRef.current = scene;
       setTier("gl");
-      const box = stageBox(stageRef.current);
-      scene.resize(box.w, box.h, dpr(box.w / box.h < 0.95));
+      const layout = measureLayout(stageRef.current);
+      scene.resize(layout, dpr(layout.narrow));
       scene.setLeaderMinX(leaderEdge(stageRef.current, rowRefs.current[0]));
       scene.setState(stateRef.current);
       scene.setScroll(scrollRef.current);
@@ -257,7 +274,18 @@ export default function SealExperience() {
     let frame = 0;
     const update = () => {
       frame = 0;
-      const value = chapterValue(window.innerHeight, pinnedTop(stageRef.current));
+      const stage = stageRef.current;
+      if (stage && isNarrow()) {
+        // The steel ends where the opening view's copy begins; its lower edge rises with the copy until the seal keeps
+        // its window across the top of the screen.
+        const copy = document.getElementById("hero-title")?.nextElementSibling;
+        const top = copy ? copy.getBoundingClientRect().top + 8 : window.innerHeight;
+        const floor = window.innerHeight * WINDOW_SHARE;
+        stage.style.setProperty("--window", `${Math.round(Math.max(floor, Math.min(window.innerHeight + 64, top)))}px`);
+      } else if (stage) {
+        stage.style.removeProperty("--window");
+      }
+      const value = chapterValue(window.innerHeight, isNarrow());
       scrollRef.current = value;
       sceneRef.current?.setScroll(value);
       const next = CHAPTERS[Math.min(3, Math.round(value))];
@@ -267,13 +295,15 @@ export default function SealExperience() {
       if (!frame) frame = requestAnimationFrame(update);
     };
     const onResize = () => {
-      const box = stageBox(stageRef.current);
-      sceneRef.current?.resize(box.w, box.h, dpr(box.w / box.h < 0.95));
+      const layout = measureLayout(stageRef.current);
+      sceneRef.current?.resize(layout, dpr(layout.narrow));
       sceneRef.current?.setLeaderMinX(leaderEdge(stageRef.current, rowRefs.current[0]));
       drawStill();
       onScroll();
     };
     update();
+    // The headline's display face changes its height, and with it the band the seal is framed in.
+    document.fonts?.ready.then(onResize);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => {
@@ -283,9 +313,11 @@ export default function SealExperience() {
     };
   }, [drawStill]);
 
-  // Leaving a chapter clears what was chosen in it.
+  // Leaving a chapter clears what was chosen in it. On portrait screens a chosen ring stays chosen: its record is in the
+  // page's flow above the reader, and closing it would pull the text being read up under the seal's window. (The
+  // scene shows a chosen ring only in its own chapter.)
   useEffect(() => {
-    if (chapter !== "seal") setSelected(null);
+    if (chapter !== "seal" && !isNarrow()) setSelected(null);
     if (chapter !== "difference") setEvidence(false);
     if (chapter === "hero") sceneRef.current?.drift(16000);
   }, [chapter]);
@@ -315,7 +347,7 @@ export default function SealExperience() {
 
   return (
     <>
-      <div ref={stageRef} className={s.stage} aria-hidden="true">
+      <div ref={stageRef} className={s.stage} data-view={chapter === "hero" ? "hero" : "chapter"} aria-hidden="true">
         <canvas ref={stillRef} className={s.still} data-hidden={tier === "gl" && glVisible ? "true" : "false"} />
         <canvas ref={glRef} className={s.gl} data-live={glVisible ? "true" : "false"} />
         <svg className={s.leaders} data-on={chapter === "seal" && tier === "gl" && glVisible ? "true" : "false"}>

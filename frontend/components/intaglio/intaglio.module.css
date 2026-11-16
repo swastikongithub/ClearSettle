@@ -19,6 +19,10 @@
   --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", sans-serif;
   --gutter: max(20px, 4.5vw);
+  /* The hero's headline grows with the window's width. Its column is wide enough to keep "Six records." (5.08 em) on
+     one line, and never wider than half the window. */
+  --display-size: clamp(3.6rem, 0.6rem + 8.8vw, 10.8rem);
+  --text-column: min(50vw, max(44rem, var(--display-size) * 5.15));
   background: var(--night);
   color: var(--burnish-hi);
   font-family: var(--sans);
@@ -106,16 +110,28 @@
   font-variant-numeric: lining-nums;
 }
 .evidenceStatus { font-size: 0.82rem; line-height: 1.4; color: var(--burnish); }
+/* Registered, so the scrim's edge can ease between the hero's text column and the chapters' panel. */
+@property --scrim-edge {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
 .vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  /* The chapters' text column: the gutter and the 31rem panel. */
+  --scrim-edge: calc(var(--gutter) + 31rem);
+  transition: --scrim-edge 700ms cubic-bezier(0.2, 0, 0, 1);
   background:
-    /* Dense over the text column (the gutter and the 31rem panel), then falling off across the steel. */
-    linear-gradient(90deg, rgba(11, 14, 17, 0.9) 0, rgba(11, 14, 17, 0.82) calc(var(--gutter) + 31rem),
-      rgba(11, 14, 17, 0.4) calc(var(--gutter) + 31rem + 12vw), rgba(11, 14, 17, 0) calc(var(--gutter) + 31rem + 26vw)),
+    /* Dense over the text column, then falling off across the steel. */
+    linear-gradient(90deg, rgba(11, 14, 17, 0.9) 0, rgba(11, 14, 17, 0.82) var(--scrim-edge),
+      rgba(11, 14, 17, 0.4) calc(var(--scrim-edge) + 12vw), rgba(11, 14, 17, 0) calc(var(--scrim-edge) + 26vw)),
     linear-gradient(180deg, rgba(11, 14, 17, 0.7) 0, rgba(11, 14, 17, 0) 120px);
 }
+/* In the opening view the headline's column sets the edge. Up to 44rem the two are the same; a wider headline (above
+   about 1440 pixels) takes the scrim along with it, so its last letters keep the contrast they have at 1440. */
+.stage[data-view="hero"] .vignette { --scrim-edge: calc(var(--gutter) + max(31rem, var(--text-column) - 13rem)); }
 
 /* ------------------------------------------------------------------ header */
 .header {
@@ -173,19 +189,20 @@
 }
 .heroText {
   pointer-events: auto;
-  max-width: min(44rem, 50vw);
+  max-width: var(--text-column);
 }
 .display {
   font-family: var(--display);
   font-weight: 500;
   font-variation-settings: "opsz" 96;
-  font-size: clamp(3.6rem, 0.6rem + 8.8vw, 10.8rem);
+  /* Where half the window is too narrow for the full size (below about 1050 pixels), the headline steps down to fit. */
+  font-size: min(var(--display-size), calc(var(--text-column) / 5.1));
   line-height: 0.88;
   letter-spacing: -0.028em;
   margin: 0 0 clamp(24px, 4vh, 44px);
   color: var(--burnish-hi);
 }
-.display span { display: block; }
+.display span { display: block; white-space: nowrap; }
 .display span + span { padding-left: 0.62em; }
 .lead {
   font-size: 1.125rem;
@@ -593,43 +610,74 @@
 }
 .footerBrand .mark { width: 20px; height: 20px; }
 
-/* ------------------------------------------------------------------ narrow screens: the seal above, text below */
-/* Narrow screens: the steel is pinned across the top half and the chapters scroll beneath it, so the artwork stays in
-   view while it is being used and no text ever sits on the engraving. */
-@media (max-width: 860px), (max-aspect-ratio: 19/20) {
+/* ------------------------------------------------------------------ portrait screens: the vignette */
+/* Portrait screens (NARROW_QUERY in poses.js) set the seal as a vignette, as an engraved note sets its portrait: the
+   headline above it, the copy below. The steel fills the screen down to the copy and fades into the night at the
+   copy's top edge; the headline is printed over the steel. Below the steel, everything reads on the plain night: the
+   copy, then the chapters. Scrolling, the steel's lower edge (--window, set by SealExperience) rises with the copy
+   until the seal keeps a window across the top of the screen, and the copy and the chapters pass beneath it. So the
+   artwork stays in view while it is being used, and no body text ever sits on the engraving. */
+@media (max-aspect-ratio: 19/20), (max-width: 640px) {
   .stage {
-    bottom: auto;
-    height: 50svh;
     z-index: 2;
-    border-bottom: 1px solid var(--hair);
-    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.5);
+    clip-path: inset(0 0 calc(100% - var(--window, 100%)) 0);
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(var(--window, 100%) - 64px), transparent var(--window, 100%));
+    mask-image: linear-gradient(180deg, #000 calc(var(--window, 100%) - 64px), transparent var(--window, 100%));
   }
-  .vignette {
-    background:
-      linear-gradient(180deg, rgba(11, 14, 17, 0.7) 0, rgba(11, 14, 17, 0) 96px),
-      linear-gradient(0deg, rgba(11, 14, 17, 0.55) 0, rgba(11, 14, 17, 0) 64px);
-  }
+  .vignette { display: none; }
   .leaders { display: none; }
-  .header { z-index: 4; }
+  .header { z-index: 4; padding-top: 18px; padding-bottom: 18px; }
   .nav { display: none; }
-  .signIn { margin-left: auto; }
+  .signIn { margin-left: auto; background: rgba(11, 14, 17, 0.55); }
+  /* The hero makes no layer of its own: its headline is printed over the steel, its copy lies beneath it. */
   .hero {
-    min-height: auto;
-    align-items: start;
-    padding-top: calc(50svh + 32px);
+    z-index: auto;
+    align-items: stretch;
+    padding: 82px var(--gutter) clamp(18px, 3svh, 32px);
   }
-  .heroText { max-width: 40rem; }
+  .heroText {
+    max-width: none;
+    display: grid;
+    /* Headline, the seal's band, then the copy. The band keeps a third of the screen even on a short one. */
+    grid-template-rows: auto minmax(max(150px, 30svh), 1fr) auto auto auto;
+  }
+  .heroText > * { position: relative; z-index: 1; }
+  /* The headline and the plate's shadow under it travel together, over the steel. */
+  .heroText::before {
+    content: "";
+    position: relative;
+    z-index: 2;
+    grid-row: 1;
+    grid-column: 1 / -1;
+    margin: -82px calc(-1 * var(--gutter)) -64px;
+    background: linear-gradient(180deg, rgba(11, 14, 17, 0.86) 0, rgba(11, 14, 17, 0.6) calc(100% - 72px), rgba(11, 14, 17, 0) 100%);
+    pointer-events: none;
+  }
+  .heroText > .display {
+    z-index: 3;
+    grid-row: 1;
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: min(calc((100vw - 2 * var(--gutter)) / 5.3), 9.5rem);
+    line-height: 0.9;
+  }
+  .lead {
+    grid-row: 3;
+    max-width: 34rem;
+    font-size: 1rem;
+    line-height: 1.55;
+  }
+  .actions { grid-row: 4; margin-top: 20px; }
+  .note { grid-row: 5; margin-top: 12px; font-size: 0.8125rem; }
   .chapter {
     min-height: auto;
-    padding-top: 0;
-    scroll-margin-top: 50svh;
+    scroll-margin-top: calc(46svh - 24px);
   }
   .panel {
     position: relative;
     top: 0;
-    max-width: none;
-    padding: 40px 0 72px;
-    border-top: 1px solid var(--hair);
+    max-width: 40rem;
+    padding: 28px 0 72px;
   }
   .print,
   .footer { z-index: 3; }
@@ -641,9 +689,20 @@
   }
 }
 
+/* Portrait tablets: the same vignette with the copy set beside its actions, as a note sets its legend. */
+@media (max-aspect-ratio: 19/20) and (min-width: 700px) {
+  .heroText {
+    grid-template-columns: minmax(0, 30rem) 1fr;
+    column-gap: 40px;
+    grid-template-rows: auto minmax(max(200px, 34svh), 1fr) auto auto;
+  }
+  .display { grid-column: 1 / -1; }
+  .lead { grid-column: 1; grid-row: 3 / 5; font-size: 1.0625rem; }
+  .actions { grid-column: 2; grid-row: 3; align-self: start; justify-self: end; margin-top: 4px; }
+  .note { grid-column: 2; grid-row: 4; justify-self: end; text-align: right; align-self: end; }
+}
+
 @media (max-width: 520px) {
-  .display { font-size: clamp(3rem, 15vw, 4.6rem); }
-  .display span + span { padding-left: 0.4em; }
   .lamp { grid-template-columns: 1fr; }
 }
 
@@ -653,5 +712,6 @@
   .leaders,
   .leaders line,
   .ring::before,
-  .case::before { transition: none; }
+  .case::before,
+  .vignette { transition: none; }
 }

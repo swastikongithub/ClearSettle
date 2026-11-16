@@ -221,7 +221,8 @@ clears the lockout afterwards.
 keyboard order, a first frame complete before WebGL, exploring the seal by keyboard, an open difference that
 cannot be closed and an explained one that closes with its evidence, choosing a ring by pointer and by touch,
 reduced motion, no rendering while idle, the 2D still carrying every state without WebGL, the contrast of
-every line of text over the steel as the light moves (at two window sizes), the pinned stage on a phone, and
+every line of text in view as the light moves (at three window sizes and on a phone), the phone composition (the
+headline, the seal and the copy on the first screen, then the seal's window above the chapters), and
 the plain statement of what exists today. It needs only the proxy serving `frontend/out`. In Chromium on Windows it asks for Direct3D (`--use-angle=d3d11`),
 because headless Chromium otherwise draws WebGL in software, which the page deliberately refuses.
 

@@ -83,9 +83,11 @@ const waitLive = async (page, ms = 20000) => {
 // The page is interactive once React has hydrated it; the 2D still, drawn on mount, shows that it has (the canvas
 // leaves its default 300-pixel width). A slow engine takes seconds.
 const hydrated = (page) => page.waitForFunction(() => document.querySelector("canvas")?.width !== 300, null, { timeout: 15000 });
+// A section is reached as the page's own links reach it, with its scroll margin (on portrait screens that leaves the
+// seal's window above it).
 const toSection = async (page, id) => {
   await hydrated(page);
-  await page.evaluate((s) => window.scrollTo(0, document.getElementById(s).getBoundingClientRect().top + window.scrollY), id);
+  await page.evaluate((s) => document.getElementById(s).scrollIntoView({ block: "start" }), id);
   await page.waitForTimeout(2500);
 };
 const drawsOver = async (page, ms) => {
@@ -334,12 +336,13 @@ try {
     });
   }
 
-  await test("I-10", "Every line of text over the steel keeps its contrast (4.5:1, large text 3:1): the hero as the light moves, the seal, a chosen ring, a difference; at 1440 x 900 and 1280 x 640", async () => {
+  await test("I-10", "Every line of text in view keeps its contrast (4.5:1, large text 3:1): the header and the hero as the light moves, the seal, a chosen ring, a difference; at 1440 x 900, 1920 x 1080, 1280 x 640 and on a 390 x 844 phone", async () => {
     const results = {};
     const problems = [];
     let gl = true;
-    // 1280 x 640 is the tightest case: the text column reaches furthest across the steel.
-    for (const viewport of [{ width: 1440, height: 900 }, { width: 1280, height: 640 }]) {
+    // 1280 x 640 is the tightest wide case for the chapters' text; at 1920 x 1080 the headline, at its full size,
+    // reaches furthest across the steel. On the phone the headline and the header are printed over the steel.
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }, { width: 1280, height: 640 }, { width: 390, height: 844 }]) {
       const page = await open(browser, { viewport });
       await page.goto(URL, { waitUntil: "networkidle" });
       gl = (await waitLive(page)) && gl;
@@ -365,6 +368,9 @@ try {
             range.selectNodeContents(n);
             for (const q of range.getClientRects()) {
               if (q.width < 2 || q.bottom < 0 || q.top > window.innerHeight) continue;
+              // Text that has scrolled under the steel (on portrait screens, beneath the seal's window) is not in view.
+              const hit = document.elementFromPoint(Math.min(window.innerWidth - 1, q.left + q.width / 2), Math.min(window.innerHeight - 1, Math.max(0, q.top + q.height / 2)));
+              if (!hit || !(el.contains(hit) || hit.contains(el))) continue;
               out.push({ text: n.textContent.trim().slice(0, 32), x: q.left, y: q.top, w: q.width, h: q.height, lum: 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b), alpha: a, required: large ? 3 : 4.5 });
             }
           }
@@ -396,6 +402,7 @@ try {
       };
       const note = (name, list) => { const key = `${name} @ ${viewport.width}x${viewport.height}`; results[key] = (results[key] ?? []).concat(list); };
       for (let i = 0; i < 3; i++) {
+        note("header", await measure("header"));
         note("hero", await measure("main > section:first-of-type"));
         await page.waitForTimeout(1500);
       }
@@ -419,27 +426,60 @@ try {
     return { ok: failing.length === 0 && problems.length === 0, detail: { gl, lowest, failing: failing.slice(0, 8), problems } };
   });
 
-  await test("I-11", "On a phone the steel is pinned across the top, the text starts below it, and nothing scrolls sideways", async () => {
-    const page = await open(browser, { viewport: { width: 390, height: 844 } });
-    await page.goto(URL, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1500);
-    const stageTop = () => page.evaluate(() => document.querySelector("canvas").parentElement.getBoundingClientRect().top);
-    const r = await page.evaluate(() => {
-      const stage = document.querySelector("canvas").parentElement.getBoundingClientRect();
-      return {
-        stage: [Math.round(stage.top), Math.round(stage.height)],
-        h1Top: Math.round(document.querySelector("h1").getBoundingClientRect().top),
-        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        navHidden: getComputedStyle(document.querySelector("header nav")).display === "none",
-      };
-    });
-    await page.evaluate(() => window.scrollTo(0, 1200));
-    await page.waitForTimeout(400);
-    const pinned = await stageTop();
-    const problems = page.problems;
-    await page.context().close();
-    const ok = r.stage[0] === 0 && r.stage[1] > 380 && r.stage[1] < 460 && r.h1Top > r.stage[1] && r.overflow === 0 && r.navHidden && pinned === 0 && problems.length === 0;
-    return { ok, detail: { ...r, pinnedAfterScroll: pinned, problems } };
+  await test("I-11", "On a phone the headline, the seal and the copy share the first screen; following Inspect the seal, the seal keeps a window above the chapter's text; nothing scrolls sideways", async () => {
+    const out = {};
+    const problems = [];
+    for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 640 }]) {
+      const page = await open(browser, { viewport });
+      await page.goto(URL, { waitUntil: "networkidle" });
+      await hydrated(page);
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(800);
+      // Whether the element itself (not the steel over it) is what a tap at its centre reaches.
+      const first = await page.evaluate(() => {
+        const box = (el) => el.getBoundingClientRect();
+        const reached = (el) => { const b = box(el); const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return Boolean(hit && (el.contains(hit) || hit.contains(el))); };
+        const stage = box(document.querySelector("canvas").parentElement);
+        const h1 = box(document.querySelector("h1"));
+        const lead = document.querySelector("h1 + p");
+        const inspect = [...document.querySelectorAll("main a")].find((a) => a.textContent === "Inspect the seal");
+        return {
+          stage: [Math.round(stage.top), Math.round(stage.height)],
+          h1: [Math.round(h1.top), Math.round(h1.bottom)],
+          band: Math.round(box(lead).top - h1.bottom),
+          inspectBottom: Math.round(box(inspect).bottom),
+          window: parseFloat(getComputedStyle(document.querySelector("canvas").parentElement).getPropertyValue("--window")),
+          leadTop: Math.round(box(lead).top),
+          reached: { headline: reached(document.querySelector("h1")), lead: reached(lead), inspect: reached(inspect), signIn: reached(document.querySelector("header a[href='/']")) },
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          navHidden: getComputedStyle(document.querySelector("header nav")).display === "none",
+        };
+      });
+      await page.getByRole("link", { name: "Inspect the seal" }).click();
+      await page.waitForTimeout(2500);
+      const chapter = await page.evaluate(() => {
+        const heading = document.getElementById("seal-title");
+        const b = heading.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + 10, b.top + b.height / 2);
+        return {
+          window: parseFloat(getComputedStyle(document.querySelector("canvas").parentElement).getPropertyValue("--window")),
+          headingTop: Math.round(b.top),
+          headingReached: Boolean(hit && heading.contains(hit)),
+          sealInWindow: document.elementFromPoint(window.innerWidth / 2, window.innerHeight * 0.2)?.tagName === "CANVAS",
+          stageTop: Math.round(document.querySelector("canvas").parentElement.getBoundingClientRect().top),
+        };
+      });
+      problems.push(...page.problems);
+      await page.context().close();
+      const h = viewport.height;
+      const ok = first.stage[0] === 0 && first.stage[1] === h && first.h1[0] < h * 0.2 && first.band >= h * 0.3
+        && first.inspectBottom <= h && first.window >= first.leadTop && Object.values(first.reached).every(Boolean)
+        && first.overflow === 0 && first.navHidden
+        && Math.abs(chapter.window - Math.round(h * 0.46)) <= 1 && chapter.headingTop >= chapter.window - 1 && chapter.headingReached
+        && chapter.sealInWindow && chapter.stageTop === 0;
+      out[`${viewport.width}x${h}`] = { ok, first, chapter };
+    }
+    return { ok: Object.values(out).every((v) => v.ok) && problems.length === 0, detail: { ...out, problems } };
   });
 
   await test("I-12", "What exists today is stated plainly; the review step is described as guarding only a development fixture", async () => {

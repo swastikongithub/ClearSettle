@@ -500,6 +500,7 @@ export const PLATE_FRAGMENT = /* glsl */ `
 uniform vec3 uSteel;
 uniform float uWell;          // radius of the well the seal sits in
 uniform float uUnderprint;
+uniform vec4 uRoom;           // the plate falls into the dark room: from radius, to radius, how far; the light it keeps
 varying vec3 vWorld;
 varying vec3 vLocal;
 varying vec3 vN;
@@ -554,7 +555,7 @@ void main() {
   vec3 Fv = uSteel + (1.0 - uSteel) * pow(1.0 - NoV, 5.0);
   vec3 env = studio(R, 0.3) * Fv;
 
-  vec3 col = spec * 0.9 + env * 0.7;
+  vec3 col = (spec * 0.9 + env * 0.7) * uRoom.w;
   col = mix(col, vec3(0.006, 0.007, 0.008) + spec * 0.05, under * 0.8);
 
   // The well under the seal is dark; its wall catches a little light.
@@ -562,7 +563,7 @@ void main() {
   if (wall) col *= 0.6;
 
   // Fall away from the seal, so the plate reads as one object in a dark room.
-  col *= 1.0 - smoothstep(1.6, 5.5, r) * 0.88;
+  col *= 1.0 - smoothstep(uRoom.x, uRoom.y, r) * uRoom.z;
 
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
